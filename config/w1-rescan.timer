@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodic 1-Wire rescan
+
+[Timer]
+OnBootSec=5s
+OnUnitActiveSec=1s
+AccuracySec=100ms
+
+[Install]
+WantedBy=timers.target

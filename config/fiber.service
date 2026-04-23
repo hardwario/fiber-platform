@@ -1,0 +1,21 @@
+# FIBER Application — Systemd Service (Dev Platform)
+# Simplified from production: no ds2482-init, no key generation
+
+[Unit]
+Description=FIBER Application (Dev Platform)
+After=network.target mosquitto.service
+Wants=network.target mosquitto.service
+
+[Service]
+Type=simple
+User=root
+ExecStartPre=/bin/mkdir -p /data/fiber/config /data/fiber/backups
+ExecStart=/opt/fiber/fiber_app
+WorkingDirectory=/opt/fiber
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

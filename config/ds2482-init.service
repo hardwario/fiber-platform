@@ -1,0 +1,10 @@
+[Unit]
+Description=DS2482 I2C-to-1Wire Bridge Init
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/ds2482-init.sh
+
+[Install]
+WantedBy=multi-user.target

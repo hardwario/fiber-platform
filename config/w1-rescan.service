@@ -1,0 +1,6 @@
+[Unit]
+Description=Rescan 1-Wire bus
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/w1-rescan.sh

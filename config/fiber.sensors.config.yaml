@@ -1,0 +1,82 @@
+# FIBER Sensor Configuration — Dev Platform
+# 8 DS18B20 sensor lines with temperature alarm thresholds
+#
+# 6-level threshold hierarchy:
+#   Critical Low (18) < Alarm Low (opt) < Warning Low (27) < [NORMAL] < Warning High (38.5) < Alarm High (opt) < Critical High (41)
+#
+# alarm_low and alarm_high are optional — omit them or set to 0/100 to use the simpler 4-level system
+
+alarm_patterns:
+  warning:
+    led_color: yellow
+    led_blink: slow
+    buzzer_enabled: true
+    buzzer_pattern: critical
+
+  alarm:
+    led_color: red
+    led_blink: steady
+    buzzer_enabled: false
+    buzzer_pattern: none
+
+  critical:
+    led_color: red
+    led_blink: fast
+    buzzer_enabled: true
+    buzzer_pattern: critical
+
+  disconnected:
+    led_color: red
+    led_blink: slow
+    buzzer_enabled: true
+    buzzer_pattern: disconnected
+
+  buzzer_critical_timing:
+    on_ms: 500
+    off_ms: 500
+
+  buzzer_disconnected_timing:
+    on_ms: 1000
+    off_ms: 2000
+
+common_alarms:
+  critical_low_celsius: 18.0
+  alarm_low_celsius: 0.0
+  warning_low_celsius: 27.0
+  warning_high_celsius: 38.5
+  alarm_high_celsius: 100.0
+  critical_high_celsius: 41.0
+  reconnect_blinks: 5
+
+lines:
+  - line: 0
+    enabled: true
+    name: "Sensor 1"
+
+  - line: 1
+    enabled: true
+    name: "Sensor 2"
+
+  - line: 2
+    enabled: true
+    name: "Sensor 3"
+
+  - line: 3
+    enabled: true
+    name: "Sensor 4"
+
+  - line: 4
+    enabled: true
+    name: "Sensor 5"
+
+  - line: 5
+    enabled: true
+    name: "Sensor 6"
+
+  - line: 6
+    enabled: true
+    name: "Sensor 7"
+
+  - line: 7
+    enabled: true
+    name: "Sensor 8"

@@ -1,0 +1,1508 @@
+[
+    {
+        "id": "fiber-dashboard-tab",
+        "type": "tab",
+        "label": "FIBER Dashboard",
+        "disabled": false,
+        "info": "FIBER Dev Platform dashboard"
+    },
+    {
+        "id": "mqtt-broker-1",
+        "type": "mqtt-broker",
+        "name": "FIBER MQTT",
+        "broker": "192.168.0.13",
+        "port": "1883",
+        "tls": "",
+        "clientid": "nodered-dashboard",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": "30",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "ui-base-1",
+        "type": "ui-base",
+        "name": "FIBER Dev Platform",
+        "path": "/dashboard",
+        "appIcon": ""
+    },
+    {
+        "id": "theme-1",
+        "type": "ui-theme",
+        "name": "FIBER Theme",
+        "colors": {
+            "surface": "#1a1a2e",
+            "primary": "#0f3460",
+            "bgPage": "#16213e",
+            "groupBg": "#1a1a2e",
+            "groupOutline": "#0f3460"
+        },
+        "sizes": {
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "8px",
+            "widgetGap": "6px"
+        }
+    },
+    {
+        "id": "page-overview",
+        "type": "ui-page",
+        "name": "Overview",
+        "ui": "ui-base-1",
+        "path": "/overview",
+        "icon": "mdi-view-dashboard",
+        "layout": "grid",
+        "theme": "theme-1",
+        "order": 1
+    },
+    {
+        "id": "page-charts",
+        "type": "ui-page",
+        "name": "Charts",
+        "ui": "ui-base-1",
+        "path": "/charts",
+        "icon": "mdi-chart-line",
+        "layout": "grid",
+        "theme": "theme-1",
+        "order": 2
+    },
+    {
+        "id": "page-alarms",
+        "type": "ui-page",
+        "name": "Alarms",
+        "ui": "ui-base-1",
+        "path": "/alarms",
+        "icon": "mdi-alert",
+        "layout": "grid",
+        "theme": "theme-1",
+        "order": 3
+    },
+    {
+        "id": "page-commands",
+        "type": "ui-page",
+        "name": "Commands",
+        "ui": "ui-base-1",
+        "path": "/commands",
+        "icon": "mdi-console",
+        "layout": "grid",
+        "theme": "theme-1",
+        "order": 4
+    },
+    {
+        "id": "group-device",
+        "type": "ui-group",
+        "name": "Device",
+        "page": "page-overview",
+        "width": "6",
+        "height": "1",
+        "order": 1
+    },
+    {
+        "id": "group-system",
+        "type": "ui-group",
+        "name": "System",
+        "page": "page-overview",
+        "width": "6",
+        "height": "1",
+        "order": 2
+    },
+    {
+        "id": "group-sensors",
+        "type": "ui-group",
+        "name": "Sensors",
+        "page": "page-overview",
+        "width": "12",
+        "height": "1",
+        "order": 3
+    },
+    {
+        "id": "group-power",
+        "type": "ui-group",
+        "name": "Power",
+        "page": "page-overview",
+        "width": "6",
+        "height": "1",
+        "order": 4
+    },
+    {
+        "id": "group-network",
+        "type": "ui-group",
+        "name": "Network",
+        "page": "page-overview",
+        "width": "6",
+        "height": "1",
+        "order": 5
+    },
+    {
+        "id": "group-chart",
+        "type": "ui-group",
+        "name": "Temperature",
+        "page": "page-charts",
+        "width": "12",
+        "height": "1",
+        "order": 1
+    },
+    {
+        "id": "group-stats",
+        "type": "ui-group",
+        "name": "Statistics",
+        "page": "page-charts",
+        "width": "12",
+        "height": "1",
+        "order": 2
+    },
+    {
+        "id": "group-alarm-log",
+        "type": "ui-group",
+        "name": "Alarm Log",
+        "page": "page-alarms",
+        "width": "12",
+        "height": "1",
+        "order": 1
+    },
+    {
+        "id": "group-alarm-status",
+        "type": "ui-group",
+        "name": "Alarm Status",
+        "page": "page-alarms",
+        "width": "12",
+        "height": "1",
+        "order": 2
+    },
+    {
+        "id": "group-threshold",
+        "type": "ui-group",
+        "name": "Set Threshold",
+        "page": "page-commands",
+        "width": "6",
+        "height": "1",
+        "order": 1
+    },
+    {
+        "id": "group-buttons",
+        "type": "ui-group",
+        "name": "Commands",
+        "page": "page-commands",
+        "width": "6",
+        "height": "1",
+        "order": 2
+    },
+    {
+        "id": "group-terminal",
+        "type": "ui-group",
+        "name": "MQTT Log",
+        "page": "page-commands",
+        "width": "12",
+        "height": "1",
+        "order": 3
+    },
+    {
+        "id": "0e6160f9ba396bdb",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "@flowfuse/node-red-dashboard": "1.30.2"
+        }
+    },
+    {
+        "id": "mqtt-in-status",
+        "type": "mqtt in",
+        "z": "fiber-dashboard-tab",
+        "name": "Device Status",
+        "topic": "fiber/+/status",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt-broker-1",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 120,
+        "wires": [
+            [
+                "func-parse-status"
+            ]
+        ]
+    },
+    {
+        "id": "func-parse-status",
+        "type": "function",
+        "z": "fiber-dashboard-tab",
+        "name": "Parse Status",
+        "func": "var parts = msg.topic.split('/');\nvar hostname = parts[1];\nvar online = msg.payload.status === 'online';\nflow.set('device_hostname', hostname);\nflow.set('device_online', online);\n\nmsg.payload = (online ? 'ONLINE' : 'OFFLINE') + ' — ' + hostname;\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "x": 330,
+        "y": 120,
+        "wires": [
+            [
+                "ui-txt-status"
+            ]
+        ]
+    },
+    {
+        "id": "ui-txt-status",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-device",
+        "order": 1,
+        "width": "6",
+        "height": "1",
+        "name": "Status",
+        "label": "Status",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 490,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "mqtt-in-sysinfo",
+        "type": "mqtt in",
+        "z": "fiber-dashboard-tab",
+        "name": "System Info",
+        "topic": "fiber/+/system/info",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt-broker-1",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 280,
+        "wires": [
+            [
+                "func-parse-sysinfo"
+            ]
+        ]
+    },
+    {
+        "id": "func-parse-sysinfo",
+        "type": "function",
+        "z": "fiber-dashboard-tab",
+        "name": "Parse System Info",
+        "func": "var info = msg.payload;\nflow.set('latest_sysinfo', info);\n\nvar power = info.power || {};\nvar bat = power.battery || {};\nvar dc = power.dc || {};\nvar net = info.network || {};\nvar wifi = net.wifi || {};\nvar eth = net.ethernet || {};\nvar stor = (info.storage || {}).data_partition || {};\n\n// Output 1: device label\nvar msg1 = { payload: info.device_label || '--' };\n\n// Output 2: firmware\nvar msg2 = { payload: info.firmware_version || '--' };\n\n// Output 3: uptime\nvar msg3 = { payload: info.uptime_human || '--' };\n\n// Output 4: dev mode\nvar msg4 = { payload: info.dev_mode ? 'YES' : 'NO' };\n\n// Output 5: AC power\nvar msg5 = { payload: dc.connected ? 'Connected' : 'Disconnected' };\n\n// Output 6: battery\nvar batText = (bat.percentage !== undefined ? bat.percentage + '%' : '--');\nif (bat.voltage_mv) batText += ' (' + (bat.voltage_mv / 1000).toFixed(2) + 'V)';\nvar msg6 = { payload: batText };\n\n// Output 7: battery status\nvar msg7 = { payload: bat.status || '--' };\n\n// Output 8: storage\nvar storText = stor.used_percent !== undefined ? stor.used_percent + '% used' : '--';\nif (stor.available_bytes) storText += ' (' + (stor.available_bytes / (1024*1024*1024)).toFixed(1) + 'GB free)';\nvar msg8 = { payload: storText };\n\n// Output 9: wifi\nvar wifiText = wifi.connected ? 'Connected' : 'Disconnected';\nif (wifi.ip) wifiText += ' — ' + wifi.ip;\nif (wifi.signal_dbm) wifiText += ' (' + wifi.signal_dbm + 'dBm)';\nvar msg9 = { payload: wifiText };\n\n// Output 10: ethernet\nvar ethText = eth.connected ? 'Connected' : 'Disconnected';\nif (eth.ip) ethText += ' — ' + eth.ip;\nvar msg10 = { payload: ethText };\n\n// Output 11: internet\nvar msg11 = { payload: net.has_internet ? 'Yes' : 'No' };\n\nreturn [msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8, msg9, msg10, msg11];",
+        "outputs": 11,
+        "timeout": "",
+        "noerr": 0,
+        "x": 450,
+        "y": 280,
+        "wires": [
+            [
+                "ui-txt-label"
+            ],
+            [
+                "ui-txt-firmware"
+            ],
+            [
+                "ui-txt-uptime"
+            ],
+            [
+                "ui-txt-devmode"
+            ],
+            [
+                "ui-txt-ac"
+            ],
+            [
+                "ui-txt-battery"
+            ],
+            [
+                "ui-txt-batstatus"
+            ],
+            [
+                "ui-txt-storage"
+            ],
+            [
+                "ui-txt-wifi"
+            ],
+            [
+                "ui-txt-ethernet"
+            ],
+            [
+                "ui-txt-internet"
+            ]
+        ]
+    },
+    {
+        "id": "ui-txt-label",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-device",
+        "order": 2,
+        "width": "6",
+        "height": "1",
+        "name": "Label",
+        "label": "Label",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 730,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "ui-txt-firmware",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-system",
+        "order": 1,
+        "width": "6",
+        "height": "1",
+        "name": "Firmware",
+        "label": "Firmware",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 740,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "ui-txt-uptime",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-system",
+        "order": 2,
+        "width": "6",
+        "height": "1",
+        "name": "Uptime",
+        "label": "Uptime",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 740,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "ui-txt-devmode",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-system",
+        "order": 3,
+        "width": "6",
+        "height": "1",
+        "name": "Dev Mode",
+        "label": "Dev Mode",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 750,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "ui-txt-ac",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-power",
+        "order": 1,
+        "width": "6",
+        "height": "1",
+        "name": "AC Power",
+        "label": "AC Power",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 740,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "ui-txt-battery",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-power",
+        "order": 2,
+        "width": "6",
+        "height": "1",
+        "name": "Battery",
+        "label": "Battery",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 740,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "ui-txt-batstatus",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-power",
+        "order": 3,
+        "width": "6",
+        "height": "1",
+        "name": "Bat Status",
+        "label": "Bat Status",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 750,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "ui-txt-storage",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-power",
+        "order": 4,
+        "width": "6",
+        "height": "1",
+        "name": "Storage",
+        "label": "Storage",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 740,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "ui-txt-wifi",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-network",
+        "order": 1,
+        "width": "6",
+        "height": "1",
+        "name": "WiFi",
+        "label": "WiFi",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 730,
+        "y": 420,
+        "wires": []
+    },
+    {
+        "id": "ui-txt-ethernet",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-network",
+        "order": 2,
+        "width": "6",
+        "height": "1",
+        "name": "Ethernet",
+        "label": "Ethernet",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 740,
+        "y": 460,
+        "wires": []
+    },
+    {
+        "id": "ui-txt-internet",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-network",
+        "order": 3,
+        "width": "6",
+        "height": "1",
+        "name": "Internet",
+        "label": "Internet",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "color": "",
+        "x": 740,
+        "y": 500,
+        "wires": []
+    },
+    {
+        "id": "mqtt-in-sensors",
+        "type": "mqtt in",
+        "z": "fiber-dashboard-tab",
+        "name": "Sensor Data",
+        "topic": "fiber/+/sensors/aggregated",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "mqtt-broker-1",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 720,
+        "wires": [
+            [
+                "func-parse-sensors"
+            ]
+        ]
+    },
+    {
+        "id": "func-parse-sensors",
+        "type": "function",
+        "z": "fiber-dashboard-tab",
+        "name": "Parse Sensors",
+        "func": "var sensors = msg.payload.sensors || [];\nvar timestamp = msg.payload.timestamp;\nflow.set('latest_sensors', msg.payload);\n\n// 8 sensor outputs + chart + stats + alarm status = 11 outputs\nvar outputs = [null,null,null,null,null,null,null,null,null,null,null];\nvar chartPoints = [];\nvar statsRows = [];\nvar alarmRows = [];\n\nsensors.forEach(function(s) {\n    var temp = s.temperature ? s.temperature.avg_celsius : null;\n    var state = s.dominant_alarm_state || 'DISCONNECTED';\n    if (temp === null) state = 'NO DATA';\n\n    // Per-sensor text: \"24.3°C  NORMAL\" or \"--  NO DATA\"\n    if (s.line < 8) {\n        outputs[s.line] = {\n            payload: temp !== null ? Number(temp).toFixed(1) : null,\n            title: s.name + ' (' + state + ')'\n        };\n    }\n\n    // Chart points\n    if (temp !== null) {\n        chartPoints.push({ series: s.name, x: new Date(timestamp).getTime(), y: temp });\n    }\n\n    // Stats text\n    if (s.temperature) {\n        statsRows.push(\n            s.name + ': ' +\n            Number(s.temperature.min_celsius).toFixed(1) + ' / ' +\n            Number(s.temperature.avg_celsius).toFixed(1) + ' / ' +\n            Number(s.temperature.max_celsius).toFixed(1) +\n            '  [' + state + '] (' + s.sample_count + ' samples)'\n        );\n    }\n\n    // Alarm status\n    alarmRows.push(s.name + ': ' + state + (temp !== null ? ' — ' + Number(temp).toFixed(1) + '°C' : ''));\n});\n\n// Output 9: chart\noutputs[8] = { payload: chartPoints };\n// Output 10: stats as simple text\noutputs[9] = { payload: statsRows.join('\\n') };\n// Output 11: alarm status as simple text\noutputs[10] = { payload: alarmRows.join('\\n') };\n\nreturn outputs;",
+        "outputs": 11,
+        "timeout": "",
+        "noerr": 0,
+        "x": 440,
+        "y": 720,
+        "wires": [
+            [
+                "ui-gauge-s0"
+            ],
+            [
+                "ui-gauge-s1"
+            ],
+            [
+                "ui-gauge-s2"
+            ],
+            [
+                "ui-gauge-s3"
+            ],
+            [
+                "ui-gauge-s4"
+            ],
+            [
+                "ui-gauge-s5"
+            ],
+            [
+                "ui-gauge-s6"
+            ],
+            [
+                "ui-gauge-s7"
+            ],
+            [
+                "func-chart-format"
+            ],
+            [
+                "ui-txt-stats"
+            ],
+            [
+                "ui-txt-alarm-status"
+            ]
+        ]
+    },
+    {
+        "id": "ui-gauge-s0",
+        "type": "ui-gauge",
+        "z": "fiber-dashboard-tab",
+        "name": "S1",
+        "group": "group-sensors",
+        "order": 1,
+        "width": "3",
+        "height": "2",
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Sensor 1",
+        "units": "°C",
+        "icon": "",
+        "prefix": "",
+        "suffix": "°C",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#2196f3"
+            },
+            {
+                "from": "18",
+                "color": "#4caf50"
+            },
+            {
+                "from": "38.5",
+                "color": "#ff9800"
+            },
+            {
+                "from": "41",
+                "color": "#f44336"
+            }
+        ],
+        "min": 0,
+        "max": 50,
+        "x": 730,
+        "y": 560,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui-gauge-s1",
+        "type": "ui-gauge",
+        "z": "fiber-dashboard-tab",
+        "name": "S2",
+        "group": "group-sensors",
+        "order": 2,
+        "width": "3",
+        "height": "2",
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Sensor 2",
+        "units": "°C",
+        "icon": "",
+        "prefix": "",
+        "suffix": "°C",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#2196f3"
+            },
+            {
+                "from": "18",
+                "color": "#4caf50"
+            },
+            {
+                "from": "38.5",
+                "color": "#ff9800"
+            },
+            {
+                "from": "41",
+                "color": "#f44336"
+            }
+        ],
+        "min": 0,
+        "max": 50,
+        "x": 730,
+        "y": 600,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui-gauge-s2",
+        "type": "ui-gauge",
+        "z": "fiber-dashboard-tab",
+        "name": "S3",
+        "group": "group-sensors",
+        "order": 3,
+        "width": "3",
+        "height": "2",
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Sensor 3",
+        "units": "°C",
+        "icon": "",
+        "prefix": "",
+        "suffix": "°C",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#2196f3"
+            },
+            {
+                "from": "18",
+                "color": "#4caf50"
+            },
+            {
+                "from": "38.5",
+                "color": "#ff9800"
+            },
+            {
+                "from": "41",
+                "color": "#f44336"
+            }
+        ],
+        "min": 0,
+        "max": 50,
+        "x": 730,
+        "y": 640,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui-gauge-s3",
+        "type": "ui-gauge",
+        "z": "fiber-dashboard-tab",
+        "name": "S4",
+        "group": "group-sensors",
+        "order": 4,
+        "width": "3",
+        "height": "2",
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Sensor 4",
+        "units": "°C",
+        "icon": "",
+        "prefix": "",
+        "suffix": "°C",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#2196f3"
+            },
+            {
+                "from": "18",
+                "color": "#4caf50"
+            },
+            {
+                "from": "38.5",
+                "color": "#ff9800"
+            },
+            {
+                "from": "41",
+                "color": "#f44336"
+            }
+        ],
+        "min": 0,
+        "max": 50,
+        "x": 730,
+        "y": 680,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui-gauge-s4",
+        "type": "ui-gauge",
+        "z": "fiber-dashboard-tab",
+        "name": "S5",
+        "group": "group-sensors",
+        "order": 5,
+        "width": "3",
+        "height": "2",
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Sensor 5",
+        "units": "°C",
+        "icon": "",
+        "prefix": "",
+        "suffix": "°C",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#2196f3"
+            },
+            {
+                "from": "18",
+                "color": "#4caf50"
+            },
+            {
+                "from": "38.5",
+                "color": "#ff9800"
+            },
+            {
+                "from": "41",
+                "color": "#f44336"
+            }
+        ],
+        "min": 0,
+        "max": 50,
+        "x": 730,
+        "y": 720,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui-gauge-s5",
+        "type": "ui-gauge",
+        "z": "fiber-dashboard-tab",
+        "name": "S6",
+        "group": "group-sensors",
+        "order": 6,
+        "width": "3",
+        "height": "2",
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Sensor 6",
+        "units": "°C",
+        "icon": "",
+        "prefix": "",
+        "suffix": "°C",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#2196f3"
+            },
+            {
+                "from": "18",
+                "color": "#4caf50"
+            },
+            {
+                "from": "38.5",
+                "color": "#ff9800"
+            },
+            {
+                "from": "41",
+                "color": "#f44336"
+            }
+        ],
+        "min": 0,
+        "max": 50,
+        "x": 730,
+        "y": 760,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui-gauge-s6",
+        "type": "ui-gauge",
+        "z": "fiber-dashboard-tab",
+        "name": "S7",
+        "group": "group-sensors",
+        "order": 7,
+        "width": "3",
+        "height": "2",
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Sensor 7",
+        "units": "°C",
+        "icon": "",
+        "prefix": "",
+        "suffix": "°C",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#2196f3"
+            },
+            {
+                "from": "18",
+                "color": "#4caf50"
+            },
+            {
+                "from": "38.5",
+                "color": "#ff9800"
+            },
+            {
+                "from": "41",
+                "color": "#f44336"
+            }
+        ],
+        "min": 0,
+        "max": 50,
+        "x": 730,
+        "y": 800,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui-gauge-s7",
+        "type": "ui-gauge",
+        "z": "fiber-dashboard-tab",
+        "name": "S8",
+        "group": "group-sensors",
+        "order": 8,
+        "width": "3",
+        "height": "2",
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Sensor 8",
+        "units": "°C",
+        "icon": "",
+        "prefix": "",
+        "suffix": "°C",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#2196f3"
+            },
+            {
+                "from": "18",
+                "color": "#4caf50"
+            },
+            {
+                "from": "38.5",
+                "color": "#ff9800"
+            },
+            {
+                "from": "41",
+                "color": "#f44336"
+            }
+        ],
+        "min": 0,
+        "max": 50,
+        "x": 730,
+        "y": 840,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "func-chart-format",
+        "type": "function",
+        "z": "fiber-dashboard-tab",
+        "name": "Format Chart",
+        "func": "var points = msg.payload;\nif (!Array.isArray(points) || points.length === 0) return null;\nmsg.payload = points.map(function(p) { return {x: p.x, y: p.y, series: p.series}; });\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "x": 750,
+        "y": 880,
+        "wires": [
+            [
+                "ui-chart"
+            ]
+        ]
+    },
+    {
+        "id": "ui-chart",
+        "type": "ui-chart",
+        "z": "fiber-dashboard-tab",
+        "group": "group-chart",
+        "name": "Temperature Chart",
+        "label": "Temperature — Last Hour",
+        "order": 1,
+        "chartType": "line",
+        "category": "series",
+        "categoryType": "property",
+        "xAxisProperty": "x",
+        "xAxisPropertyType": "property",
+        "xAxisType": "time",
+        "yAxisProperty": "y",
+        "ymin": "0",
+        "ymax": "50",
+        "action": "append",
+        "pointShape": "circle",
+        "pointRadius": 2,
+        "showLegend": true,
+        "removeOlder": 1,
+        "removeOlderUnit": "3600",
+        "removeOlderPoints": "",
+        "width": "12",
+        "height": "8",
+        "x": 930,
+        "y": 880,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui-txt-stats",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-stats",
+        "order": 1,
+        "width": "12",
+        "height": "5",
+        "name": "Stats",
+        "label": "Min / Avg / Max",
+        "format": "{{msg.payload}}",
+        "layout": "row-left",
+        "style": true,
+        "font": "monospace 0.85em",
+        "color": "",
+        "x": 730,
+        "y": 920,
+        "wires": []
+    },
+    {
+        "id": "mqtt-in-alarms",
+        "type": "mqtt in",
+        "z": "fiber-dashboard-tab",
+        "name": "Alarm Events",
+        "topic": "fiber/+/alarms/events",
+        "qos": "2",
+        "datatype": "json",
+        "broker": "mqtt-broker-1",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 1040,
+        "wires": [
+            [
+                "func-parse-alarm"
+            ]
+        ]
+    },
+    {
+        "id": "func-parse-alarm",
+        "type": "function",
+        "z": "fiber-dashboard-tab",
+        "name": "Parse Alarm",
+        "func": "var a = msg.payload;\nvar temp = (a.temperature_celsius !== null && a.temperature_celsius !== undefined) ? Number(a.temperature_celsius).toFixed(1) + '°C' : '--';\nvar line = new Date(a.timestamp || Date.now()).toLocaleTimeString() + '  ' + (a.name || 'Line ' + a.line) + '  ' + a.from_state + ' → ' + a.to_state + '  ' + temp;\n\nvar history = flow.get('alarm_history') || [];\nhistory.unshift(line);\nif (history.length > 50) history = history.slice(0, 50);\nflow.set('alarm_history', history);\n\nvar msg1 = { payload: history.join('\\n') };\nvar msg2 = null;\nif (a.to_state === 'CRITICAL') {\n    msg2 = { payload: 'CRITICAL: ' + (a.name || 'Line ' + a.line) + ' — ' + temp };\n}\nreturn [msg1, msg2];",
+        "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "x": 430,
+        "y": 1040,
+        "wires": [
+            [
+                "ui-txt-alarm-log"
+            ],
+            [
+                "ui-notification-alarm"
+            ]
+        ]
+    },
+    {
+        "id": "ui-txt-alarm-log",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-alarm-log",
+        "order": 1,
+        "width": "12",
+        "height": "8",
+        "name": "Alarm Log",
+        "label": "Alarm Event History",
+        "format": "{{msg.payload}}",
+        "layout": "row-left",
+        "style": true,
+        "font": "monospace 0.8em",
+        "color": "",
+        "x": 750,
+        "y": 1020,
+        "wires": []
+    },
+    {
+        "id": "ui-notification-alarm",
+        "type": "ui-notification",
+        "z": "fiber-dashboard-tab",
+        "ui": "ui-base-1",
+        "position": "top right",
+        "colorDefault": true,
+        "color": "#f44336",
+        "displayTime": "10",
+        "showCountdown": true,
+        "outputs": 1,
+        "allowDismiss": true,
+        "raw": false,
+        "name": "Critical Alert",
+        "x": 750,
+        "y": 1060,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui-txt-alarm-status",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-alarm-status",
+        "order": 1,
+        "width": "12",
+        "height": "5",
+        "name": "Alarm Status",
+        "label": "Current Sensor States",
+        "format": "{{msg.payload}}",
+        "layout": "row-left",
+        "style": true,
+        "font": "monospace 0.85em",
+        "color": "",
+        "x": 750,
+        "y": 960,
+        "wires": []
+    },
+    {
+        "id": "ui-form-threshold",
+        "type": "ui-form",
+        "z": "fiber-dashboard-tab",
+        "name": "Set Threshold",
+        "group": "group-threshold",
+        "label": "Set Sensor Threshold",
+        "order": 1,
+        "width": "6",
+        "height": "8",
+        "options": [
+            {
+                "label": "Line (0-7)",
+                "key": "line",
+                "type": "number",
+                "required": true
+            },
+            {
+                "label": "Critical Low",
+                "key": "critical_low",
+                "type": "number",
+                "required": true
+            },
+            {
+                "label": "Warning Low",
+                "key": "warning_low",
+                "type": "number",
+                "required": true
+            },
+            {
+                "label": "Warning High",
+                "key": "warning_high",
+                "type": "number",
+                "required": true
+            },
+            {
+                "label": "Critical High",
+                "key": "critical_high",
+                "type": "number",
+                "required": true
+            }
+        ],
+        "formValue": {
+            "line": 0,
+            "critical_low": 18,
+            "warning_low": 27,
+            "warning_high": 38.5,
+            "critical_high": 41
+        },
+        "payload": "",
+        "submit": "Send",
+        "cancel": "Clear",
+        "resetOnSubmit": false,
+        "topic": "set_threshold",
+        "topicType": "str",
+        "splitLayout": false,
+        "x": 160,
+        "y": 1380,
+        "wires": [
+            [
+                "func-build-threshold"
+            ]
+        ]
+    },
+    {
+        "id": "func-build-threshold",
+        "type": "function",
+        "z": "fiber-dashboard-tab",
+        "name": "Build Threshold Cmd",
+        "func": "var hostname = flow.get('device_hostname');\nif (!hostname) { node.warn('No device connected'); return null; }\nvar f = msg.payload;\nmsg.topic = 'fiber/' + hostname + '/commands/sensor/set_threshold';\nmsg.payload = {\n    command: 'config_request',\n    command_type: 'set_threshold',\n    params: {\n        line: parseInt(f.line),\n        thresholds: {\n            critical_low: parseFloat(f.critical_low),\n            warning_low: parseFloat(f.warning_low),\n            warning_high: parseFloat(f.warning_high),\n            critical_high: parseFloat(f.critical_high)\n        }\n    }\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "x": 460,
+        "y": 1460,
+        "wires": [
+            [
+                "func-log-tx"
+            ]
+        ]
+    },
+    {
+        "id": "ui-btn-getinterval",
+        "type": "ui-button",
+        "z": "fiber-dashboard-tab",
+        "group": "group-buttons",
+        "name": "Get Intervals",
+        "label": "Get Intervals",
+        "order": 1,
+        "width": "3",
+        "height": "1",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "#0f3460",
+        "className": "",
+        "icon": "mdi-timer-outline",
+        "payload": "{\"command\":\"get_interval\"}",
+        "payloadType": "json",
+        "topic": "commands/system/get_interval",
+        "topicType": "str",
+        "x": 150,
+        "y": 1480,
+        "wires": [
+            [
+                "func-build-cmd"
+            ]
+        ]
+    },
+    {
+        "id": "ui-btn-getconfig",
+        "type": "ui-button",
+        "z": "fiber-dashboard-tab",
+        "group": "group-buttons",
+        "name": "Get Config",
+        "label": "Get Config",
+        "order": 2,
+        "width": "3",
+        "height": "1",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "#0f3460",
+        "className": "",
+        "icon": "mdi-cog-outline",
+        "payload": "{\"command\":\"get_sensor_config\"}",
+        "payloadType": "json",
+        "topic": "commands/sensor/get_config",
+        "topicType": "str",
+        "x": 150,
+        "y": 1520,
+        "wires": [
+            [
+                "func-build-cmd"
+            ]
+        ]
+    },
+    {
+        "id": "ui-btn-silence",
+        "type": "ui-button",
+        "z": "fiber-dashboard-tab",
+        "group": "group-buttons",
+        "name": "Silence Buzzer",
+        "label": "Silence Buzzer",
+        "order": 3,
+        "width": "3",
+        "height": "1",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "#ff9800",
+        "className": "",
+        "icon": "mdi-volume-off",
+        "payload": "{\"command\":\"silence_buzzer\"}",
+        "payloadType": "json",
+        "topic": "commands/sensor/silence_buzzer",
+        "topicType": "str",
+        "x": 160,
+        "y": 1560,
+        "wires": [
+            [
+                "func-build-cmd"
+            ]
+        ]
+    },
+    {
+        "id": "ui-btn-restart",
+        "type": "ui-button",
+        "z": "fiber-dashboard-tab",
+        "group": "group-buttons",
+        "name": "Restart",
+        "label": "Restart Device",
+        "order": 4,
+        "width": "3",
+        "height": "1",
+        "tooltip": "",
+        "color": "#ffffff",
+        "bgcolor": "#f44336",
+        "className": "",
+        "icon": "mdi-restart",
+        "payload": "{\"command\": \"restart\", \"reason\": \"Dashboard restart\"}",
+        "payloadType": "json",
+        "topic": "commands/system/restart",
+        "topicType": "str",
+        "x": 140,
+        "y": 1600,
+        "wires": [
+            [
+                "func-build-cmd"
+            ]
+        ]
+    },
+    {
+        "id": "func-build-cmd",
+        "type": "function",
+        "z": "fiber-dashboard-tab",
+        "name": "Build Command",
+        "func": "var hostname = flow.get('device_hostname');\nif (!hostname) { node.warn('No device connected'); return null; }\nvar cmd = msg.payload.command;\nvar direct = ['get_sensor_config', 'get_interval', 'silence_buzzer'];\nmsg.topic = 'fiber/' + hostname + '/' + msg.topic;\nif (!direct.includes(cmd)) {\n    msg.payload = {\n        command: 'config_request',\n        command_type: cmd,\n        params: msg.payload,\n        reason: msg.payload.reason || undefined\n    };\n}\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "x": 440,
+        "y": 1540,
+        "wires": [
+            [
+                "func-log-tx"
+            ]
+        ]
+    },
+    {
+        "id": "func-log-tx",
+        "type": "function",
+        "z": "fiber-dashboard-tab",
+        "name": "Log TX",
+        "func": "var entry = new Date().toLocaleTimeString() + '  TX  ' + msg.topic + '\\n  ' + JSON.stringify(msg.payload);\nvar log = flow.get('mqtt_log') || [];\nlog.unshift(entry);\nif (log.length > 30) log = log.slice(0, 30);\nflow.set('mqtt_log', log);\nvar msg1 = { payload: log.join('\\n\\n') };\nvar msg2 = { topic: msg.topic, payload: msg.payload, qos: 1 };\nreturn [msg1, msg2];",
+        "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "x": 680,
+        "y": 1460,
+        "wires": [
+            [
+                "ui-txt-terminal"
+            ],
+            [
+                "mqtt-out-cmd"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt-out-cmd",
+        "type": "mqtt out",
+        "z": "fiber-dashboard-tab",
+        "name": "Send Command",
+        "topic": "",
+        "qos": "1",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt-broker-1",
+        "x": 880,
+        "y": 1460,
+        "wires": []
+    },
+    {
+        "id": "mqtt-in-responses",
+        "type": "mqtt in",
+        "z": "fiber-dashboard-tab",
+        "name": "Responses",
+        "topic": "fiber/+/responses/#",
+        "qos": "1",
+        "datatype": "auto",
+        "broker": "mqtt-broker-1",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 140,
+        "y": 1160,
+        "wires": [
+            [
+                "func-log-rx"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt-in-config-resp",
+        "type": "mqtt in",
+        "z": "fiber-dashboard-tab",
+        "name": "Config Responses",
+        "topic": "fiber/+/config/#",
+        "qos": "1",
+        "datatype": "auto",
+        "broker": "mqtt-broker-1",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 170,
+        "y": 1220,
+        "wires": [
+            [
+                "func-log-rx"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt-in-errors",
+        "type": "mqtt in",
+        "z": "fiber-dashboard-tab",
+        "name": "Errors",
+        "topic": "fiber/+/errors",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt-broker-1",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 130,
+        "y": 1280,
+        "wires": [
+            [
+                "func-log-rx",
+                "func-parse-error"
+            ]
+        ]
+    },
+    {
+        "id": "func-log-rx",
+        "type": "function",
+        "z": "fiber-dashboard-tab",
+        "name": "Log RX",
+        "func": "var display = typeof msg.payload === 'object' ? JSON.stringify(msg.payload) : String(msg.payload);\nvar entry = new Date().toLocaleTimeString() + '  RX  ' + msg.topic + '\\n  ' + display;\nvar log = flow.get('mqtt_log') || [];\nlog.unshift(entry);\nif (log.length > 30) log = log.slice(0, 30);\nflow.set('mqtt_log', log);\nmsg.payload = log.join('\\n\\n');\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "x": 420,
+        "y": 1220,
+        "wires": [
+            [
+                "ui-txt-terminal"
+            ]
+        ]
+    },
+    {
+        "id": "func-parse-error",
+        "type": "function",
+        "z": "fiber-dashboard-tab",
+        "name": "Parse Error",
+        "func": "var e = msg.payload;\nmsg.payload = 'Error: ' + (e.command || 'unknown') + ' — ' + (e.message || e.error || 'Unknown');\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "x": 430,
+        "y": 1260,
+        "wires": [
+            [
+                "ui-notification-error"
+            ]
+        ]
+    },
+    {
+        "id": "ui-notification-error",
+        "type": "ui-notification",
+        "z": "fiber-dashboard-tab",
+        "ui": "ui-base-1",
+        "position": "bottom right",
+        "colorDefault": false,
+        "color": "#ff9800",
+        "displayTime": "8",
+        "showCountdown": true,
+        "outputs": 1,
+        "allowDismiss": true,
+        "raw": false,
+        "name": "Error Alert",
+        "x": 570,
+        "y": 1260,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui-txt-terminal",
+        "type": "ui-text",
+        "z": "fiber-dashboard-tab",
+        "group": "group-terminal",
+        "order": 1,
+        "width": "12",
+        "height": "10",
+        "name": "MQTT Log",
+        "label": "MQTT Log (TX / RX)",
+        "format": "{{msg.payload}}",
+        "layout": "row-left",
+        "style": true,
+        "font": "monospace 0.75em",
+        "color": "",
+        "x": 770,
+        "y": 1220,
+        "wires": []
+    }
+]

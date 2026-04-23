@@ -1,0 +1,129 @@
+# FIBER Dev Platform Configuration
+# Adapted from production for Raspberry Pi 4 CM student environment
+# Auth/crypto disabled in this binary — commands are accepted without signatures
+
+power:
+  update_interval_ms: 60000
+  battery:
+    min_voltage_mv: 3100
+    max_voltage_mv: 3400
+    low_threshold_percent: 20
+    critical_threshold_percent: 5
+  ac_power:
+    detection_threshold_mv: 12000
+    battery_mode_threshold_mv: 11000
+  led_blink:
+    toggle_count: 10
+  buzzer:
+    enabled: true
+    battery_mode_beep_interval_ms: 10000
+    vin_disconnect_duration_ms: 2000
+    critical_beep_on_ms: 200
+    critical_beep_off_ms: 200
+
+sensors:
+  num_lines: 8
+  sample_interval_ms: 2000
+  aggregation_interval_ms: 15000
+  report_interval_ms: 60000
+  failure_threshold: 3
+  warmup_threshold: 3
+
+display:
+  update_interval_ms: 500
+  refresh_rate_hz: 1
+  backlight_enabled: true
+  rotation_degrees: 180
+
+ui:
+  button_debounce_ms: 50
+  menu_idle_timeout_sec: 30
+  buzzer:
+    enabled: true
+    beep_duration_ms: 100
+    alert_interval_ms: 500
+
+logging:
+  enabled: true
+  log_file: /data/fiber/sensor_log.csv
+  interval_ms: 60000
+  max_file_size_mb: 10
+  max_backup_files: 10
+  verbosity: info
+
+serial:
+  port: /dev/ttyAMA4
+  baud_rate: 115200
+  timeout_ms: 1000
+  max_retries: 3
+
+accelerometer:
+  enabled: true
+  i2c_path: /dev/i2c-10
+  update_interval_ms: 100
+  motion_threshold_g: 0.3
+  debounce_samples: 5
+  logging_enabled: true
+
+storage:
+  enabled: true
+  db_path: /data/fiber/fiber_medical.db
+  max_size_gb: 5
+  retention_days: 1095
+  cleanup_threshold_percent: 90
+  flush_interval_ms: 100
+  flush_threshold_messages: 1000
+  backup_enabled: true
+  backup_path: /data/fiber/backups/
+  audit_enabled: true
+
+system:
+  debug_mode: true
+  app_name: FIBER Dev Platform
+  app_version: 0.1.0
+  timezone_offset_hours: 0
+  device_label: DEV-PLATFORM
+  led_brightness: 25
+  screen_brightness: 50
+
+mqtt:
+  enabled: true
+  broker:
+    host: localhost
+    port: 1883
+    client_id: ''
+    username: fiber
+    password: '123456789'
+  publish:
+    topic_prefix: fiber
+    include_hostname: true
+    default_qos: 0
+    qos_overrides:
+      sensor_readings: 0
+      power_status: 1
+      alarm_events: 2
+      power_events: 2
+      network_status: 0
+    intervals:
+      sensors_sec: 5
+      power_sec: 10
+      network_sec: 30
+      system_info_sec: 60
+    max_queue_size: 10000
+  subscribe:
+    enabled: true
+    max_commands_per_second: 10
+    audit_enabled: true
+  connection:
+    keep_alive_sec: 30
+    connection_timeout_sec: 10
+    max_reconnect_attempts: 0
+    reconnect_delay_sec: 1
+    max_reconnect_delay_sec: 60
+    clean_session: false
+  last_will:
+    enabled: true
+    topic: status
+    payload: '{"status":"offline","reason":"unexpected_disconnect"}'
+    qos: 1
+    retain: true
