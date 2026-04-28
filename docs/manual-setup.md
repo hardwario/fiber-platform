@@ -15,7 +15,8 @@ sudo apt update && sudo apt upgrade -y
 ## 2. Install dependencies
 
 ```bash
-sudo apt install -y i2c-tools mosquitto mosquitto-clients sqlite3 jq curl git
+sudo apt install -y i2c-tools mosquitto mosquitto-clients sqlite3 jq curl git \
+                    bluez network-manager rfkill
 ```
 
 | Package | Why |
@@ -26,6 +27,9 @@ sudo apt install -y i2c-tools mosquitto mosquitto-clients sqlite3 jq curl git
 | `sqlite3` | Inspect the FIBER database from the command line |
 | `jq` | Pretty-print JSON (useful for reading MQTT payloads) |
 | `curl`, `git` | Download files and clone repositories |
+| `bluez` | BLE stack (D-Bus GATT) — required by the in-app BLE WiFi-provisioning server |
+| `network-manager` | `nmcli` is what BLE provisioning shells out to in order to scan/connect WiFi |
+| `rfkill` | Toggle the Bluetooth radio (Pi OS often boots with it soft-blocked) |
 
 ## 3. Enable hardware interfaces
 
@@ -62,7 +66,7 @@ dtoverlay=i2c-rtc,pcf85063a,i2c_csi_dsi
 | `w1-gpio` | 1-Wire bus on GPIO4 — DS18B20 temperature sensors |
 | `uart3` | Serial port for STM32 communication |
 | `uart4` | Serial port for STM32 communication |
-| `pwm,pin=13,func=4` | PWM output for the buzzer |
+| `pwm,pin=13,func=4` | Hardware PWM on GPIO13 — required for display backlight brightness control |
 | `spi6-1cs` | SPI6 bus for the ST7920 LCD display (SPI6 avoids pin conflict with UART4) |
 | `i2c-rtc,pcf85063a,i2c_csi_dsi` | Real-time clock on I2C bus (via CSI/DSI I2C) |
 
@@ -96,7 +100,8 @@ sudo mkdir -p /data/fiber/config
 sudo mkdir -p /data/fiber/backups
 sudo mkdir -p /data/ble
 sudo touch /data/fiber/config/DEV_MODE_ENABLED
-echo "000000" | sudo tee /data/ble/pin.txt
+echo -n "123456" | sudo tee /data/ble/pin.txt
+sudo chmod 600 /data/ble/pin.txt
 ```
 
 | Path | Purpose |
@@ -105,7 +110,9 @@ echo "000000" | sudo tee /data/ble/pin.txt
 | `/data/fiber/config/` | YAML configuration files |
 | `/data/fiber/config/DEV_MODE_ENABLED` | Required marker — tells the app this is a dev platform (no crypto verification) |
 | `/data/fiber/backups/` | Automatic database backups |
-| `/data/ble/pin.txt` | BLE pairing PIN (dummy value for dev platform) |
+| `/data/ble/pin.txt` | BLE pairing PIN (default `123456`; the in-app BLE GATT server reads this on startup) |
+
+> The app overwrites this file with the configured `default_pin` if it doesn't exist or is empty — but creating it explicitly with `0600` keeps the permission tight from the first boot.
 
 ## 6. Configure Mosquitto MQTT broker
 
@@ -140,7 +147,7 @@ Save and exit.
 
 ```bash
 sudo touch /etc/mosquitto/passwd
-sudo mosquitto_passwd -b /etc/mosquitto/passwd fiber 123456789
+sudo mosquitto_passwd -b /etc/mosquitto/passwd fiber fiber_dev
 sudo chown mosquitto:mosquitto /etc/mosquitto/passwd
 sudo chmod 0600 /etc/mosquitto/passwd
 ```
@@ -159,18 +166,154 @@ Open two terminals (or two SSH sessions).
 **Terminal 1** — subscribe:
 
 ```bash
-mosquitto_sub -h localhost -u fiber -P 123456789 -t "test/hello" -v
+mosquitto_sub -h localhost -u fiber -P fiber_dev -t "test/hello" -v
 ```
 
 **Terminal 2** — publish:
 
 ```bash
-mosquitto_pub -h localhost -u fiber -P 123456789 -t "test/hello" -m "it works"
+mosquitto_pub -h localhost -u fiber -P fiber_dev -t "test/hello" -m "it works"
 ```
 
 You should see `test/hello it works` in Terminal 1. Press `Ctrl+C` to stop.
 
-## 7. Clone the dev-plat repository
+## 7. Configure Bluetooth (BLE provisioning)
+
+The FIBER app embeds a BLE GATT server that lets a mobile app provision WiFi over Bluetooth. Pi OS needs three things to host it:
+
+1. NetworkManager managing `wlan0` (because BLE provisioning shells out to `nmcli`).
+2. `bluetoothd` running with `--experimental` (required by the `bluer` D-Bus GATT API the app uses).
+3. The Bluetooth radio not soft-blocked by `rfkill` (Pi OS often boots blocked).
+
+### 7.1 Confirm NetworkManager owns wlan0
+
+```bash
+nmcli dev status
+```
+
+`wlan0` must show `wifi    connected` or `wifi    disconnected` — never `unmanaged`. On a fresh Bookworm it already does. If it says `unmanaged`:
+
+```bash
+sudo systemctl enable --now NetworkManager
+sudo systemctl disable --now dhcpcd        # only if dhcpcd was managing wlan0
+```
+
+> Switching network managers may briefly drop your SSH if you are connected via WiFi.
+
+### 7.2 Enable bluetoothd `--experimental`
+
+`bluer` (the Rust BLE crate the app uses) needs the experimental D-Bus interfaces of `bluetoothd`. Edit the systemd drop-in:
+
+```bash
+sudo systemctl edit bluetooth
+```
+
+Paste exactly:
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/lib/bluetooth/bluetoothd -E
+```
+
+Save and exit. Then:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart bluetooth
+```
+
+Confirm `-E` is in the running command line:
+
+```bash
+ps aux | grep bluetoothd | grep -v grep
+```
+
+The line should contain `-E` (or `--experimental`).
+
+### 7.3 Unblock the radio (and persist across reboots)
+
+```bash
+sudo rfkill list bluetooth
+sudo rfkill unblock bluetooth
+```
+
+Install a one-shot service that runs on every boot:
+
+```bash
+sudo tee /etc/systemd/system/bt-unblock.service > /dev/null <<'EOF'
+[Unit]
+Description=Unblock Bluetooth at boot
+Before=bluetooth.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/rfkill unblock bluetooth
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now bt-unblock.service
+```
+
+### 7.4 Verify the adapter
+
+```bash
+bluetoothctl show | grep -E 'Powered|PowerState'
+```
+
+Expected:
+
+```
+Powered: yes
+PowerState: on
+```
+
+If you see `PowerState: off-blocked`, the radio is still soft-blocked — repeat section 7.3.
+
+### 7.5 Enable BLE in the FIBER app config
+
+The default `fiber.config.yaml` ships with `ble.enabled: false` (production safety). For the dev platform, flip it to `true`:
+
+```bash
+sudo sed -i 's/^  enabled: false/  enabled: true/' /data/fiber/config/fiber.config.yaml
+```
+
+Verify the `[ble]` block:
+
+```bash
+grep -A5 '^ble:' /data/fiber/config/fiber.config.yaml
+```
+
+Expected:
+
+```yaml
+ble:
+  enabled: true
+  pin_file: /data/ble/pin.txt
+  default_pin: "123456"
+  enable_terminal: true
+  advertising_name: null
+```
+
+> Set `advertising_name: "FIBER-DEV"` (or any string) if your mobile app filters scans by name. With `null`, the device advertises under the system hostname.
+
+Once the app is running (section 13), the journal should show:
+
+```
+[main] Starting BLE monitor (in-app GATT server)...
+[BleMonitor] Registering GATT application...
+[BleMonitor] BLE advertising started (name=..., mac=...)
+```
+
+If you instead see `[BleMonitor] FATAL: GATT server returned error: Failed`, almost always one of: `--experimental` is missing (7.2), the radio is rfkilled (7.3), or NetworkManager is not managing wlan0 (7.1).
+
+---
+
+## 8. Clone the dev-plat repository
 
 ```bash
 cd ~
@@ -187,7 +330,7 @@ The repository contains:
 | `fiber.config.yaml` | Main application configuration |
 | `fiber.sensors.config.yaml` | Sensor alarm thresholds |
 
-## 8. Install binary and config files
+## 9. Install binary and config files
 
 ```bash
 sudo cp ~/fiber-dev-plat/fiber_app /opt/fiber/fiber_app
@@ -203,7 +346,7 @@ ls -la /opt/fiber/fiber_app
 ls /data/fiber/config/
 ```
 
-## 9. Create the systemd service
+## 10. Create the systemd service
 
 ```bash
 sudo nano /etc/systemd/system/fiber.service
@@ -239,7 +382,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable fiber.service
 ```
 
-## 10. Reboot
+## 11. Reboot
 
 A reboot is required for the device tree overlays and group changes to take effect.
 
@@ -249,7 +392,7 @@ sudo reboot
 
 Reconnect via SSH after ~60 seconds.
 
-## 11. Install 1-Wire sensor services
+## 12. Install 1-Wire sensor services
 
 The FIBER hardware uses a DS2482 I2C-to-1-Wire bridge to communicate with DS18B20 temperature sensors. Two services are needed: one to initialize the bridge at boot, and a timer to periodically scan for new sensors.
 
@@ -277,7 +420,7 @@ ls /sys/bus/w1/devices/
 
 You should see directories starting with `28-` (one per DS18B20 sensor).
 
-## 12. Start the FIBER application
+## 13. Start the FIBER application
 
 ```bash
 sudo systemctl start fiber.service
@@ -295,7 +438,7 @@ You should see `active (running)`. If there are errors:
 journalctl -u fiber.service -f
 ```
 
-## 13. Verify sensors
+## 14. Verify sensors
 
 Check that 1-Wire sensors are detected:
 
@@ -311,13 +454,13 @@ cat /sys/bus/w1/devices/28-*/w1_slave
 
 The last line contains `t=36500` meaning 36.5 C.
 
-## 14. Verify MQTT data flow
+## 15. Verify MQTT data flow
 
 Monitor all messages from the FIBER app:
 
 ```bash
-mosquitto_sub -h localhost -u fiber -P 123456789 -t "fiber/#" -v
-```
+mosquitto_sub -h localhost -u fiber -P fiber_dev -t "fiber/#" -v
+```1880/dashboard
 
 You should see sensor data, system info, and status messages appearing. Press `Ctrl+C` to stop.
 
@@ -325,12 +468,12 @@ Request system info manually:
 
 ```bash
 HOSTNAME=$(hostname)
-mosquitto_pub -h localhost -u fiber -P 123456789 \
+mosquitto_pub -h localhost -u fiber -P fiber_dev \
   -t "fiber/$HOSTNAME/commands/system/get_info" \
   -m '{"command":"get_info"}'
 ```
 
-## 15. Install Node-RED
+## 16. Install Node-RED
 
 ```bash
 bash <(curl -sL https://raw.githubusercontent.com/node-red/linux-installers/master/deb/update-nodejs-and-nodered) \
@@ -339,14 +482,14 @@ bash <(curl -sL https://raw.githubusercontent.com/node-red/linux-installers/mast
 
 This installs Node.js LTS and Node-RED with systemd integration. It takes a few minutes.
 
-## 16. Install Dashboard 2.0
+## 17. Install Dashboard 2.0
 
 ```bash
 cd ~/.node-red
 npm install @flowfuse/node-red-dashboard
 ```
 
-## 17. Import FIBER dashboard flows
+## 18. Import FIBER dashboard flows
 
 Copy the flows file from the dev-plat repository:
 
@@ -356,14 +499,14 @@ cp ~/fiber-dev-plat/node-red/flows.json ~/.node-red/flows.json
 
 > Or import via the Node-RED editor: Menu -> Import -> select the file.
 
-## 18. Start Node-RED
+## 19. Start Node-RED
 
 ```bash
 sudo systemctl enable nodered.service
 sudo systemctl start nodered.service
 ```
 
-## 19. Open the dashboard
+## 20. Open the dashboard
 
 In your browser, go to:
 
@@ -398,7 +541,7 @@ ls /sys/bus/w1/devices/
 i2cdetect -y 10
 
 # MQTT flowing?
-mosquitto_sub -h localhost -u fiber -P 123456789 -t "fiber/#" -v
+mosquitto_sub -h localhost -u fiber -P fiber_dev -t "fiber/#" -v
 
 # Your user groups?
 groups
@@ -420,7 +563,7 @@ journalctl -u mosquitto -f
 
 # MQTT shortcuts
 HOSTNAME=$(hostname)
-MQTT="-h localhost -u fiber -P 123456789"
+MQTT="-h localhost -u fiber -P fiber_dev"
 
 # Monitor all
 mosquitto_sub $MQTT -t "fiber/#" -v
@@ -451,7 +594,7 @@ mosquitto_pub $MQTT -t "fiber/$HOSTNAME/commands/system/restart" -m '{"command":
 
 | Service | User | Password |
 |---------|------|----------|
-| MQTT | `fiber` | `123456789` |
+| MQTT | `fiber` | `fiber_dev` |
 
 ## Ports
 
