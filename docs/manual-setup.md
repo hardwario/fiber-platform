@@ -475,40 +475,27 @@ npm install @flowfuse/node-red-dashboard
 
 ## 18. Import FIBER dashboard flows
 
-Copy the flows file from the dev-plat repository:
+The shipped `flows.json` has `${MQTT_USER}` / `${MQTT_PASS}` placeholders in the MQTT broker credentials. Node-RED does **not** expand env vars inside string credential fields (and credentials live in `flows_cred.json`, not `flows.json`), so substitute the values inline before copying:
 
 ```bash
-cp ~/fiber-dev-plat/node-red/flows.json ~/.node-red/flows.json
+sed -e 's|${MQTT_USER}|fiber|g' \
+    -e 's|${MQTT_PASS}|fiber_dev|g' \
+    ~/fiber-dev-plat/node-red/flows.json > ~/.node-red/flows.json
+rm -f ~/.node-red/flows_cred.json
 ```
 
-> Or import via the Node-RED editor: Menu -> Import -> select the file.
+Removing `flows_cred.json` forces Node-RED to re-encrypt the credentials from the embedded block on next start. If you change the MQTT password (section 6.2), re-run the `sed` above with the new value and restart Node-RED.
 
-The MQTT broker config in `flows.json` references `${MQTT_USER}` and `${MQTT_PASS}` — these are injected via systemd in the next step, so the dashboard connects without manual credential entry.
+> Or import via the Node-RED editor: Menu -> Import -> select the file, then enter the MQTT broker credentials manually.
 
-## 19. Configure Node-RED MQTT credentials
-
-Create a systemd drop-in that exports the MQTT credentials to the Node-RED service:
-
-```bash
-sudo mkdir -p /etc/systemd/system/nodered.service.d
-sudo tee /etc/systemd/system/nodered.service.d/fiber-mqtt-env.conf >/dev/null <<EOF
-[Service]
-Environment=MQTT_USER=fiber
-Environment=MQTT_PASS=fiber_dev
-EOF
-sudo systemctl daemon-reload
-```
-
-> If you change the MQTT password (section 6.2), update this file too — otherwise the dashboard stops connecting.
-
-## 20. Start Node-RED
+## 19. Start Node-RED
 
 ```bash
 sudo systemctl enable nodered.service
 sudo systemctl start nodered.service
 ```
 
-## 21. Open the dashboard
+## 20. Open the dashboard
 
 In your browser, go to:
 
@@ -607,3 +594,8 @@ mosquitto_pub $MQTT -t "fiber/$HOSTNAME/commands/sensor/set_threshold" \
 
 sudo cp /tmp/dev-platform/fiber_app /opt/fiber/fiber_app
 sudo chmod +x /opt/fiber/fiber_app
+
+
+sed -e 's|${MQTT_USER}|fiber|g' \                                                                                           
+      -e 's|${MQTT_PASS}|fiber_dev|g' \                                                                                         
+      ~/fiber-platform/node-red/flows.json > ~/.node-red/flows.json   

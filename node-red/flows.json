@@ -2174,8 +2174,8 @@
         "userProps": "",
         "sessionExpiry": "",
         "credentials": {
-            "user": "${MQTT_USER}",
-            "password": "${MQTT_PASS}"
+            "user": "fiber",
+            "password": "fiber_dev"
         }
     },
     {

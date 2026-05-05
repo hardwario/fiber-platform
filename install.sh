@@ -254,24 +254,22 @@ configure_nodered() {
     cd "$NR_DIR"
     sudo -u "$REAL_USER" npm install --save @flowfuse/node-red-dashboard
 
-    # Import FIBER dashboard flows
+    # Import FIBER dashboard flows, substituting MQTT credentials inline.
+    # Node-RED stores credentials in flows_cred.json (encrypted) and does not
+    # expand ${ENV_VAR} inside string credential fields, so env-var injection
+    # via systemd does not work — we have to bake the values into flows.json.
     if [[ -f "${SCRIPT_DIR}/node-red/flows.json" ]]; then
         [[ -f "${NR_DIR}/flows.json" ]] && cp "${NR_DIR}/flows.json" "${NR_DIR}/flows.json.bak"
-        cp "${SCRIPT_DIR}/node-red/flows.json" "${NR_DIR}/flows.json"
+        sed -e "s|\${MQTT_USER}|${MQTT_USER}|g" \
+            -e "s|\${MQTT_PASS}|${MQTT_PASS}|g" \
+            "${SCRIPT_DIR}/node-red/flows.json" > "${NR_DIR}/flows.json"
         chown "$REAL_USER":"$REAL_USER" "${NR_DIR}/flows.json"
-        ok "FIBER dashboard flows imported"
+        # Force Node-RED to re-encrypt credentials from the embedded block on next start
+        rm -f "${NR_DIR}/flows_cred.json"
+        ok "FIBER dashboard flows imported with MQTT credentials"
     else
         warn "No flows.json found — import it later from the Node-RED editor"
     fi
-
-    # Inject MQTT credentials via systemd env vars; flows.json references ${MQTT_USER}/${MQTT_PASS}
-    mkdir -p /etc/systemd/system/nodered.service.d
-    cat > /etc/systemd/system/nodered.service.d/fiber-mqtt-env.conf <<EOF
-[Service]
-Environment=MQTT_USER=${MQTT_USER}
-Environment=MQTT_PASS=${MQTT_PASS}
-EOF
-    systemctl daemon-reload
 
     systemctl enable "nodered.service"
     systemctl start "nodered.service"
