@@ -7,6 +7,210 @@
         "info": "FIBER Dev Platform dashboard"
     },
     {
+        "id": "mqtt-broker-1",
+        "type": "mqtt-broker",
+        "name": "FIBER MQTT",
+        "broker": "localhost",
+        "port": "1883",
+        "tls": "",
+        "clientid": "nodered-dashboard",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": "30",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "ui-base-1",
+        "type": "ui-base",
+        "name": "FIBER Dev Platform",
+        "path": "/dashboard",
+        "appIcon": ""
+    },
+    {
+        "id": "theme-1",
+        "type": "ui-theme",
+        "name": "FIBER Theme",
+        "colors": {
+            "surface": "#1a1a2e",
+            "primary": "#0f3460",
+            "bgPage": "#16213e",
+            "groupBg": "#1a1a2e",
+            "groupOutline": "#0f3460"
+        },
+        "sizes": {
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "8px",
+            "widgetGap": "6px"
+        }
+    },
+    {
+        "id": "page-overview",
+        "type": "ui-page",
+        "name": "Overview",
+        "ui": "ui-base-1",
+        "path": "/overview",
+        "icon": "mdi-view-dashboard",
+        "layout": "grid",
+        "theme": "theme-1",
+        "order": 1
+    },
+    {
+        "id": "page-charts",
+        "type": "ui-page",
+        "name": "Charts",
+        "ui": "ui-base-1",
+        "path": "/charts",
+        "icon": "mdi-chart-line",
+        "layout": "grid",
+        "theme": "theme-1",
+        "order": 2
+    },
+    {
+        "id": "page-alarms",
+        "type": "ui-page",
+        "name": "Alarms",
+        "ui": "ui-base-1",
+        "path": "/alarms",
+        "icon": "mdi-alert",
+        "layout": "grid",
+        "theme": "theme-1",
+        "order": 3
+    },
+    {
+        "id": "page-commands",
+        "type": "ui-page",
+        "name": "Commands",
+        "ui": "ui-base-1",
+        "path": "/commands",
+        "icon": "mdi-console",
+        "layout": "grid",
+        "theme": "theme-1",
+        "order": 4
+    },
+    {
+        "id": "group-device",
+        "type": "ui-group",
+        "name": "Device",
+        "page": "page-overview",
+        "width": "6",
+        "height": "1",
+        "order": 1
+    },
+    {
+        "id": "group-system",
+        "type": "ui-group",
+        "name": "System",
+        "page": "page-overview",
+        "width": "6",
+        "height": "1",
+        "order": 2
+    },
+    {
+        "id": "group-sensors",
+        "type": "ui-group",
+        "name": "Sensors",
+        "page": "page-overview",
+        "width": "12",
+        "height": "1",
+        "order": 3
+    },
+    {
+        "id": "group-power",
+        "type": "ui-group",
+        "name": "Power",
+        "page": "page-overview",
+        "width": "6",
+        "height": "1",
+        "order": 4
+    },
+    {
+        "id": "group-network",
+        "type": "ui-group",
+        "name": "Network",
+        "page": "page-overview",
+        "width": "6",
+        "height": "1",
+        "order": 5
+    },
+    {
+        "id": "group-chart",
+        "type": "ui-group",
+        "name": "Temperature",
+        "page": "page-charts",
+        "width": "12",
+        "height": "1",
+        "order": 1
+    },
+    {
+        "id": "group-stats",
+        "type": "ui-group",
+        "name": "Statistics",
+        "page": "page-charts",
+        "width": "12",
+        "height": "1",
+        "order": 2
+    },
+    {
+        "id": "group-alarm-log",
+        "type": "ui-group",
+        "name": "Alarm Log",
+        "page": "page-alarms",
+        "width": "12",
+        "height": "1",
+        "order": 1
+    },
+    {
+        "id": "group-alarm-status",
+        "type": "ui-group",
+        "name": "Alarm Status",
+        "page": "page-alarms",
+        "width": "12",
+        "height": "1",
+        "order": 2
+    },
+    {
+        "id": "group-threshold",
+        "type": "ui-group",
+        "name": "Controls",
+        "page": "page-commands",
+        "width": "6",
+        "height": "1",
+        "order": 1
+    },
+    {
+        "id": "group-terminal",
+        "type": "ui-group",
+        "name": "MQTT Log",
+        "page": "page-commands",
+        "width": "6",
+        "height": "1",
+        "order": 2
+    },
+    {
+        "id": "0e6160f9ba396bdb",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "@flowfuse/node-red-dashboard": "1.30.2"
+        }
+    },
+    {
         "id": "mqtt-in-status",
         "type": "mqtt in",
         "z": "fiber-dashboard-tab",
@@ -32,7 +236,7 @@
         "type": "function",
         "z": "fiber-dashboard-tab",
         "name": "Parse Status",
-        "func": "var parts = msg.topic.split('/');\nvar hostname = parts[1];\nvar online = msg.payload.status === 'online';\nflow.set('device_hostname', hostname);\nflow.set('device_online', online);\n\nmsg.payload = (online ? 'ONLINE' : 'OFFLINE') + ' — ' + hostname;\nreturn msg;",
+        "func": "var parts = msg.topic.split('/');\nvar hostname = parts[1];\nvar online = msg.payload.status === 'online';\nflow.set('device_hostname', hostname);\nflow.set('device_online', online);\n\nmsg.payload = (online ? 'ONLINE' : 'OFFLINE') + ' \u2014 ' + hostname;\nreturn msg;",
         "outputs": 1,
         "timeout": "",
         "noerr": 0,
@@ -89,7 +293,7 @@
         "type": "function",
         "z": "fiber-dashboard-tab",
         "name": "Parse System Info",
-        "func": "var info = msg.payload;\nflow.set('latest_sysinfo', info);\n\nvar power = info.power || {};\nvar bat = power.battery || {};\nvar dc = power.dc || {};\nvar net = info.network || {};\nvar wifi = net.wifi || {};\nvar eth = net.ethernet || {};\nvar stor = (info.storage || {}).data_partition || {};\n\n// Output 1: device label\nvar msg1 = { payload: info.device_label || '--' };\n\n// Output 2: firmware\nvar msg2 = { payload: info.firmware_version || '--' };\n\n// Output 3: uptime\nvar msg3 = { payload: info.uptime_human || '--' };\n\n// Output 4: dev mode\nvar msg4 = { payload: info.dev_mode ? 'YES' : 'NO' };\n\n// Output 5: AC power\nvar msg5 = { payload: dc.connected ? 'Connected' : 'Disconnected' };\n\n// Output 6: battery\nvar batText = (bat.percentage !== undefined ? bat.percentage + '%' : '--');\nif (bat.voltage_mv) batText += ' (' + (bat.voltage_mv / 1000).toFixed(2) + 'V)';\nvar msg6 = { payload: batText };\n\n// Output 7: battery status\nvar msg7 = { payload: bat.status || '--' };\n\n// Output 8: storage\nvar storText = stor.used_percent !== undefined ? stor.used_percent + '% used' : '--';\nif (stor.available_bytes) storText += ' (' + (stor.available_bytes / (1024*1024*1024)).toFixed(1) + 'GB free)';\nvar msg8 = { payload: storText };\n\n// Output 9: wifi\nvar wifiText = wifi.connected ? 'Connected' : 'Disconnected';\nif (wifi.ip) wifiText += ' — ' + wifi.ip;\nif (wifi.signal_dbm) wifiText += ' (' + wifi.signal_dbm + 'dBm)';\nvar msg9 = { payload: wifiText };\n\n// Output 10: ethernet\nvar ethText = eth.connected ? 'Connected' : 'Disconnected';\nif (eth.ip) ethText += ' — ' + eth.ip;\nvar msg10 = { payload: ethText };\n\n// Output 11: internet\nvar msg11 = { payload: net.has_internet ? 'Yes' : 'No' };\n\nreturn [msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8, msg9, msg10, msg11];",
+        "func": "var info = msg.payload;\nflow.set('latest_sysinfo', info);\n\nvar power = info.power || {};\nvar bat = power.battery || {};\nvar dc = power.dc || {};\nvar net = info.network || {};\nvar wifi = net.wifi || {};\nvar eth = net.ethernet || {};\nvar stor = (info.storage || {}).data_partition || {};\n\n// Output 1: device label\nvar msg1 = { payload: info.device_label || '--' };\n\n// Output 2: firmware\nvar msg2 = { payload: info.firmware_version || '--' };\n\n// Output 3: uptime\nvar msg3 = { payload: info.uptime_human || '--' };\n\n// Output 4: dev mode\nvar msg4 = { payload: info.dev_mode ? 'YES' : 'NO' };\n\n// Output 5: AC power\nvar msg5 = { payload: dc.connected ? 'Connected' : 'Disconnected' };\n\n// Output 6: battery\nvar batText = (bat.percentage !== undefined ? bat.percentage + '%' : '--');\nif (bat.voltage_mv) batText += ' (' + (bat.voltage_mv / 1000).toFixed(2) + 'V)';\nvar msg6 = { payload: batText };\n\n// Output 7: battery status\nvar msg7 = { payload: bat.status || '--' };\n\n// Output 8: storage\nvar storText = stor.used_percent !== undefined ? stor.used_percent + '% used' : '--';\nif (stor.available_bytes) storText += ' (' + (stor.available_bytes / (1024*1024*1024)).toFixed(1) + 'GB free)';\nvar msg8 = { payload: storText };\n\n// Output 9: wifi\nvar wifiText = wifi.connected ? 'Connected' : 'Disconnected';\nif (wifi.ip) wifiText += ' \u2014 ' + wifi.ip;\nif (wifi.signal_dbm) wifiText += ' (' + wifi.signal_dbm + 'dBm)';\nvar msg9 = { payload: wifiText };\n\n// Output 10: ethernet\nvar ethText = eth.connected ? 'Connected' : 'Disconnected';\nif (eth.ip) ethText += ' \u2014 ' + eth.ip;\nvar msg10 = { payload: ethText };\n\n// Output 11: internet\nvar msg11 = { payload: net.has_internet ? 'Yes' : 'No' };\n\nreturn [msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8, msg9, msg10, msg11];",
         "outputs": 11,
         "timeout": "",
         "noerr": 0,
@@ -366,11 +570,11 @@
         "type": "function",
         "z": "fiber-dashboard-tab",
         "name": "Parse Sensors",
-        "func": "var sensors = msg.payload.sensors || [];\nvar timestamp = msg.payload.timestamp;\nflow.set('latest_sensors', msg.payload);\n\nvar outputs = [null,null,null,null,null,null,null,null,null,null,null];\nvar chartPoints = [];\nvar statsCards = [];\nvar alarmCards = [];\n\nsensors.forEach(function(s) {\n    var temp = s.temperature ? s.temperature.avg_celsius : null;\n    var state = s.dominant_alarm_state || 'DISCONNECTED';\n    if (temp === null) state = 'NO DATA';\n\n    if (s.line < 8) {\n        outputs[s.line] = {\n            payload: temp !== null ? Number(Number(temp).toFixed(1)) : null,\n            title: s.name + ' (' + state + ')'\n        };\n    }\n\n    if (temp !== null) {\n        chartPoints.push({ series: s.name, x: new Date(timestamp).getTime(), y: temp });\n    }\n\n    statsCards.push({\n        line: s.line,\n        name: s.name,\n        state: state,\n        min: s.temperature ? Number(s.temperature.min_celsius).toFixed(1) : null,\n        avg: s.temperature ? Number(s.temperature.avg_celsius).toFixed(1) : null,\n        max: s.temperature ? Number(s.temperature.max_celsius).toFixed(1) : null,\n        samples: s.sample_count || 0\n    });\n\n    alarmCards.push({\n        line: s.line,\n        name: s.name,\n        state: state,\n        temp: temp !== null ? Number(temp).toFixed(1) : null\n    });\n});\n\nstatsCards.sort(function(a,b){ return a.line - b.line; });\nalarmCards.sort(function(a,b){ return a.line - b.line; });\n\noutputs[8]  = { payload: chartPoints };\noutputs[9]  = { payload: statsCards };\noutputs[10] = { payload: alarmCards };\n\nreturn outputs;\n",
+        "func": "var p = msg.payload;\nvar sensors = p.sensors || [];\nvar periodEndTs = p.period_end_ts;  // unix seconds \u2014 unique per aggregation period\nvar x = periodEndTs ? periodEndTs * 1000 : Date.now();\n\nflow.set('latest_sensors', p);\n\nvar outputs = [null,null,null,null,null,null,null,null,null,null,null];\nvar chartPoints = [];\nvar statsCards = [];\nvar alarmCards = [];\n\nsensors.forEach(function(s) {\n    var temp = s.temperature ? s.temperature.avg_celsius : null;\n    var state = s.dominant_alarm_state || 'DISCONNECTED';\n    if (temp === null) state = 'NO DATA';\n\n    if (s.line < 8) {\n        outputs[s.line] = {\n            payload: temp !== null ? Number(Number(temp).toFixed(1)) : null,\n            title: s.name + ' (' + state + ')'\n        };\n    }\n\n    if (temp !== null) {\n        chartPoints.push({ series: s.name, x: x, y: temp });\n    }\n\n    statsCards.push({\n        line: s.line,\n        name: s.name,\n        state: state,\n        min: s.temperature ? Number(s.temperature.min_celsius).toFixed(1) : null,\n        avg: s.temperature ? Number(s.temperature.avg_celsius).toFixed(1) : null,\n        max: s.temperature ? Number(s.temperature.max_celsius).toFixed(1) : null,\n        samples: s.sample_count || 0\n    });\n\n    alarmCards.push({\n        line: s.line,\n        name: s.name,\n        state: state,\n        temp: temp !== null ? Number(temp).toFixed(1) : null\n    });\n});\n\nstatsCards.sort(function(a,b){ return a.line - b.line; });\nalarmCards.sort(function(a,b){ return a.line - b.line; });\n\noutputs[8]  = { payload: chartPoints };\noutputs[9]  = { payload: statsCards };\noutputs[10] = { payload: alarmCards };\n\nreturn outputs;\n",
         "outputs": 11,
         "timeout": "",
         "noerr": 0,
-        "x": 400,
+        "x": 440,
         "y": 720,
         "wires": [
             [
@@ -420,17 +624,17 @@
         "gtype": "gauge-half",
         "gstyle": "needle",
         "title": "Sensor 1",
-        "units": "°C",
+        "units": "\u00b0C",
         "icon": "",
         "prefix": "",
         "suffix": "",
         "segments": [
             {
-                "from": 0,
+                "from": 0.0,
                 "color": "#2196f3"
             },
             {
-                "from": 18,
+                "from": 18.0,
                 "color": "#4caf50"
             },
             {
@@ -438,20 +642,20 @@
                 "color": "#ff9800"
             },
             {
-                "from": 41,
+                "from": 41.0,
                 "color": "#f44336"
             }
         ],
         "min": 0,
         "max": 50,
-        "sizeThickness": 16,
-        "sizeGap": 4,
-        "sizeKeyThickness": 8,
         "x": 730,
         "y": 560,
         "wires": [
             []
-        ]
+        ],
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8
     },
     {
         "id": "ui-gauge-s1",
@@ -465,17 +669,17 @@
         "gtype": "gauge-half",
         "gstyle": "needle",
         "title": "Sensor 2",
-        "units": "°C",
+        "units": "\u00b0C",
         "icon": "",
         "prefix": "",
         "suffix": "",
         "segments": [
             {
-                "from": 0,
+                "from": 0.0,
                 "color": "#2196f3"
             },
             {
-                "from": 18,
+                "from": 18.0,
                 "color": "#4caf50"
             },
             {
@@ -483,20 +687,20 @@
                 "color": "#ff9800"
             },
             {
-                "from": 41,
+                "from": 41.0,
                 "color": "#f44336"
             }
         ],
         "min": 0,
         "max": 50,
-        "sizeThickness": 16,
-        "sizeGap": 4,
-        "sizeKeyThickness": 8,
         "x": 730,
         "y": 600,
         "wires": [
             []
-        ]
+        ],
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8
     },
     {
         "id": "ui-gauge-s2",
@@ -510,17 +714,17 @@
         "gtype": "gauge-half",
         "gstyle": "needle",
         "title": "Sensor 3",
-        "units": "°C",
+        "units": "\u00b0C",
         "icon": "",
         "prefix": "",
         "suffix": "",
         "segments": [
             {
-                "from": 0,
+                "from": 0.0,
                 "color": "#2196f3"
             },
             {
-                "from": 18,
+                "from": 18.0,
                 "color": "#4caf50"
             },
             {
@@ -528,20 +732,20 @@
                 "color": "#ff9800"
             },
             {
-                "from": 41,
+                "from": 41.0,
                 "color": "#f44336"
             }
         ],
         "min": 0,
         "max": 50,
-        "sizeThickness": 16,
-        "sizeGap": 4,
-        "sizeKeyThickness": 8,
         "x": 730,
         "y": 640,
         "wires": [
             []
-        ]
+        ],
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8
     },
     {
         "id": "ui-gauge-s3",
@@ -555,17 +759,17 @@
         "gtype": "gauge-half",
         "gstyle": "needle",
         "title": "Sensor 4",
-        "units": "°C",
+        "units": "\u00b0C",
         "icon": "",
         "prefix": "",
         "suffix": "",
         "segments": [
             {
-                "from": 0,
+                "from": 0.0,
                 "color": "#2196f3"
             },
             {
-                "from": 18,
+                "from": 18.0,
                 "color": "#4caf50"
             },
             {
@@ -573,20 +777,20 @@
                 "color": "#ff9800"
             },
             {
-                "from": 41,
+                "from": 41.0,
                 "color": "#f44336"
             }
         ],
         "min": 0,
         "max": 50,
-        "sizeThickness": 16,
-        "sizeGap": 4,
-        "sizeKeyThickness": 8,
         "x": 730,
         "y": 680,
         "wires": [
             []
-        ]
+        ],
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8
     },
     {
         "id": "ui-gauge-s4",
@@ -600,17 +804,17 @@
         "gtype": "gauge-half",
         "gstyle": "needle",
         "title": "Sensor 5",
-        "units": "°C",
+        "units": "\u00b0C",
         "icon": "",
         "prefix": "",
         "suffix": "",
         "segments": [
             {
-                "from": 0,
+                "from": 0.0,
                 "color": "#2196f3"
             },
             {
-                "from": 18,
+                "from": 18.0,
                 "color": "#4caf50"
             },
             {
@@ -618,20 +822,20 @@
                 "color": "#ff9800"
             },
             {
-                "from": 41,
+                "from": 41.0,
                 "color": "#f44336"
             }
         ],
         "min": 0,
         "max": 50,
-        "sizeThickness": 16,
-        "sizeGap": 4,
-        "sizeKeyThickness": 8,
         "x": 730,
         "y": 720,
         "wires": [
             []
-        ]
+        ],
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8
     },
     {
         "id": "ui-gauge-s5",
@@ -645,17 +849,17 @@
         "gtype": "gauge-half",
         "gstyle": "needle",
         "title": "Sensor 6",
-        "units": "°C",
+        "units": "\u00b0C",
         "icon": "",
         "prefix": "",
         "suffix": "",
         "segments": [
             {
-                "from": 0,
+                "from": 0.0,
                 "color": "#2196f3"
             },
             {
-                "from": 18,
+                "from": 18.0,
                 "color": "#4caf50"
             },
             {
@@ -663,20 +867,20 @@
                 "color": "#ff9800"
             },
             {
-                "from": 41,
+                "from": 41.0,
                 "color": "#f44336"
             }
         ],
         "min": 0,
         "max": 50,
-        "sizeThickness": 16,
-        "sizeGap": 4,
-        "sizeKeyThickness": 8,
         "x": 730,
         "y": 760,
         "wires": [
             []
-        ]
+        ],
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8
     },
     {
         "id": "ui-gauge-s6",
@@ -690,17 +894,17 @@
         "gtype": "gauge-half",
         "gstyle": "needle",
         "title": "Sensor 7",
-        "units": "°C",
+        "units": "\u00b0C",
         "icon": "",
         "prefix": "",
         "suffix": "",
         "segments": [
             {
-                "from": 0,
+                "from": 0.0,
                 "color": "#2196f3"
             },
             {
-                "from": 18,
+                "from": 18.0,
                 "color": "#4caf50"
             },
             {
@@ -708,20 +912,20 @@
                 "color": "#ff9800"
             },
             {
-                "from": 41,
+                "from": 41.0,
                 "color": "#f44336"
             }
         ],
         "min": 0,
         "max": 50,
-        "sizeThickness": 16,
-        "sizeGap": 4,
-        "sizeKeyThickness": 8,
         "x": 730,
         "y": 800,
         "wires": [
             []
-        ]
+        ],
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8
     },
     {
         "id": "ui-gauge-s7",
@@ -735,17 +939,17 @@
         "gtype": "gauge-half",
         "gstyle": "needle",
         "title": "Sensor 8",
-        "units": "°C",
+        "units": "\u00b0C",
         "icon": "",
         "prefix": "",
         "suffix": "",
         "segments": [
             {
-                "from": 0,
+                "from": 0.0,
                 "color": "#2196f3"
             },
             {
-                "from": 18,
+                "from": 18.0,
                 "color": "#4caf50"
             },
             {
@@ -753,20 +957,20 @@
                 "color": "#ff9800"
             },
             {
-                "from": 41,
+                "from": 41.0,
                 "color": "#f44336"
             }
         ],
         "min": 0,
         "max": 50,
-        "sizeThickness": 16,
-        "sizeGap": 4,
-        "sizeKeyThickness": 8,
         "x": 730,
         "y": 840,
         "wires": [
             []
-        ]
+        ],
+        "sizeThickness": 16,
+        "sizeGap": 4,
+        "sizeKeyThickness": 8
     },
     {
         "id": "func-chart-format",
@@ -791,16 +995,14 @@
         "z": "fiber-dashboard-tab",
         "group": "group-chart",
         "name": "Temperature Chart",
-        "label": "Temperature — Last Hour",
+        "label": "Temperature \u2014 Last Hour",
         "order": 1,
         "chartType": "line",
         "category": "series",
         "categoryType": "property",
-        "xAxisLabel": "",
         "xAxisProperty": "x",
         "xAxisPropertyType": "property",
         "xAxisType": "time",
-        "yAxisLabel": "Temperature (°C)",
         "yAxisProperty": "y",
         "ymin": "0",
         "ymax": "50",
@@ -813,11 +1015,13 @@
         "removeOlderPoints": "",
         "width": "12",
         "height": "10",
-        "x": 970,
+        "x": 930,
         "y": 880,
         "wires": [
             []
-        ]
+        ],
+        "yAxisLabel": "Temperature (\u00b0C)",
+        "xAxisLabel": ""
     },
     {
         "id": "mqtt-in-alarms",
@@ -845,7 +1049,7 @@
         "type": "function",
         "z": "fiber-dashboard-tab",
         "name": "Parse Alarm",
-        "func": "var a = msg.payload;\nvar temp = (a.temperature_celsius !== null && a.temperature_celsius !== undefined) ? Number(a.temperature_celsius).toFixed(1) + '°C' : '--';\nvar line = new Date(a.timestamp || Date.now()).toLocaleTimeString() + '  ' + (a.name || 'Line ' + a.line) + '  ' + a.from_state + ' → ' + a.to_state + '  ' + temp;\n\nvar history = flow.get('alarm_history') || [];\nhistory.unshift(line);\nif (history.length > 50) history = history.slice(0, 50);\nflow.set('alarm_history', history);\n\nvar msg1 = { payload: history.join('\\n') };\nvar msg2 = null;\nif (a.to_state === 'CRITICAL') {\n    msg2 = { payload: 'CRITICAL: ' + (a.name || 'Line ' + a.line) + ' — ' + temp };\n}\nreturn [msg1, msg2];",
+        "func": "var a = msg.payload;\nvar temp = (a.temperature_celsius !== null && a.temperature_celsius !== undefined) ? Number(a.temperature_celsius).toFixed(1) + '\u00b0C' : '--';\nvar line = new Date(a.timestamp || Date.now()).toLocaleTimeString() + '  ' + (a.name || 'Line ' + a.line) + '  ' + a.from_state + ' \u2192 ' + a.to_state + '  ' + temp;\n\nvar history = flow.get('alarm_history') || [];\nhistory.unshift(line);\nif (history.length > 50) history = history.slice(0, 50);\nflow.set('alarm_history', history);\n\nvar msg1 = { payload: history.join('\\n') };\nvar msg2 = null;\nif (a.to_state === 'CRITICAL') {\n    msg2 = { payload: 'CRITICAL: ' + (a.name || 'Line ' + a.line) + ' \u2014 ' + temp };\n}\nreturn [msg1, msg2];",
         "outputs": 2,
         "timeout": "",
         "noerr": 0,
@@ -885,11 +1089,11 @@
         "type": "function",
         "z": "fiber-dashboard-tab",
         "name": "Build Threshold Cmd",
-        "func": "var hostname = flow.get('device_hostname');\nif (!hostname) { node.warn('No device connected'); return null; }\n\nvar sensor = flow.get('thresh_sensor');\nvar cl = flow.get('thresh_critical_low');\nvar wl = flow.get('thresh_warning_low');\nvar wh = flow.get('thresh_warning_high');\nvar ch = flow.get('thresh_critical_high');\n\nif (sensor === undefined || cl === undefined || wl === undefined || wh === undefined || ch === undefined) {\n    node.warn('Missing threshold values — move sliders first');\n    return null;\n}\n\nmsg.topic = 'fiber/' + hostname + '/commands/sensor/set_threshold';\nmsg.payload = {\n    command: 'config_request',\n    command_type: 'set_threshold',\n    params: {\n        line: parseInt(sensor) - 1,\n        thresholds: {\n            critical_low:  parseFloat(cl),\n            warning_low:   parseFloat(wl),\n            warning_high:  parseFloat(wh),\n            critical_high: parseFloat(ch)\n        }\n    }\n};\nreturn msg;\n",
+        "func": "var hostname = flow.get('device_hostname');\nif (!hostname) { node.warn('No device connected'); return null; }\n\nvar sensor = flow.get('thresh_sensor');\nvar cl = flow.get('thresh_critical_low');\nvar wl = flow.get('thresh_warning_low');\nvar wh = flow.get('thresh_warning_high');\nvar ch = flow.get('thresh_critical_high');\n\nif (sensor === undefined || cl === undefined || wl === undefined || wh === undefined || ch === undefined) {\n    node.warn('Missing threshold values \u2014 move sliders first');\n    return null;\n}\n\nmsg.topic = 'fiber/' + hostname + '/commands/sensor/set_threshold';\nmsg.payload = {\n    command: 'config_request',\n    command_type: 'set_threshold',\n    params: {\n        line: parseInt(sensor) - 1,\n        thresholds: {\n            critical_low:  parseFloat(cl),\n            warning_low:   parseFloat(wl),\n            warning_high:  parseFloat(wh),\n            critical_high: parseFloat(ch)\n        }\n    }\n};\nreturn msg;\n",
         "outputs": 1,
         "timeout": "",
         "noerr": 0,
-        "x": 440,
+        "x": 460,
         "y": 1460,
         "wires": [
             [
@@ -979,6 +1183,33 @@
         ]
     },
     {
+        "id": "ui-btn-restart",
+        "type": "ui-button",
+        "z": "fiber-dashboard-tab",
+        "group": "group-threshold",
+        "name": "Restart",
+        "label": "Restart Device",
+        "order": 12,
+        "width": "3",
+        "height": "1",
+        "tooltip": "",
+        "color": "#ffffff",
+        "bgcolor": "#f44336",
+        "className": "",
+        "icon": "mdi-restart",
+        "payload": "{\"command\": \"restart\", \"reason\": \"Dashboard restart\"}",
+        "payloadType": "json",
+        "topic": "commands/system/restart",
+        "topicType": "str",
+        "x": 140,
+        "y": 1600,
+        "wires": [
+            [
+                "func-build-cmd"
+            ]
+        ]
+    },
+    {
         "id": "func-build-cmd",
         "type": "function",
         "z": "fiber-dashboard-tab",
@@ -987,8 +1218,8 @@
         "outputs": 1,
         "timeout": "",
         "noerr": 0,
-        "x": 880,
-        "y": 1760,
+        "x": 440,
+        "y": 1540,
         "wires": [
             [
                 "func-log-tx"
@@ -1029,7 +1260,7 @@
         "correl": "",
         "expiry": "",
         "broker": "mqtt-broker-1",
-        "x": 980,
+        "x": 880,
         "y": 1460,
         "wires": []
     },
@@ -1109,7 +1340,7 @@
         "timeout": "",
         "noerr": 0,
         "x": 420,
-        "y": 1200,
+        "y": 1220,
         "wires": [
             [
                 "ui-txt-terminal"
@@ -1121,7 +1352,7 @@
         "type": "function",
         "z": "fiber-dashboard-tab",
         "name": "Parse Error",
-        "func": "var e = msg.payload;\nmsg.payload = 'Error: ' + (e.command || 'unknown') + ' — ' + (e.message || e.error || 'Unknown');\nreturn msg;",
+        "func": "var e = msg.payload;\nmsg.payload = 'Error: ' + (e.command || 'unknown') + ' \u2014 ' + (e.message || e.error || 'Unknown');\nreturn msg;",
         "outputs": 1,
         "timeout": "",
         "noerr": 0,
@@ -1147,7 +1378,7 @@
         "allowDismiss": true,
         "raw": false,
         "name": "Error Alert",
-        "x": 750,
+        "x": 570,
         "y": 1260,
         "wires": [
             []
@@ -1165,8 +1396,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 430,
-        "y": 560,
+        "x": 500,
+        "y": 700,
         "wires": [
             [
                 "ui-gauge-s0"
@@ -1206,8 +1437,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1330,
-        "y": 1560,
+        "x": 460,
+        "y": 1620,
         "wires": [
             [
                 "func-build-cmd"
@@ -1229,13 +1460,15 @@
         "outs": "end",
         "topic": "commands/system/set_screen_brightness",
         "topicType": "str",
-        "thumbLabel": "always",
         "min": 0,
         "max": 100,
         "step": 5,
         "color": "",
-        "x": 990,
-        "y": 1600,
+        "thumbColor": "",
+        "trackColor": "",
+        "thumbLabel": "always",
+        "x": 200,
+        "y": 1580,
         "wires": [
             [
                 "func-build-setting"
@@ -1257,13 +1490,15 @@
         "outs": "end",
         "topic": "commands/system/set_led_brightness",
         "topicType": "str",
-        "thumbLabel": "always",
         "min": 0,
         "max": 100,
         "step": 5,
         "color": "",
-        "x": 980,
-        "y": 1520,
+        "thumbColor": "",
+        "trackColor": "",
+        "thumbLabel": "always",
+        "x": 200,
+        "y": 1620,
         "wires": [
             [
                 "func-build-setting"
@@ -1285,13 +1520,15 @@
         "outs": "end",
         "topic": "commands/system/set_buzzer_volume",
         "topicType": "str",
-        "thumbLabel": "always",
         "min": 0,
         "max": 100,
         "step": 5,
         "color": "",
-        "x": 980,
-        "y": 1560,
+        "thumbColor": "",
+        "trackColor": "",
+        "thumbLabel": "always",
+        "x": 200,
+        "y": 1660,
         "wires": [
             [
                 "func-build-setting"
@@ -1310,7 +1547,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 450,
+        "x": 460,
         "y": 1500,
         "wires": [
             [
@@ -1336,8 +1573,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1300,
-        "y": 1220,
+        "x": 460,
+        "y": 1100,
         "wires": [
             []
         ]
@@ -1357,13 +1594,15 @@
         "outs": "all",
         "topic": "sensor",
         "topicType": "str",
-        "thumbLabel": "always",
         "min": 1,
         "max": 8,
         "step": 1,
         "color": "",
-        "x": 980,
-        "y": 1140,
+        "thumbColor": "",
+        "trackColor": "",
+        "thumbLabel": "always",
+        "x": 200,
+        "y": 1100,
         "wires": [
             [
                 "func-store-threshold"
@@ -1385,13 +1624,15 @@
         "outs": "all",
         "topic": "critical_low",
         "topicType": "str",
-        "thumbLabel": "always",
         "min": -10,
         "max": 50,
         "step": 0.5,
         "color": "",
-        "x": 990,
-        "y": 1180,
+        "thumbColor": "",
+        "trackColor": "",
+        "thumbLabel": "always",
+        "x": 200,
+        "y": 1140,
         "wires": [
             [
                 "func-store-threshold"
@@ -1413,13 +1654,15 @@
         "outs": "all",
         "topic": "warning_low",
         "topicType": "str",
-        "thumbLabel": "always",
         "min": -10,
         "max": 50,
         "step": 0.5,
         "color": "",
-        "x": 990,
-        "y": 1220,
+        "thumbColor": "",
+        "trackColor": "",
+        "thumbLabel": "always",
+        "x": 200,
+        "y": 1180,
         "wires": [
             [
                 "func-store-threshold"
@@ -1441,13 +1684,15 @@
         "outs": "all",
         "topic": "warning_high",
         "topicType": "str",
-        "thumbLabel": "always",
         "min": -10,
         "max": 50,
         "step": 0.5,
         "color": "",
-        "x": 1000,
-        "y": 1260,
+        "thumbColor": "",
+        "trackColor": "",
+        "thumbLabel": "always",
+        "x": 200,
+        "y": 1220,
         "wires": [
             [
                 "func-store-threshold"
@@ -1469,13 +1714,15 @@
         "outs": "all",
         "topic": "critical_high",
         "topicType": "str",
-        "thumbLabel": "always",
         "min": -10,
         "max": 50,
         "step": 0.5,
         "color": "",
-        "x": 990,
-        "y": 1300,
+        "thumbColor": "",
+        "trackColor": "",
+        "thumbLabel": "always",
+        "x": 200,
+        "y": 1260,
         "wires": [
             [
                 "func-store-threshold"
@@ -1502,8 +1749,9 @@
         "payloadType": "str",
         "topic": "commands/sensor/set_threshold",
         "topicType": "str",
-        "x": 160,
-        "y": 1440,
+        "buttonType": "regular",
+        "x": 280,
+        "y": 1320,
         "wires": [
             [
                 "func-build-threshold"
@@ -1526,8 +1774,8 @@
         "resendOnRefresh": true,
         "templateScope": "local",
         "className": "",
-        "x": 750,
-        "y": 1200,
+        "x": 1080,
+        "y": 1820,
         "wires": [
             []
         ]
@@ -1537,8 +1785,6 @@
         "type": "ui-template",
         "z": "fiber-dashboard-tab",
         "group": "group-threshold",
-        "page": "",
-        "ui": "",
         "name": "Set Threshold",
         "order": 1,
         "width": "6",
@@ -1550,8 +1796,8 @@
         "resendOnRefresh": false,
         "templateScope": "local",
         "className": "",
-        "x": 1160,
-        "y": 120,
+        "x": 100,
+        "y": 1940,
         "wires": [
             []
         ]
@@ -1572,8 +1818,8 @@
         "resendOnRefresh": false,
         "templateScope": "local",
         "className": "",
-        "x": 1150,
-        "y": 160,
+        "x": 100,
+        "y": 2220,
         "wires": [
             []
         ]
@@ -1594,8 +1840,8 @@
         "resendOnRefresh": false,
         "templateScope": "local",
         "className": "",
-        "x": 1160,
-        "y": 200,
+        "x": 100,
+        "y": 2420,
         "wires": [
             []
         ]
@@ -1612,8 +1858,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 320,
-        "y": 2680,
+        "x": 480,
+        "y": 2200,
         "wires": [
             []
         ]
@@ -1630,8 +1876,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 420,
-        "y": 1820,
+        "x": 520,
+        "y": 2290,
         "wires": [
             [
                 "func-build-cmd"
@@ -1650,8 +1896,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 450,
-        "y": 1740,
+        "x": 520,
+        "y": 2240,
         "wires": [
             [
                 "func-build-cmd"
@@ -1670,8 +1916,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 460,
-        "y": 1780,
+        "x": 520,
+        "y": 2290,
         "wires": [
             [
                 "func-build-cmd"
@@ -1690,8 +1936,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 430,
-        "y": 1860,
+        "x": 520,
+        "y": 2340,
         "wires": [
             [
                 "func-build-cmd"
@@ -1714,8 +1960,8 @@
         "resendOnRefresh": false,
         "templateScope": "local",
         "className": "",
-        "x": 1130,
-        "y": 280,
+        "x": 120,
+        "y": 2810,
         "wires": [
             []
         ]
@@ -1727,22 +1973,22 @@
         "group": "group-threshold",
         "name": "Device Label",
         "label": "Device Label",
+        "tooltip": "",
         "order": 18,
         "width": "6",
         "height": "1",
         "topic": "device_label",
         "topicType": "str",
         "mode": "text",
-        "tooltip": "",
         "delay": 300,
         "passthru": false,
         "sendOnDelay": false,
         "sendOnBlur": true,
-        "clearable": true,
         "icon": "",
         "iconPosition": "left",
-        "x": 90,
-        "y": 2700,
+        "clearable": true,
+        "x": 140,
+        "y": 2940,
         "wires": [
             [
                 "func-store-cfg"
@@ -1756,10 +2002,10 @@
         "group": "group-threshold",
         "name": "Set Label",
         "label": "Set Label",
+        "tooltip": "",
         "order": 19,
         "width": "6",
         "height": "1",
-        "tooltip": "",
         "color": "",
         "bgcolor": "",
         "className": "",
@@ -1769,8 +2015,9 @@
         "payloadType": "str",
         "topic": "send",
         "topicType": "str",
-        "x": 140,
-        "y": 1820,
+        "buttonType": "regular",
+        "x": 280,
+        "y": 3080,
         "wires": [
             [
                 "func-build-label"
@@ -1793,8 +2040,8 @@
         "resendOnRefresh": false,
         "templateScope": "local",
         "className": "",
-        "x": 1150,
-        "y": 240,
+        "x": 120,
+        "y": 2900,
         "wires": [
             []
         ]
@@ -1814,13 +2061,15 @@
         "outs": "all",
         "topic": "sensor",
         "topicType": "str",
-        "thumbLabel": "always",
         "min": 1,
         "max": 8,
         "step": 1,
         "color": "",
-        "x": 90,
-        "y": 2660,
+        "thumbColor": "",
+        "trackColor": "",
+        "thumbLabel": "always",
+        "x": 140,
+        "y": 2620,
         "wires": [
             [
                 "func-store-cfg"
@@ -1834,22 +2083,22 @@
         "group": "group-threshold",
         "name": "Sensor Name",
         "label": "Sensor Name",
+        "tooltip": "",
         "order": 22,
         "width": "6",
         "height": "1",
         "topic": "sensor_name",
         "topicType": "str",
         "mode": "text",
-        "tooltip": "",
         "delay": 300,
         "passthru": false,
         "sendOnDelay": false,
         "sendOnBlur": true,
-        "clearable": true,
         "icon": "",
         "iconPosition": "left",
-        "x": 100,
-        "y": 2740,
+        "clearable": true,
+        "x": 140,
+        "y": 3060,
         "wires": [
             [
                 "func-store-cfg"
@@ -1863,10 +2112,10 @@
         "group": "group-threshold",
         "name": "Set Name",
         "label": "Set Name",
+        "tooltip": "",
         "order": 23,
         "width": "6",
         "height": "1",
-        "tooltip": "",
         "color": "",
         "bgcolor": "",
         "className": "",
@@ -1876,8 +2125,9 @@
         "payloadType": "str",
         "topic": "send",
         "topicType": "str",
-        "x": 140,
-        "y": 1740,
+        "buttonType": "regular",
+        "x": 280,
+        "y": 3160,
         "wires": [
             [
                 "func-build-sensor-name"
@@ -1891,22 +2141,22 @@
         "group": "group-threshold",
         "name": "Sensor Location",
         "label": "Sensor Location",
+        "tooltip": "",
         "order": 24,
         "width": "6",
         "height": "1",
         "topic": "sensor_location",
         "topicType": "str",
         "mode": "text",
-        "tooltip": "",
         "delay": 300,
         "passthru": false,
         "sendOnDelay": false,
         "sendOnBlur": true,
-        "clearable": true,
         "icon": "",
         "iconPosition": "left",
-        "x": 100,
-        "y": 2780,
+        "clearable": true,
+        "x": 140,
+        "y": 3120,
         "wires": [
             [
                 "func-store-cfg"
@@ -1920,10 +2170,10 @@
         "group": "group-threshold",
         "name": "Set Location",
         "label": "Set Location",
+        "tooltip": "",
         "order": 25,
         "width": "6",
         "height": "1",
-        "tooltip": "",
         "color": "",
         "bgcolor": "",
         "className": "",
@@ -1933,8 +2183,9 @@
         "payloadType": "str",
         "topic": "send",
         "topicType": "str",
-        "x": 150,
-        "y": 1780,
+        "buttonType": "regular",
+        "x": 280,
+        "y": 3200,
         "wires": [
             [
                 "func-build-sensor-location"
@@ -1946,8 +2197,6 @@
         "type": "ui-template",
         "z": "fiber-dashboard-tab",
         "group": "group-threshold",
-        "page": "",
-        "ui": "",
         "name": "Intervals (sec)",
         "order": 26,
         "width": "6",
@@ -1959,8 +2208,8 @@
         "resendOnRefresh": false,
         "templateScope": "local",
         "className": "",
-        "x": 1160,
-        "y": 320,
+        "x": 120,
+        "y": 3080,
         "wires": [
             []
         ]
@@ -1972,22 +2221,22 @@
         "group": "group-threshold",
         "name": "Sample (s)",
         "label": "Sample (s)",
+        "tooltip": "",
         "order": 27,
         "width": "6",
         "height": "1",
         "topic": "sample_s",
         "topicType": "str",
         "mode": "number",
-        "tooltip": "",
         "delay": 300,
         "passthru": false,
         "sendOnDelay": false,
         "sendOnBlur": true,
-        "clearable": true,
         "icon": "",
         "iconPosition": "left",
-        "x": 90,
-        "y": 2820,
+        "clearable": true,
+        "x": 140,
+        "y": 3310,
         "wires": [
             [
                 "func-store-cfg"
@@ -2001,22 +2250,22 @@
         "group": "group-threshold",
         "name": "Aggregation (s)",
         "label": "Aggregation (s)",
+        "tooltip": "",
         "order": 28,
         "width": "6",
         "height": "1",
         "topic": "aggregation_s",
         "topicType": "str",
         "mode": "number",
-        "tooltip": "",
         "delay": 300,
         "passthru": false,
         "sendOnDelay": false,
         "sendOnBlur": true,
-        "clearable": true,
         "icon": "",
         "iconPosition": "left",
-        "x": 100,
-        "y": 2860,
+        "clearable": true,
+        "x": 140,
+        "y": 3340,
         "wires": [
             [
                 "func-store-cfg"
@@ -2030,22 +2279,22 @@
         "group": "group-threshold",
         "name": "Report (s)",
         "label": "Report (s)",
+        "tooltip": "",
         "order": 29,
         "width": "6",
         "height": "1",
         "topic": "report_s",
         "topicType": "str",
         "mode": "number",
-        "tooltip": "",
         "delay": 300,
         "passthru": false,
         "sendOnDelay": false,
         "sendOnBlur": true,
-        "clearable": true,
         "icon": "",
         "iconPosition": "left",
-        "x": 80,
-        "y": 2900,
+        "clearable": true,
+        "x": 140,
+        "y": 3370,
         "wires": [
             [
                 "func-store-cfg"
@@ -2059,10 +2308,10 @@
         "group": "group-threshold",
         "name": "Set Intervals",
         "label": "Set Intervals",
+        "tooltip": "",
         "order": 30,
         "width": "6",
         "height": "1",
-        "tooltip": "",
         "color": "",
         "bgcolor": "",
         "className": "",
@@ -2072,8 +2321,9 @@
         "payloadType": "str",
         "topic": "send",
         "topicType": "str",
-        "x": 150,
-        "y": 1860,
+        "buttonType": "regular",
+        "x": 280,
+        "y": 3300,
         "wires": [
             [
                 "func-build-intervals"
@@ -2096,8 +2346,8 @@
         "resendOnRefresh": true,
         "templateScope": "local",
         "className": "",
-        "x": 750,
-        "y": 1020,
+        "x": 1100,
+        "y": 900,
         "wires": [
             []
         ]
@@ -2112,14 +2362,14 @@
         "width": "12",
         "height": "6",
         "head": "",
-        "format": "<div style=\"display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:8px;\">\n  <div v-for=\"s in msg.payload\" :key=\"s.line\"\n       :style=\"{\n         background: stateBg(s.state),\n         border: '1px solid ' + stateBorder(s.state),\n         borderRadius: '6px',\n         padding: '12px',\n         color: '#fff',\n         display: 'flex',\n         flexDirection: 'column',\n         gap: '4px'\n       }\">\n    <div style=\"font-weight:600;font-size:13px;opacity:0.85\">{{ s.name }}</div>\n    <div :style=\"{fontSize:'24px',fontWeight:700}\">{{ s.temp ? s.temp + '°C' : '—' }}</div>\n    <div :style=\"{fontSize:'11px',letterSpacing:'0.05em',fontWeight:600,color:stateColor(s.state)}\">{{ s.state }}</div>\n  </div>\n</div>\n\n<script>\n  export default {\n    methods: {\n      stateBg(state) {\n        switch (state) {\n          case 'CRITICAL':     return 'rgba(244, 67, 54, 0.18)';\n          case 'WARNING':      return 'rgba(255, 152, 0, 0.18)';\n          case 'NORMAL':       return 'rgba(76, 175, 80, 0.18)';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return 'rgba(120, 120, 120, 0.18)';\n          default:             return 'rgba(33, 150, 243, 0.18)';\n        }\n      },\n      stateBorder(state) {\n        switch (state) {\n          case 'CRITICAL':     return '#f44336';\n          case 'WARNING':      return '#ff9800';\n          case 'NORMAL':       return '#4caf50';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return '#666';\n          default:             return '#2196f3';\n        }\n      },\n      stateColor(state) {\n        switch (state) {\n          case 'CRITICAL':     return '#ff8a80';\n          case 'WARNING':      return '#ffb74d';\n          case 'NORMAL':       return '#a5d6a7';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return '#bdbdbd';\n          default:             return '#90caf9';\n        }\n      }\n    }\n  }\n</script>\n",
+        "format": "<div style=\"display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:8px;\">\n  <div v-for=\"s in msg.payload\" :key=\"s.line\"\n       :style=\"{\n         background: stateBg(s.state),\n         border: '1px solid ' + stateBorder(s.state),\n         borderRadius: '6px',\n         padding: '12px',\n         color: '#fff',\n         display: 'flex',\n         flexDirection: 'column',\n         gap: '4px'\n       }\">\n    <div style=\"font-weight:600;font-size:13px;opacity:0.85\">{{ s.name }}</div>\n    <div :style=\"{fontSize:'24px',fontWeight:700}\">{{ s.temp ? s.temp + '\u00b0C' : '\u2014' }}</div>\n    <div :style=\"{fontSize:'11px',letterSpacing:'0.05em',fontWeight:600,color:stateColor(s.state)}\">{{ s.state }}</div>\n  </div>\n</div>\n\n<script>\n  export default {\n    methods: {\n      stateBg(state) {\n        switch (state) {\n          case 'CRITICAL':     return 'rgba(244, 67, 54, 0.18)';\n          case 'WARNING':      return 'rgba(255, 152, 0, 0.18)';\n          case 'NORMAL':       return 'rgba(76, 175, 80, 0.18)';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return 'rgba(120, 120, 120, 0.18)';\n          default:             return 'rgba(33, 150, 243, 0.18)';\n        }\n      },\n      stateBorder(state) {\n        switch (state) {\n          case 'CRITICAL':     return '#f44336';\n          case 'WARNING':      return '#ff9800';\n          case 'NORMAL':       return '#4caf50';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return '#666';\n          default:             return '#2196f3';\n        }\n      },\n      stateColor(state) {\n        switch (state) {\n          case 'CRITICAL':     return '#ff8a80';\n          case 'WARNING':      return '#ffb74d';\n          case 'NORMAL':       return '#a5d6a7';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return '#bdbdbd';\n          default:             return '#90caf9';\n        }\n      }\n    }\n  }\n</script>\n",
         "storeOutMessages": true,
         "passthru": true,
         "resendOnRefresh": true,
         "templateScope": "local",
         "className": "",
-        "x": 750,
-        "y": 920,
+        "x": 1100,
+        "y": 960,
         "wires": [
             []
         ]
@@ -2134,224 +2384,16 @@
         "width": "12",
         "height": "6",
         "head": "",
-        "format": "<div style=\"display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:8px;\">\n  <div v-for=\"s in msg.payload\" :key=\"s.line\"\n       :style=\"{\n         background: stateBg(s.state),\n         border: '1px solid ' + stateBorder(s.state),\n         borderRadius: '6px',\n         padding: '10px 12px',\n         color: '#fff',\n         display: 'flex',\n         flexDirection: 'column',\n         gap: '6px'\n       }\">\n    <div style=\"display:flex;justify-content:space-between;align-items:baseline;\">\n      <span style=\"font-weight:600;font-size:13px;opacity:0.85\">{{ s.name }}</span>\n      <span :style=\"{fontSize:'10px',letterSpacing:'0.05em',fontWeight:600,color:stateColor(s.state)}\">{{ s.state }}</span>\n    </div>\n    <div v-if=\"s.avg !== null\" style=\"display:flex;justify-content:space-between;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;\">\n      <span style=\"opacity:0.65\">min</span><span style=\"font-weight:600\">{{ s.min }}°</span>\n      <span style=\"opacity:0.65\">avg</span><span style=\"font-weight:600\">{{ s.avg }}°</span>\n      <span style=\"opacity:0.65\">max</span><span style=\"font-weight:600\">{{ s.max }}°</span>\n    </div>\n    <div v-else style=\"font-size:12px;opacity:0.55;font-style:italic\">no samples</div>\n    <div style=\"font-size:10px;opacity:0.55\">{{ s.samples }} samples</div>\n  </div>\n</div>\n\n<script>\n  export default {\n    methods: {\n      stateBg(state) {\n        switch (state) {\n          case 'CRITICAL':     return 'rgba(244, 67, 54, 0.18)';\n          case 'WARNING':      return 'rgba(255, 152, 0, 0.18)';\n          case 'NORMAL':       return 'rgba(76, 175, 80, 0.18)';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return 'rgba(120, 120, 120, 0.18)';\n          default:             return 'rgba(33, 150, 243, 0.18)';\n        }\n      },\n      stateBorder(state) {\n        switch (state) {\n          case 'CRITICAL':     return '#f44336';\n          case 'WARNING':      return '#ff9800';\n          case 'NORMAL':       return '#4caf50';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return '#666';\n          default:             return '#2196f3';\n        }\n      },\n      stateColor(state) {\n        switch (state) {\n          case 'CRITICAL':     return '#ff8a80';\n          case 'WARNING':      return '#ffb74d';\n          case 'NORMAL':       return '#a5d6a7';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return '#bdbdbd';\n          default:             return '#90caf9';\n        }\n      }\n    }\n  }\n</script>\n",
+        "format": "<div style=\"display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:8px;\">\n  <div v-for=\"s in msg.payload\" :key=\"s.line\"\n       :style=\"{\n         background: stateBg(s.state),\n         border: '1px solid ' + stateBorder(s.state),\n         borderRadius: '6px',\n         padding: '10px 12px',\n         color: '#fff',\n         display: 'flex',\n         flexDirection: 'column',\n         gap: '6px'\n       }\">\n    <div style=\"display:flex;justify-content:space-between;align-items:baseline;\">\n      <span style=\"font-weight:600;font-size:13px;opacity:0.85\">{{ s.name }}</span>\n      <span :style=\"{fontSize:'10px',letterSpacing:'0.05em',fontWeight:600,color:stateColor(s.state)}\">{{ s.state }}</span>\n    </div>\n    <div v-if=\"s.avg !== null\" style=\"display:flex;justify-content:space-between;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;\">\n      <span style=\"opacity:0.65\">min</span><span style=\"font-weight:600\">{{ s.min }}\u00b0</span>\n      <span style=\"opacity:0.65\">avg</span><span style=\"font-weight:600\">{{ s.avg }}\u00b0</span>\n      <span style=\"opacity:0.65\">max</span><span style=\"font-weight:600\">{{ s.max }}\u00b0</span>\n    </div>\n    <div v-else style=\"font-size:12px;opacity:0.55;font-style:italic\">no samples</div>\n    <div style=\"font-size:10px;opacity:0.55\">{{ s.samples }} samples</div>\n  </div>\n</div>\n\n<script>\n  export default {\n    methods: {\n      stateBg(state) {\n        switch (state) {\n          case 'CRITICAL':     return 'rgba(244, 67, 54, 0.18)';\n          case 'WARNING':      return 'rgba(255, 152, 0, 0.18)';\n          case 'NORMAL':       return 'rgba(76, 175, 80, 0.18)';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return 'rgba(120, 120, 120, 0.18)';\n          default:             return 'rgba(33, 150, 243, 0.18)';\n        }\n      },\n      stateBorder(state) {\n        switch (state) {\n          case 'CRITICAL':     return '#f44336';\n          case 'WARNING':      return '#ff9800';\n          case 'NORMAL':       return '#4caf50';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return '#666';\n          default:             return '#2196f3';\n        }\n      },\n      stateColor(state) {\n        switch (state) {\n          case 'CRITICAL':     return '#ff8a80';\n          case 'WARNING':      return '#ffb74d';\n          case 'NORMAL':       return '#a5d6a7';\n          case 'DISCONNECTED':\n          case 'NO DATA':      return '#bdbdbd';\n          default:             return '#90caf9';\n        }\n      }\n    }\n  }\n</script>\n",
         "storeOutMessages": true,
         "passthru": true,
         "resendOnRefresh": true,
         "templateScope": "local",
         "className": "",
-        "x": 740,
-        "y": 960,
+        "x": 1100,
+        "y": 700,
         "wires": [
             []
         ]
-    },
-    {
-        "id": "mqtt-broker-1",
-        "type": "mqtt-broker",
-        "name": "FIBER MQTT",
-        "broker": "localhost",
-        "port": "1883",
-        "tls": "",
-        "clientid": "nodered-dashboard",
-        "autoConnect": true,
-        "usetls": false,
-        "protocolVersion": 4,
-        "keepalive": "30",
-        "cleansession": true,
-        "autoUnsubscribe": true,
-        "birthTopic": "",
-        "birthQos": "0",
-        "birthPayload": "",
-        "birthMsg": {},
-        "closeTopic": "",
-        "closePayload": "",
-        "closeMsg": {},
-        "willTopic": "",
-        "willQos": "0",
-        "willPayload": "",
-        "willMsg": {},
-        "userProps": "",
-        "sessionExpiry": "",
-        "credentials": {
-            "user": "${MQTT_USER}",
-            "password": "${MQTT_PASS}"
-        }
-    },
-    {
-        "id": "group-device",
-        "type": "ui-group",
-        "name": "Device",
-        "page": "page-overview",
-        "width": "6",
-        "height": "1",
-        "order": 1
-    },
-    {
-        "id": "group-system",
-        "type": "ui-group",
-        "name": "System",
-        "page": "page-overview",
-        "width": "6",
-        "height": "1",
-        "order": 2
-    },
-    {
-        "id": "group-power",
-        "type": "ui-group",
-        "name": "Power",
-        "page": "page-overview",
-        "width": "6",
-        "height": "1",
-        "order": 4
-    },
-    {
-        "id": "group-network",
-        "type": "ui-group",
-        "name": "Network",
-        "page": "page-overview",
-        "width": "6",
-        "height": "1",
-        "order": 5
-    },
-    {
-        "id": "group-sensors",
-        "type": "ui-group",
-        "name": "Sensors",
-        "page": "page-overview",
-        "width": "12",
-        "height": "1",
-        "order": 3
-    },
-    {
-        "id": "group-chart",
-        "type": "ui-group",
-        "name": "Temperature",
-        "page": "page-charts",
-        "width": "12",
-        "height": "1",
-        "order": 1
-    },
-    {
-        "id": "ui-base-1",
-        "type": "ui-base",
-        "name": "FIBER Dev Platform",
-        "path": "/dashboard",
-        "appIcon": ""
-    },
-    {
-        "id": "group-threshold",
-        "type": "ui-group",
-        "name": "Controls",
-        "page": "page-commands",
-        "width": "6",
-        "height": "1",
-        "order": 1
-    },
-    {
-        "id": "group-terminal",
-        "type": "ui-group",
-        "name": "MQTT Log",
-        "page": "page-commands",
-        "width": "6",
-        "height": "1",
-        "order": 2
-    },
-    {
-        "id": "group-alarm-log",
-        "type": "ui-group",
-        "name": "Alarm Log",
-        "page": "page-alarms",
-        "width": "12",
-        "height": "1",
-        "order": 1
-    },
-    {
-        "id": "group-alarm-status",
-        "type": "ui-group",
-        "name": "Alarm Status",
-        "page": "page-alarms",
-        "width": "12",
-        "height": "1",
-        "order": 2
-    },
-    {
-        "id": "group-stats",
-        "type": "ui-group",
-        "name": "Statistics",
-        "page": "page-charts",
-        "width": "12",
-        "height": "1",
-        "order": 2
-    },
-    {
-        "id": "page-overview",
-        "type": "ui-page",
-        "name": "Overview",
-        "ui": "ui-base-1",
-        "path": "/overview",
-        "icon": "mdi-view-dashboard",
-        "layout": "grid",
-        "theme": "theme-1",
-        "order": 1
-    },
-    {
-        "id": "page-charts",
-        "type": "ui-page",
-        "name": "Charts",
-        "ui": "ui-base-1",
-        "path": "/charts",
-        "icon": "mdi-chart-line",
-        "layout": "grid",
-        "theme": "theme-1",
-        "order": 2
-    },
-    {
-        "id": "page-commands",
-        "type": "ui-page",
-        "name": "Commands",
-        "ui": "ui-base-1",
-        "path": "/commands",
-        "icon": "mdi-console",
-        "layout": "grid",
-        "theme": "theme-1",
-        "order": 4
-    },
-    {
-        "id": "page-alarms",
-        "type": "ui-page",
-        "name": "Alarms",
-        "ui": "ui-base-1",
-        "path": "/alarms",
-        "icon": "mdi-alert",
-        "layout": "grid",
-        "theme": "theme-1",
-        "order": 3
-    },
-    {
-        "id": "theme-1",
-        "type": "ui-theme",
-        "name": "FIBER Theme",
-        "colors": {
-            "surface": "#1a1a2e",
-            "primary": "#0f3460",
-            "bgPage": "#16213e",
-            "groupBg": "#1a1a2e",
-            "groupOutline": "#0f3460"
-        },
-        "sizes": {
-            "pagePadding": "12px",
-            "groupGap": "12px",
-            "groupBorderRadius": "8px",
-            "widgetGap": "6px"
-        }
-    },
-    {
-        "id": "e2bcdf9bf7483241",
-        "type": "global-config",
-        "env": [],
-        "modules": {
-            "@flowfuse/node-red-dashboard": "1.30.2"
-        }
     }
 ]

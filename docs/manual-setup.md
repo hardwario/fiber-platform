@@ -51,7 +51,6 @@ sudo nano /boot/firmware/config.txt
 Add these lines at the end of the file (inside the `[all]` section, or add `[all]` first):
 
 ```
-[all]
 dtoverlay=w1-gpio
 dtoverlay=uart3
 dtoverlay=uart4
@@ -100,8 +99,6 @@ sudo mkdir -p /data/fiber/config
 sudo mkdir -p /data/fiber/backups
 sudo mkdir -p /data/ble
 sudo touch /data/fiber/config/DEV_MODE_ENABLED
-echo -n "123456" | sudo tee /data/ble/pin.txt
-sudo chmod 600 /data/ble/pin.txt
 ```
 
 | Path | Purpose |
@@ -110,9 +107,9 @@ sudo chmod 600 /data/ble/pin.txt
 | `/data/fiber/config/` | YAML configuration files |
 | `/data/fiber/config/DEV_MODE_ENABLED` | Required marker — tells the app this is a dev platform (no crypto verification) |
 | `/data/fiber/backups/` | Automatic database backups |
-| `/data/ble/pin.txt` | BLE pairing PIN (default `123456`; the in-app BLE GATT server reads this on startup) |
+| `/data/ble/` | BLE runtime files (e.g. `mac.txt` written by the in-app GATT server) |
 
-> The app overwrites this file with the configured `default_pin` if it doesn't exist or is empty — but creating it explicitly with `0600` keeps the permission tight from the first boot.
+> The BLE pairing PIN is now configured in `fiber.config.yaml` under the `[ble]` section (`pin:` field) — no separate file is required.
 
 ## 6. Configure Mosquitto MQTT broker
 
@@ -274,7 +271,7 @@ PowerState: on
 
 If you see `PowerState: off-blocked`, the radio is still soft-blocked — repeat section 7.3.
 
-### 7.5 Enable BLE in the FIBER app config
+### 7.5 Enable BLE in the FIBER app config (nao precisa mais)
 
 The default `fiber.config.yaml` ships with `ble.enabled: false` (production safety). For the dev platform, flip it to `true`:
 
@@ -293,8 +290,7 @@ Expected:
 ```yaml
 ble:
   enabled: true
-  pin_file: /data/ble/pin.txt
-  default_pin: "123456"
+  pin: "123456"
   enable_terminal: true
   advertising_name: null
 ```
@@ -420,13 +416,9 @@ ls /sys/bus/w1/devices/
 
 You should see directories starting with `28-` (one per DS18B20 sensor).
 
-## 13. Start the FIBER application
+## 13. Verify the FIBER application is running
 
-```bash
-sudo systemctl start fiber.service
-```
-
-Check status:
+After the reboot, `fiber.service` was started automatically by systemd (because it was enabled in section 10). Confirm:
 
 ```bash
 sudo systemctl status fiber.service
@@ -460,18 +452,10 @@ Monitor all messages from the FIBER app:
 
 ```bash
 mosquitto_sub -h localhost -u fiber -P fiber_dev -t "fiber/#" -v
-```1880/dashboard
+```
 
 You should see sensor data, system info, and status messages appearing. Press `Ctrl+C` to stop.
 
-Request system info manually:
-
-```bash
-HOSTNAME=$(hostname)
-mosquitto_pub -h localhost -u fiber -P fiber_dev \
-  -t "fiber/$HOSTNAME/commands/system/get_info" \
-  -m '{"command":"get_info"}'
-```
 
 ## 16. Install Node-RED
 
@@ -499,14 +483,32 @@ cp ~/fiber-dev-plat/node-red/flows.json ~/.node-red/flows.json
 
 > Or import via the Node-RED editor: Menu -> Import -> select the file.
 
-## 19. Start Node-RED
+The MQTT broker config in `flows.json` references `${MQTT_USER}` and `${MQTT_PASS}` — these are injected via systemd in the next step, so the dashboard connects without manual credential entry.
+
+## 19. Configure Node-RED MQTT credentials
+
+Create a systemd drop-in that exports the MQTT credentials to the Node-RED service:
+
+```bash
+sudo mkdir -p /etc/systemd/system/nodered.service.d
+sudo tee /etc/systemd/system/nodered.service.d/fiber-mqtt-env.conf >/dev/null <<EOF
+[Service]
+Environment=MQTT_USER=fiber
+Environment=MQTT_PASS=fiber_dev
+EOF
+sudo systemctl daemon-reload
+```
+
+> If you change the MQTT password (section 6.2), update this file too — otherwise the dashboard stops connecting.
+
+## 20. Start Node-RED
 
 ```bash
 sudo systemctl enable nodered.service
 sudo systemctl start nodered.service
 ```
 
-## 20. Open the dashboard
+## 21. Open the dashboard
 
 In your browser, go to:
 
@@ -584,8 +586,6 @@ mosquitto_pub $MQTT -t "fiber/$HOSTNAME/commands/sensor/get_config" -m '{"comman
 mosquitto_pub $MQTT -t "fiber/$HOSTNAME/commands/sensor/set_threshold" \
   -m '{"command":"set_threshold","line":0,"thresholds":{"critical_low":18,"warning_low":27,"warning_high":38.5,"critical_high":41}}'
 
-# Restart application
-mosquitto_pub $MQTT -t "fiber/$HOSTNAME/commands/system/restart" -m '{"command":"restart"}'
 ```
 
 ---
@@ -603,3 +603,7 @@ mosquitto_pub $MQTT -t "fiber/$HOSTNAME/commands/system/restart" -m '{"command":
 | Mosquitto MQTT | 1883 |
 | Node-RED Editor | 1880 |
 | Node-RED Dashboard | 1880/dashboard |
+
+
+sudo cp /tmp/dev-platform/fiber_app /opt/fiber/fiber_app
+sudo chmod +x /opt/fiber/fiber_app

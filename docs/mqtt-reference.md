@@ -358,7 +358,7 @@ In production, configuration changes use a 2-phase commit with signed commands. 
 
 ```bash
 HOSTNAME=$(hostname)
-MQTT_OPTS="-h localhost -u fiber -P 123456789"
+MQTT_OPTS="-h localhost -u fiber -P fiber_dev"
 
 # Monitor all messages
 mosquitto_sub $MQTT_OPTS -t "fiber/#" -v

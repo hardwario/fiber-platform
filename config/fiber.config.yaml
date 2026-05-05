@@ -82,7 +82,7 @@ system:
   app_name: FIBER Dev Platform
   app_version: 0.1.0
   timezone_offset_hours: 0
-  device_label: DEV-PLATFORM
+  device_label: FIBER-DEV
   led_brightness: 25
   screen_brightness: 50
 
@@ -130,7 +130,6 @@ mqtt:
 
 ble:
   enabled: true                # dev platform: in-app BLE GATT server is active
-  pin_file: /data/ble/pin.txt
-  default_pin: "123456"
+  pin: "123456"                # BLE pairing PIN. Edit to rotate.
   enable_terminal: true        # FB05/FB06 terminal-over-BLE; set false for stricter deployments
   advertising_name: null       # null → use device hostname; set to "FIBER-DEV" if mobile filters by name

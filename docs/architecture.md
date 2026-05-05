@@ -95,7 +95,7 @@ Standard MQTT message broker. All communication between the FIBER app and Node-R
 |--------|--------|
 | Port | 1883 |
 | User | `fiber` |
-| Password | `123456789` |
+| Password | `fiber_dev` |
 | Config | `/etc/mosquitto/conf.d/fiber.conf` |
 | Persistence | `/var/lib/mosquitto/` |
 

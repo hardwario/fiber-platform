@@ -193,7 +193,7 @@ When it finishes, you will see a summary showing all installed components and th
 ```
   MQTT credentials:
     User: fiber
-    Pass: 123456789
+    Pass: fiber_dev
 ```
 
 > **Write these down.** You will need them later.
@@ -341,7 +341,7 @@ i2cdetect -y 10
 This is the most useful verification. It shows all messages flowing through the system in real-time:
 
 ```bash
-mosquitto_sub -h localhost -u fiber -P 123456789 -t 'fiber/#' -v
+mosquitto_sub -h localhost -u fiber -P fiber_dev -t 'fiber/#' -v
 ```
 
 You should see messages appearing every few seconds with sensor data, system info, and alarms. Press `Ctrl+C` to stop.
@@ -352,10 +352,10 @@ Send a test message and verify you receive it:
 
 ```bash
 # In one terminal, subscribe:
-mosquitto_sub -h localhost -u fiber -P 123456789 -t 'test/hello' -v
+mosquitto_sub -h localhost -u fiber -P fiber_dev -t 'test/hello' -v
 
 # In another terminal (open a second SSH session), publish:
-mosquitto_pub -h localhost -u fiber -P 123456789 -t 'test/hello' -m 'it works!'
+mosquitto_pub -h localhost -u fiber -P fiber_dev -t 'test/hello' -m 'it works!'
 ```
 
 You should see `test/hello it works!` appear in the first terminal.
@@ -364,7 +364,7 @@ You should see `test/hello it works!` appear in the first terminal.
 
 ```bash
 HOSTNAME=$(hostname)
-mosquitto_pub -h localhost -u fiber -P 123456789 \
+mosquitto_pub -h localhost -u fiber -P fiber_dev \
   -t "fiber/$HOSTNAME/commands/system/get_info" \
   -m '{"command":"get_info"}'
 ```
@@ -417,7 +417,7 @@ The flows are configured to connect to `localhost`. Since the MQTT broker is on 
 4. Confirm **Port** is `1883`
 5. Go to the **Security** tab and verify:
    - Username: `fiber`
-   - Password: `123456789`
+   - Password: `fiber_dev`
 6. Click **Update**, then **Done**
 7. Click **Deploy** (red button, top-right)
 
@@ -456,7 +456,7 @@ journalctl -u nodered -f
 ```bash
 # Set variables for convenience
 HOSTNAME=$(hostname)
-MQTT="-h localhost -u fiber -P 123456789"
+MQTT="-h localhost -u fiber -P fiber_dev"
 
 # Monitor all FIBER messages
 mosquitto_sub $MQTT -t 'fiber/#' -v
@@ -565,21 +565,21 @@ Common causes:
    - Server: `localhost`
    - Port: `1883`
    - Username: `fiber`
-   - Password: `123456789`
+   - Password: `fiber_dev`
 4. Click **Deploy** after making changes
-5. Verify MQTT is working: run `mosquitto_sub -h localhost -u fiber -P 123456789 -t 'fiber/#' -v` on the Pi
+5. Verify MQTT is working: run `mosquitto_sub -h localhost -u fiber -P fiber_dev -t 'fiber/#' -v` on the Pi
 
 ### MQTT authentication errors
 
 ```bash
 # Test the connection manually
-mosquitto_pub -h localhost -u fiber -P 123456789 -t test -m hello
+mosquitto_pub -h localhost -u fiber -P fiber_dev -t test -m hello
 ```
 
 If you get `Connection Refused: not authorised`:
 ```bash
 # Recreate the password
-sudo mosquitto_passwd -b /etc/mosquitto/passwd fiber 123456789
+sudo mosquitto_passwd -b /etc/mosquitto/passwd fiber fiber_dev
 sudo systemctl restart mosquitto
 ```
 
@@ -627,8 +627,8 @@ Log out and back in (or reboot) for the group change to take effect.
 
 | Service | Port | URL / Command |
 |---------|------|---------------|
-| MQTT Broker | 1883 | `mosquitto_sub -h localhost -u fiber -P 123456789 -t 'fiber/#' -v` |
+| MQTT Broker | 1883 | `mosquitto_sub -h localhost -u fiber -P fiber_dev -t 'fiber/#' -v` |
 | Node-RED Editor | 1880 | `http://<pi-ip>:1880` |
 | Node-RED Dashboard | 1880 | `http://<pi-ip>:1880/dashboard` |
 
-**MQTT Credentials:** user `fiber`, password `123456789`
+**MQTT Credentials:** user `fiber`, password `fiber_dev`

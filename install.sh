@@ -23,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # MQTT credentials (must match fiber.config.yaml)
 MQTT_USER="fiber"
-MQTT_PASS="123456789"
+MQTT_PASS="fiber_dev"
 
 # =============================================================================
 # Helper functions
@@ -137,9 +137,6 @@ setup_directories() {
 
     # Dev mode marker — required by the dev-platform binary
     touch /data/fiber/config/DEV_MODE_ENABLED
-
-    # BLE pairing PIN (dummy value for dev platform)
-    echo "000000" > /data/ble/pin.txt
 
     ok "Directory structure created"
 }
@@ -267,6 +264,15 @@ configure_nodered() {
         warn "No flows.json found — import it later from the Node-RED editor"
     fi
 
+    # Inject MQTT credentials via systemd env vars; flows.json references ${MQTT_USER}/${MQTT_PASS}
+    mkdir -p /etc/systemd/system/nodered.service.d
+    cat > /etc/systemd/system/nodered.service.d/fiber-mqtt-env.conf <<EOF
+[Service]
+Environment=MQTT_USER=${MQTT_USER}
+Environment=MQTT_PASS=${MQTT_PASS}
+EOF
+    systemctl daemon-reload
+
     systemctl enable "nodered.service"
     systemctl start "nodered.service"
 
@@ -304,7 +310,7 @@ print_summary() {
     echo "    sudo systemctl status nodered          # Check Node-RED"
     echo "    journalctl -u fiber.service -f         # FIBER app logs"
     echo "    ls /sys/bus/w1/devices/                # Check 1-Wire sensors"
-    echo "    mosquitto_sub -h localhost -u fiber -P 123456789 -t 'fiber/#' -v"
+    echo "    mosquitto_sub -h localhost -u fiber -P fiber_dev -t 'fiber/#' -v"
     echo ""
     echo "==========================================================================="
 

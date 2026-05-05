@@ -70,7 +70,7 @@ Follow the **[Manual Setup Guide](docs/manual-setup.md)** for step-by-step comma
 
 | Service | Port | Access |
 |---------|------|--------|
-| Mosquitto MQTT | 1883 | `mosquitto_sub -h localhost -u fiber -P 123456789 -t 'fiber/#' -v` |
+| Mosquitto MQTT | 1883 | `mosquitto_sub -h localhost -u fiber -P fiber_dev -t 'fiber/#' -v` |
 | Node-RED Editor | 1880 | `http://<pi-ip>:1880` |
 | Node-RED Dashboard | 1880 | `http://<pi-ip>:1880/dashboard` |
 
@@ -78,7 +78,7 @@ Follow the **[Manual Setup Guide](docs/manual-setup.md)** for step-by-step comma
 
 | User | Password |
 |------|----------|
-| `fiber` | `123456789` |
+| `fiber` | `fiber_dev` |
 
 ## Documentation
 
