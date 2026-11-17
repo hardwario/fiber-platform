@@ -19,7 +19,7 @@ to tell that it is done. The facts it works with are in the documents: the board
 
 | Milestone | What | Tasks | Done when |
 |---|---|---|---|
-| M0 | Foundations and bench checks | T1 to T3 | Both microcontrollers answer their bootloader from the CM4; CI is green |
+| M0 | Foundations and bench checks | T1 to T3 | Both microcontrollers answer their bootloader from the CM4; CI is green (T1 done) |
 | M1 | Provisioning | T4 to T12 | A FIBER written with every box ticked comes up by itself; a second apply changes nothing |
 | M2 | The agent's core and the south bridge | T13 to T18 | The agent flashes the south bridge on its own and shows the board on MQTT |
 | M3 | Thermometers | T19 | A DS18B20 shows up on MQTT and in a Node-RED flow |
@@ -35,33 +35,8 @@ is done, long before the rest of M5.
 
 ## Tasks in progress
 
-### T1. Foundations (M0)
-
-State (2026-11-17): everything that needs no hardware is done and `just check` passes on the
-maintainer's computer. Nothing is committed yet. The last step waits for a commit and a push.
-
-- [x] The rules: `AGENTS.md`, this file, `LICENSE`, the pinned toolchain (1.99.1, the one the
-      pinned TOWER crates need), `rustfmt.toml`, the workspace lints
-- [x] The host workspace and the TOWER pin (`Cargo.toml`, revision `cb3b25c`): `tower-net` and
-      `tower-radio` build for the computer and for `thumbv7em-none-eabi` through
-      `fiber-tower-air`; `tower-protocol` and `tower-hmi` build into the `fiber` program and its
-      tests
-- [x] `fiber version` (what FIBER Setup's first-start script records) and `fiber version --all`
-      (the pinned TOWER revision, read from `Cargo.lock`, and the radio schema tag)
-- [x] Tests that hold the pin: the nonce layout, a frame's time on air, the LCD's frame type
-- [x] `just check`: fmt, clippy, tests, the `thumbv7em` build, rustdoc, the bench scripts'
-      self-test, no long dashes, `cargo audit`
-- [x] CI (`.github/workflows/ci.yml`) and Dependabot, every action pinned by its commit
-- [x] `docs/`: the hardware map, the architecture, the provisioning design, the bench checks
-- [x] `hil/bootloader_probe.py`: the first bench check as one command; its protocol code tested
-      against a simulated bootloader, not yet run on a FIBER
-- [x] InfluxDB, Grafana and sinqtt taken out of the plan and the documents (D13)
-- [x] This file in its five sections, with the whole plan as numbered tasks
-- [x] The writing style taken from FIBER Setup; `README.md` and `AGENTS.md` written to it
-- [x] The whole plan carried into this file: every task with its steps, what to watch out for,
-      what it needs and when it is done; the plan's decisions that were not written down yet
-      (D14 to D19), and one new question (D20)
-- [ ] The first CI run on GitHub is green (needs a commit and a push)
+Nothing. The next task is T2, which needs a FIBER on the bench, or T3,
+which needs no board.
 
 ## Tasks ahead
 
@@ -887,7 +862,34 @@ revision 1.3 (D9); TLS or a broker inside the agent (D19); a full-screen termina
 
 ## Tasks done
 
-Nothing yet.
+### T1. Foundations (M0)
+
+Done 2026-11-17, commit `b440fe2`. Checked: `just check` passes on the maintainer's computer,
+and the first CI run on GitHub is green (run 44175588049). Not checked, because it needs a
+board: nothing here has run on a FIBER (T2).
+
+- [x] The rules: `AGENTS.md`, this file, `LICENSE`, the pinned toolchain (1.99.1, the one the
+      pinned TOWER crates need), `rustfmt.toml`, the workspace lints
+- [x] The host workspace and the TOWER pin (`Cargo.toml`, revision `cb3b25c`): `tower-net` and
+      `tower-radio` build for the computer and for `thumbv7em-none-eabi` through
+      `fiber-tower-air`; `tower-protocol` and `tower-hmi` build into the `fiber` program and its
+      tests
+- [x] `fiber version` (what FIBER Setup's first-start script records) and `fiber version --all`
+      (the pinned TOWER revision, read from `Cargo.lock`, and the radio schema tag)
+- [x] Tests that hold the pin: the nonce layout, a frame's time on air, the LCD's frame type
+- [x] `just check`: fmt, clippy, tests, the `thumbv7em` build, rustdoc, the bench scripts'
+      self-test, no long dashes, `cargo audit`
+- [x] CI (`.github/workflows/ci.yml`) and Dependabot, every action pinned by its commit
+- [x] `docs/`: the hardware map, the architecture, the provisioning design, the bench checks
+- [x] `hil/bootloader_probe.py`: the first bench check as one command; its protocol code tested
+      against a simulated bootloader, not yet run on a FIBER
+- [x] InfluxDB, Grafana and sinqtt taken out of the plan and the documents (D13)
+- [x] This file in its five sections, with the whole plan as numbered tasks
+- [x] The writing style taken from FIBER Setup; `README.md` and `AGENTS.md` written to it
+- [x] The whole plan carried into this file: every task with its steps, what to watch out for,
+      what it needs and when it is done; the plan's decisions that were not written down yet
+      (D14 to D19), and one new question (D20)
+- [x] The first CI run on GitHub is green
 
 ## Decisions ahead
 
@@ -924,6 +926,22 @@ With InfluxDB and Grafana out (D13), nothing on a FIBER shows a value as a chart
 
 Recommendation: (a): it is what makes the first minute with a FIBER show something. Changes one
 step of T8 and blocks nothing else.
+
+### D21. Who moves the Rust toolchain?
+
+`rust-toolchain.toml` pins the channel, and `AGENTS.md` says it is the one the pinned TOWER
+crates need, so it moves when the TOWER pin moves. Dependabot was set up to watch it anyway, and
+on the first day it opened pull request #1 (1.99.1 to 1.100.0). Its CI fails, as it should: the
+`audit` job checks that every workflow sets the same `RUST_TOOLCHAIN`, and Dependabot changes
+only the one file.
+
+- (a) Take the channel off Dependabot's list. It then moves only with the TOWER pin, as the rule
+  says, and this platform always builds TOWER's crates on the compiler TOWER itself uses.
+- (b) Keep it, and push the matching `RUST_TOOLCHAIN` change onto every such pull request by
+  hand, as `.github/dependabot.yml` says today. Rust releases arrive every six weeks.
+
+Recommendation: (a), and close pull request #1. Blocks nothing. Until it is answered, the pull
+request stays open and red.
 
 ## Decisions done
 
