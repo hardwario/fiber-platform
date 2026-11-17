@@ -35,8 +35,7 @@ is done, long before the rest of M5.
 
 ## Tasks in progress
 
-Nothing. The next task is T2, which needs a FIBER on the bench, or T3,
-which needs no board.
+Nothing. The next task is T2, which needs a FIBER on the bench, or T4, which needs no board.
 
 ## Tasks ahead
 
@@ -82,28 +81,6 @@ STM32C0 keeps BOOT0 low until the next power-on, so do not mix a debug probe int
 
 - Needs: a FIBER-R2 rev 2.1 on the bench, reachable over SSH.
 - Done when: every result is in `docs/bench-checks.md`.
-
-#### T3. Does the south bridge firmware fit?
-
-The STM32C031C6 has 32 KB of flash. A skeleton with everything the real firmware will link
-answers whether Rust with Embassy fits, before T16 builds on it
-([`docs/bench-checks.md`](docs/bench-checks.md), check 5). Needs no board. The estimate so far is
-14 to 20 KB; it is not measured.
-
-- [ ] A throw-away crate for `thumbv6m-none-eabi`: `embassy-stm32` 0.6.0 with `stm32c031c6`,
-      `memory-x`, `time-driver-any`, `unstable-pac`; `embassy-executor` 0.10.0; `embassy-time`
-      0.5.1 with `tick-hz-1_000`; the `flip-link` linker (the versions TOWER's firmware uses)
-- [ ] In it: USART1 on PA9/PA10 at 115200; a COBS frame with a CRC-32 and a postcard message
-      each way; the ADC on PA11, PA12 and the internal reference; 18 LED outputs and 8 port
-      outputs; a 50 Hz tick; the watchdog
-- [ ] The release profile: `opt-level = "z"`, fat LTO, one codegen unit, `panic = "abort"`
-- [ ] Measure it with `cargo size`, and see which parts weigh most
-- [ ] Write the result into `docs/bench-checks.md`, with what to leave out if it is close
-
-Watch out: what makes such a firmware big is formatting code (`{:?}`, `unwrap` on a `Result`),
-floats, 64-bit division at run time, and `defmt` left in a release build.
-
-- Done when: the size is written down. The budget is 24 KB.
 
 ### M1. Provisioning
 
@@ -491,7 +468,8 @@ The status lights, the power of the 1-Wire ports and two voltages, in at most 24
       on one after another at start. Tested on the computer, and built as a simulator on a
       pseudo-terminal for the agent's tests
 - [ ] `firmware/south`: a workspace of its own for `thumbv6m-none-eabi`, with the linker and
-      the profile from T3
+      the profile from T3 (`docs/bench-checks.md`, check 5: `flip-link`, `opt-level = "z"`,
+      fat LTO, one codegen unit, `panic = "abort"`)
 - [ ] The board: USART1 on PA9/PA10 at 115200; the 18 LED lines (low = lit) and the 8 port
       lines (high = on) as `docs/hardware.md` has them; the ADC on PA11, PA12 and the internal
       reference, as raw counts; the watchdog; the 32.768 kHz crystal
@@ -508,7 +486,10 @@ The status lights, the power of the 1-Wire ports and two voltages, in at most 24
 
 Watch out: no formatting code, no floats: the counts are turned into volts by the agent. The
 chip has no EEPROM and keeps nothing: after a reset the agent's next `Desired` puts everything
-back. It is fed from the CM4's 3.3 V and is off whenever the CM4 is.
+back. It is fed from the CM4's 3.3 V and is off whenever the CM4 is. T3's skeleton took 15.0 KB;
+a panic handler that reads the panic's location costs 3.2 KB of it (every source path in the
+HAL), so a panic may have to record its fault code without a location; the HardFault's address
+costs 82 bytes.
 
 - Needs: T3, T14.
 - Done when: it builds under 24 KB, and on a FIBER the lights and the ports follow `Desired`.
@@ -890,6 +871,33 @@ board: nothing here has run on a FIBER (T2).
       what it needs and when it is done; the plan's decisions that were not written down yet
       (D14 to D19), and one new question (D20)
 - [x] The first CI run on GitHub is green
+
+### T3. Does the south bridge firmware fit? (M0)
+
+Done 2026-11-17, not committed yet. Checked: the skeleton builds at the release profile and
+takes 15348 bytes of flash (15.0 KB) of the 24 KB budget; `cargo bloat` and the disassembly say
+what weighs most; `just check` passes. Not checked, because it needs a board: the skeleton was
+never flashed (T16 runs the real firmware on a FIBER).
+
+The STM32C031C6 has 32 KB of flash. A skeleton with everything the real firmware will link
+answers whether Rust with Embassy fits, before T16 builds on it
+([`docs/bench-checks.md`](docs/bench-checks.md), check 5). Needs no board. The estimate was
+14 to 20 KB; the measure is 15.0 KB.
+
+- [x] A throw-away crate for `thumbv6m-none-eabi`: `embassy-stm32` 0.6.0 with `stm32c031c6`,
+      `memory-x`, `time-driver-any`, `unstable-pac`; `embassy-executor` 0.10.0; `embassy-time`
+      0.5.1 with `tick-hz-1_000`; the `flip-link` linker (the versions TOWER's firmware uses)
+- [x] In it: USART1 on PA9/PA10 at 115200; a COBS frame with a CRC-32 and a postcard message
+      each way; the ADC on PA11, PA12 and the internal reference; 18 LED outputs and 8 port
+      outputs; a 50 Hz tick; the watchdog
+- [x] The release profile: `opt-level = "z"`, fat LTO, one codegen unit, `panic = "abort"`
+- [x] Measure it with `cargo size`, and see which parts weigh most
+- [x] Write the result into `docs/bench-checks.md`, with what to leave out if it is close
+
+Watch out: what makes such a firmware big is formatting code (`{:?}`, `unwrap` on a `Result`),
+floats, 64-bit division at run time, and `defmt` left in a release build.
+
+- Done when: the size is written down. The budget is 24 KB.
 
 ## Decisions ahead
 
