@@ -6,6 +6,9 @@ pub mod catalog;
 mod edit;
 pub mod file;
 pub mod results;
+mod seed;
+
+pub use seed::seed;
 
 use std::io::Write;
 use std::path::Path;
@@ -197,24 +200,37 @@ schema: 1
 components:
 ";
 
-/// The settings of a new `platform.yaml`, at their defaults.
-const NEW_FILE_SETTINGS: &str = "\
-settings:
-  mqtt:
-    lan: false        # true: also listen on port 1884 for the network, with a login
-  lorawan:
-    region: eu868     # the only region so far
-  hardware:
-    minipcie: none    # the card in the mini-PCIe slot: none, lte or rak5146
-";
+/// The `settings:` block of a new `platform.yaml`, with a comment on each line.
+fn settings_text(settings: &file::Settings) -> String {
+    let line = |text: String, comment: &str| format!("{text:<22}# {comment}\n");
+    [
+        "settings:\n".to_owned(),
+        "  mqtt:\n".to_owned(),
+        line(
+            format!("    lan: {}", settings.mqtt.lan),
+            "true: also listen on port 1884 for the network, with a login",
+        ),
+        "  lorawan:\n".to_owned(),
+        line(
+            format!("    region: {}", settings.lorawan.region.name()),
+            "the only region so far",
+        ),
+        "  hardware:\n".to_owned(),
+        line(
+            format!("    minipcie: {}", settings.hardware.minipcie.name()),
+            "the card in the mini-PCIe slot: none, lte or rak5146",
+        ),
+    ]
+    .concat()
+}
 
-/// A new `platform.yaml` with these components.
-pub fn new_file(components: &[(String, bool)]) -> String {
+/// A new `platform.yaml` with these components and settings.
+pub fn new_file(components: &[(String, bool)], settings: &file::Settings) -> String {
     let mut text = NEW_FILE_HEAD.to_owned();
     for (id, on) in components {
         text.push_str(&format!("  {id}: {on}\n"));
     }
-    text.push_str(NEW_FILE_SETTINGS);
+    text.push_str(&settings_text(settings));
     text
 }
 
@@ -354,7 +370,7 @@ pub fn change(paths: &Paths, ids: &[String], on: bool) -> Result<ExitCode> {
                 path.display()
             )
         })?,
-        None => new_file(&set),
+        None => new_file(&set, &file::Settings::default()),
     };
 
     // Read the new text back: it must say exactly what was asked, and nothing else may change.
@@ -368,15 +384,8 @@ pub fn change(paths: &Paths, ids: &[String], on: bool) -> Result<ExitCode> {
         );
     }
 
-    write_file(&path, &new_text).map_err(|e| match e.kind() {
-        std::io::ErrorKind::PermissionDenied => anyhow!(
-            "cannot write {}: permission denied. Run it as root: sudo fiber platform {} {}",
-            path.display(),
-            if on { "enable" } else { "disable" },
-            ids.join(" ")
-        ),
-        _ => anyhow!("cannot write {}: {e}", path.display()),
-    })?;
+    let command = format!("{} {}", if on { "enable" } else { "disable" }, ids.join(" "));
+    write_file(&path, &new_text, 0o644).map_err(|e| write_error(&path, &e, &command))?;
     for (_, line) in &changes {
         println!("{line}");
     }
@@ -384,10 +393,23 @@ pub fn change(paths: &Paths, ids: &[String], on: bool) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
+/// The message for a file that could not be written; `command` is what to run again as root.
+pub(super) fn write_error(path: &Path, e: &std::io::Error, command: &str) -> anyhow::Error {
+    match e.kind() {
+        std::io::ErrorKind::PermissionDenied => anyhow!(
+            "cannot write {}: permission denied. Run it as root: sudo fiber platform {command}",
+            path.display()
+        ),
+        _ => anyhow!("cannot write {}: {e}", path.display()),
+    }
+}
+
 /// Writes `text` to `path` in one step: into a new file beside it, which then takes its place.
 /// A reader sees the old file or the new one, never half of it. The new file keeps the old one's
-/// owner and permissions.
-fn write_file(path: &Path, text: &str) -> std::io::Result<()> {
+/// owner and permissions; a file that was not there gets `mode`.
+pub(super) fn write_file(path: &Path, text: &str, mode: u32) -> std::io::Result<()> {
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+
     let dir = path.parent().unwrap_or(Path::new("."));
     std::fs::create_dir_all(dir)?;
     let name = path
@@ -395,17 +417,24 @@ fn write_file(path: &Path, text: &str) -> std::io::Result<()> {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
     let new = dir.join(format!(".{name}.new"));
+    let _ = std::fs::remove_file(&new);
     let result = (|| {
-        let mut file = std::fs::File::create(&new)?;
-        file.write_all(text.as_bytes())?;
-        if let Ok(old) = std::fs::metadata(path) {
-            file.set_permissions(old.permissions())?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::MetadataExt;
+        // Created with its final mode, so that a secret is never readable by others, not even
+        // for a moment.
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(mode)
+            .open(&new)?;
+        match std::fs::metadata(path) {
+            Ok(old) => {
+                file.set_permissions(old.permissions())?;
                 std::os::unix::fs::fchown(&file, Some(old.uid()), Some(old.gid()))?;
             }
+            // The mode given to `open` is cut by the umask; set it as it was asked.
+            Err(_) => file.set_permissions(std::fs::Permissions::from_mode(mode))?,
         }
+        file.write_all(text.as_bytes())?;
         file.sync_all()?;
         std::fs::rename(&new, path)?;
         std::fs::File::open(dir)?.sync_all()
@@ -513,7 +542,10 @@ chirpstack  off            mosquitto        ChirpStack
     #[test]
     fn a_new_file_reads_back() {
         let catalog = Catalog::built_in().unwrap();
-        let text = new_file(&[("base".to_owned(), true), ("node-red".to_owned(), false)]);
+        let text = new_file(
+            &[("base".to_owned(), true), ("node-red".to_owned(), false)],
+            &file::Settings::default(),
+        );
         let platform = Platform::parse(&text, Path::new("platform.yaml"), &catalog).unwrap();
         assert_eq!(platform.components, map(&[("base", true), ("node-red", false)]));
         assert_eq!(platform.settings, file::Settings::default());

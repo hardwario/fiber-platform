@@ -322,3 +322,76 @@ fn a_file_that_cannot_be_written() {
     );
     assert_eq!(root.read("etc/fiber/platform.yaml"), "schema: 1\n");
 }
+
+#[test]
+fn seed_writes_the_file_and_the_login_once() {
+    let root = Root::new();
+    root.write(
+        "boot/firmware/fiber-seed.yaml",
+        "schema: 1\ncomponents: {agent: true, node-red: false, base: true, mosquitto: true}\n\
+         settings: {mqtt: {lan: true}}\nlogin: {user: pi, password: \"s3cret: yes\"}\n",
+    );
+    let (code, out, err) = root.run(&format!(
+        "platform seed {}",
+        root.path("boot/firmware/fiber-seed.yaml").display()
+    ));
+    assert_eq!((code, err.as_str()), (0, ""));
+    assert_eq!(
+        out,
+        format!(
+            "Wrote {}.\nWrote {}.\n",
+            root.platform_file().display(),
+            root.path("etc/fiber/secrets/login.json").display()
+        )
+    );
+    let text = root.read("etc/fiber/platform.yaml");
+    assert!(
+        text.contains("\ncomponents:\n  base: true\n  mosquitto: true\n  agent: true\n  node-red: false\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("\n    lan: true         # true: also listen on port 1884"),
+        "{text}"
+    );
+    assert_eq!(
+        root.read("etc/fiber/secrets/login.json"),
+        "{\n  \"user\": \"pi\",\n  \"password\": \"s3cret: yes\"\n}\n"
+    );
+    let mode = |rest: &str| std::fs::metadata(root.path(rest)).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode("etc/fiber/secrets"), 0o700);
+    assert_eq!(mode("etc/fiber/secrets/login.json"), 0o600);
+    assert_eq!(mode("etc/fiber/platform.yaml"), 0o644);
+
+    // Once only: what is there stays, also when the seed says something else.
+    root.write(
+        "boot/firmware/fiber-seed.yaml",
+        "schema: 1\ncomponents: {chirpstack: true}\nlogin: {user: other, password: other}\n",
+    );
+    let (code, out, _) = root.run(&format!(
+        "platform seed {}",
+        root.path("boot/firmware/fiber-seed.yaml").display()
+    ));
+    assert_eq!(code, 0);
+    assert!(
+        out.starts_with("Kept ") && out.contains(": the login is set once.\n"),
+        "{out}"
+    );
+    assert_eq!(root.read("etc/fiber/platform.yaml"), text);
+    assert!(root.read("etc/fiber/secrets/login.json").contains("\"pi\""));
+}
+
+#[test]
+fn a_bad_seed_writes_nothing() {
+    let root = Root::new();
+    root.write(
+        "seed.yaml",
+        "schema: 1\ncomponents: {agent: true, mosquitto: false}\n",
+    );
+    let (code, _, err) = root.run(&format!("platform seed {}", root.path("seed.yaml").display()));
+    assert_eq!(code, 1);
+    assert!(
+        err.contains("`agent` is on, but `mosquitto`, which it requires, is off"),
+        "{err}"
+    );
+    assert!(!root.platform_file().exists());
+}

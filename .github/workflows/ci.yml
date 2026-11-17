@@ -74,6 +74,11 @@ jobs:
         run: |
           just build-fiber
           file target/aarch64-unknown-linux-musl/release/fiber | tee /dev/stderr | grep -q "statically linked"
+      # The release archive, built twice from the same inputs, must be the same byte for byte.
+      - name: release archive is reproducible
+        run: just check-release
+      - name: shellcheck
+        run: just shellcheck
       # The bench scripts' protocol code, against a fake ROM bootloader on a pseudo-terminal.
       - name: bench scripts self-test (no hardware)
         run: just check-hil
@@ -81,10 +86,11 @@ jobs:
       - name: no long dashes
         run: just no-dashes
 
-  # 2. The static `fiber` program in a bare Debian container on an arm64 machine: no broker, no
-  #    hardware, no settings (`just check-container`, agent/tests/bare-container.sh).
-  container:
-    name: fiber platform in a bare arm64 container
+  # 2. On an arm64 machine, in containers: the static `fiber` program in a bare Debian container
+  #    (no broker, no hardware, no settings; `just check-container`), and the installer in a
+  #    container like Raspberry Pi OS (`just check-install`, provision/tests/install-test.sh).
+  arm64:
+    name: arm64 containers (the program, the installer)
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -102,6 +108,8 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: just check-container
         run: just check-container
+      - name: just check-install
+        run: just check-install
 
   # 3. RustSec advisories for the lockfile, and the toolchain pin. Vulnerabilities fail the job;
   #    informational warnings (unmaintained / unsound / yanked) are printed but do not.

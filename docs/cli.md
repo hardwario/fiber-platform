@@ -2,7 +2,7 @@
 
 `fiber` is the one program of the FIBER platform. This page describes its commands. What exists
 so far: `fiber version` and the `fiber platform` commands that read and change the choice of
-components. `apply` and the rest come with their tasks (`TASKS.md`, T6 and on).
+components, and take the seed. `apply` and the rest come with their tasks (`TASKS.md`, T6 and on).
 
 **Status:** tested on a computer, and in a bare Debian arm64 container in CI (no broker, no
 hardware, no settings). Not run on a FIBER yet.
@@ -118,6 +118,21 @@ together works.
 $ sudo fiber platform disable mosquitto
 error: mosquitto is needed by agent and node-red, which are on. Turn them off with it: fiber platform disable agent node-red mosquitto
 ```
+
+### `fiber platform seed <file>`
+
+Takes the choice and the login from a seed file that FIBER Setup wrote
+([`provisioning.md`](provisioning.md), "The seed"). The installer runs it; it needs root.
+
+```
+$ sudo fiber platform seed /boot/firmware/fiber-seed.yaml
+Wrote /etc/fiber/platform.yaml.
+Wrote /etc/fiber/secrets/login.json.
+```
+
+It writes each of the two only when it is not there yet, and says `Kept` otherwise: a
+`platform.yaml` that exists is the person's, and the login is set once. A seed with a mistake in
+it writes nothing. The seed itself is left alone; the installer deletes it.
 
 ### How `enable` and `disable` change the file
 

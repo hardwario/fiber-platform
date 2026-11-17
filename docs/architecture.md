@@ -47,7 +47,7 @@ The directory `crates/X` holds the package `fiber-X`.
 | `agent/` | `fiber-agent` (bin `fiber`) | Daemon, command line and platform tool. | `fiber version`, `fiber platform list`, `status`, `enable`, `disable` |
 | `firmware/south/` | `fiber-south` | Embassy, STM32C031C6 (thumbv6m). Own workspace. | no |
 | `firmware/north/` | `fiber-north` | Embassy, STM32WL55 M4 core (thumbv7em). Own workspace. | no |
-| `provision/` | | `install.sh`, `components.yaml`, the Ansible roles, the `config.txt` block. | `components.yaml` |
+| `provision/` | | `install.sh`, `components.yaml`, the Ansible roles, the `config.txt` block. | `components.yaml`, `install.sh`, `release.py` |
 | `hil/` | | Bench scripts, run by hand on a FIBER. | bootloader probe |
 
 Two kinds of Cargo workspace, as in TOWER: the host workspace at the root, and one workspace per

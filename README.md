@@ -105,11 +105,14 @@ cd fiber-platform
 just test                              # the tests
 cargo run -p fiber-agent -- version    # the fiber program
 just build-fiber                       # the fiber program for the FIBER: static, arm64 Linux
+just release                           # a release in dist/: the archive and the installer
 just check                             # everything CI checks
 ```
 
-`just check` also needs `cargo-audit` (`cargo install --locked cargo-audit`) and the internet. It
-touches no hardware.
+`just check` also needs `cargo-audit` (`cargo install --locked cargo-audit`), `shellcheck` and the
+internet. It touches no hardware. `just check-container` and `just check-install` run the program
+and the installer in containers; they need Docker on an arm64 machine, such as a Mac with Apple
+silicon.
 
 ## Project layout
 
@@ -118,7 +121,7 @@ touches no hardware.
 | [`agent`](agent) | `fiber`: the platform's commands, the agent and the command line |
 | [`crates`](crates) | What the agent and the firmware share (`crates/X` is the package `fiber-X`) |
 | `firmware` | The firmware of the south bridge (STM32C031) and of the north bridge (STM32WL55). To come |
-| [`provision`](provision) | The components (`components.yaml`); the installer and the Ansible roles, one per component, to come |
+| [`provision`](provision) | The components (`components.yaml`), the installer and the release build; the Ansible roles, one per component, to come |
 | [`hil`](hil) | Scripts that are run by hand on a FIBER on the bench |
 | [`docs`](docs/README.md) | All documentation |
 

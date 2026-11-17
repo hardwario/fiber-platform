@@ -27,8 +27,8 @@ default:
 # === Gates ========================================================================================
 
 # What CI runs. Needs cargo-audit, python3 and network access (the RustSec advisory database).
-# Run every hardware-free gate (host workspace, the FIBER's build, bench scripts, no long dashes, audit).
-check: check-host build-fiber check-hil no-dashes audit
+# Run every hardware-free gate (host workspace, the FIBER's build, the release, scripts, no long dashes, audit).
+check: check-host build-fiber check-release shellcheck check-hil no-dashes audit
 
 # The thumbv7em build proves the pinned TOWER kernels and our own no_std crates still build for
 # the north bridge (an STM32WL55, Cortex-M4 without FPU) on their own.
@@ -43,6 +43,30 @@ check-host: doc
 # Build the static `fiber` program for the FIBER (arm64 Linux, musl).
 build-fiber:
     cargo build --locked --release --target aarch64-unknown-linux-musl -p fiber-agent
+
+# The archive, the stamped installer and SHA256SUMS (provision/release.py).
+# Build a release of the platform into dist/.
+release: build-fiber
+    python3 provision/release.py --binary target/aarch64-unknown-linux-musl/release/fiber --out dist
+
+# Builds the release twice and compares the bytes; keeps nothing.
+# Check that the release archive is the same in every build.
+check-release: build-fiber
+    python3 provision/release.py --binary target/aarch64-unknown-linux-musl/release/fiber --self-test
+
+# Every shell script of the repository.
+# Run shellcheck on the shell scripts.
+shellcheck:
+    shellcheck provision/install.sh provision/tests/*.sh agent/tests/*.sh
+
+# Needs Docker on an arm64 machine and the internet (the installer installs Ansible from Debian).
+# Run the installer's tests in a container like Raspberry Pi OS.
+check-install: release
+    docker build --platform linux/arm64 -q -t fiber-platform-test-rpios -f provision/tests/Containerfile provision/tests
+    docker run --rm --platform linux/arm64 \
+        -v "{{justfile_directory()}}/dist:/dist:ro" \
+        -v "{{justfile_directory()}}/provision/tests/install-test.sh:/install-test.sh:ro" \
+        fiber-platform-test-rpios bash /install-test.sh
 
 # Needs Docker on an arm64 machine (an Apple silicon Mac, or CI's arm64 runner). The container
 # has no network, no broker, no hardware and no settings. Not part of `check`.

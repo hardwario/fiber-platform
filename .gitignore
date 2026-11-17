@@ -19,3 +19,6 @@ Thumbs.db
 
 # Claude Code agent worktrees (temporary checkouts)
 .claude/worktrees/
+
+# Releases built by `just release`.
+/dist/

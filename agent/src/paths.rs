@@ -29,6 +29,16 @@ impl Paths {
         self.under("/etc/fiber/platform.yaml")
     }
 
+    /// Root only: the login from the seed, and what the roles make (tokens, keys).
+    pub fn secrets_dir(&self) -> PathBuf {
+        self.under("/etc/fiber/secrets")
+    }
+
+    /// The user name and password typed into FIBER Setup, for the services (D16).
+    pub fn login_file(&self) -> PathBuf {
+        self.secrets_dir().join("login.json")
+    }
+
     /// What the platform keeps between applies.
     pub fn platform_state_dir(&self) -> PathBuf {
         self.under("/var/lib/fiber/platform")

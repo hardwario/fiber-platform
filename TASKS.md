@@ -35,7 +35,56 @@ is done, long before the rest of M5.
 
 ## Tasks in progress
 
-Nothing. The next task is T2, which needs a FIBER on the bench, or T5, which needs no board.
+### T5. The release archive and the installer (M1)
+
+State (2026-11-17): built, and the four container tests pass on the maintainer's computer
+(`just check-install`). Next: the push, and the CI job `arm64` running them too. Settled on the
+way: `install.sh` is bash with all its code in functions; `provision/release.py` builds the
+archive (Python's standard library only, the same bytes every time); the seed goes through
+`fiber platform seed`; `FIBER_NO_APPLY=1` installs without applying. The installer's apply step
+is written but can only be tested once `fiber platform apply` exists: that test is now a step of
+T6.
+
+How the platform gets onto a FIBER, and how two releases live side by side (D2).
+
+- [x] `fiber platform seed <file>`: the seed's components and settings become
+      `/etc/fiber/platform.yaml` (only when there is none), its login goes to
+      `/etc/fiber/secrets/login.json` (root only, set once); checked like `platform.yaml`
+- [x] The archive `fiber-platform-<version>-linux-arm64.tar.gz`, built the same byte for byte
+      every time (sorted, fixed dates, owned by root): `bin/fiber`, `provision/` (what exists of
+      it), and `manifest.json` (version, commit, the sha256 of every file, the Ansible version it
+      works with). `provision/release.py`, `just release`
+- [x] `provision/install.sh`, stamped at release time with its version and the archive's sha256.
+      It checks that it runs as root on an arm64 Raspberry Pi OS trixie; downloads the archive
+      and checks the sha256; unpacks into `/opt/fiber/releases/<version>.partial`, checks every
+      file against the manifest, syncs, renames, and writes `.complete` last
+- [x] The switch: `current` moves by renaming a temporary link, `previous` points at the release
+      before, `/usr/local/bin/fiber` points into `current`. Two releases are kept
+- [x] Ansible: `apt-get install --no-install-recommends ansible-core python3-debian`, with a
+      lock timeout of ten minutes and `dpkg --configure -a` first
+- [x] The seed: `/boot/firmware/fiber-seed.yaml` goes through `fiber platform seed`, and the copy
+      on the boot partition is overwritten and then deleted. Without a seed, `--components
+      a,b,c` turns those components on
+- [x] It then starts the apply (T6), unless `FIBER_NO_APPLY=1`. `FIBER_NO_REBOOT=1` is
+      honoured. Exit status 0: done; 10: done, restart needed; 20: partly done, the platform
+      tries again by itself; anything else: failed. Written; tested in T6, which makes the apply
+- [x] Settings for the tests: where the release comes from (`FIBER_RELEASE_URL`), a root
+      directory to install into (`FIBER_ROOT`)
+- [x] `shellcheck` on every shell script in `just check`
+- [x] Tests in a container like Raspberry Pi OS (Debian trixie arm64 with what the image has):
+      install from a local server; run it again (nothing changes); stop it hard in the middle of
+      unpacking and run it again; a wrong checksum is refused. `just check-install`, and a CI job
+- [x] `docs/provisioning.md`: the seed, the installer's settings and exit statuses; `docs/cli.md`:
+      `fiber platform seed`
+
+Watch out: `ansible-core` recommends the `ansible` bundle, 205 MB, which apt installs unless
+told not to. The stock image has no `python3-debian`, which the module for package sources
+needs. The checksum in a script fetched with `curl` proves the download is whole, not who made
+it: the documentation has to say so. A script piped into `bash` is read as it runs: a command in
+it that reads the standard input eats the rest of the script.
+
+- Needs: T4.
+- Done when: the four container tests pass.
 
 ## Tasks ahead
 
@@ -88,44 +137,6 @@ Done when: a FIBER written with every box ticked reaches `state=ok` by itself, a
 that blocks NTP; a second `apply` changes nothing; no service ever answers with a default
 password; update and rollback work.
 
-#### T5. The release archive and the installer
-
-How the platform gets onto a FIBER, and how two releases live side by side (D2).
-
-- [ ] The archive `fiber-platform-<version>-linux-arm64.tar.gz`, built the same byte for byte
-      every time (sorted, fixed dates, owned by root): `bin/fiber`, `provision/` (the playbook,
-      the roles, `ansible.cfg`, the package sources' keys, the version pins, `components.yaml`,
-      the `config.txt` block and the overlay, the units), and `manifest.json` (version, commit,
-      the sha256 of every file, the Ansible versions it works with)
-- [ ] `provision/install.sh`, stamped at release time with its version and the archive's sha256.
-      It checks that it runs as root on an arm64 Raspberry Pi OS trixie; downloads the archive
-      and checks the sha256; unpacks into `/opt/fiber/releases/<version>.partial`, checks every
-      file against the manifest, syncs, renames, and writes `.complete` last
-- [ ] The switch: `current` moves by renaming a temporary link, `previous` points at the release
-      before, `/usr/local/bin/fiber` points into `current`. Two releases are kept
-- [ ] Ansible: `apt-get install --no-install-recommends ansible-core python3-debian`, with a
-      lock timeout of ten minutes and `dpkg --configure -a` first
-- [ ] The seed: `/boot/firmware/fiber-seed.yaml` becomes `/etc/fiber/platform.yaml`, its
-      password goes to `/etc/fiber/secrets/` (root only), and the copy on the boot partition is
-      overwritten and then deleted. Without a seed, `--components a,b,c` makes the file. Either
-      way the file is written by the `fiber` program, in the form it writes a new one (its first
-      line says how `enable` and `disable` treat it; `agent/src/platform/mod.rs`, `new_file`)
-- [ ] It then starts the apply (T6). `FIBER_NO_REBOOT=1` is honoured. Exit status 0: done; 10:
-      done, restart needed; 20: partly done, the platform tries again by itself; anything else:
-      failed
-- [ ] Settings for the tests: where the release comes from, and a root directory to install into
-- [ ] `shellcheck` on the installer in `just check`
-- [ ] Tests in a Raspberry Pi OS container: install from a local server; run it again (nothing
-      changes); kill it in the middle of unpacking and run it again; a wrong checksum is refused
-
-Watch out: `ansible-core` recommends the `ansible` bundle, 205 MB, which apt installs unless
-told not to. The stock image has no `python3-debian`, which the module for package sources
-needs. The checksum in a script fetched with `curl` proves the download is whole, not who made
-it: the documentation has to say so.
-
-- Needs: T4.
-- Done when: the four container tests pass.
-
 #### T6. `fiber platform apply`
 
 The one way the system is brought to what the file says, whoever asks for it.
@@ -158,6 +169,8 @@ The one way the system is brought to what the file says, whoever asks for it.
       with what they require, and the settings), so that no role reads `platform.yaml` itself
 - [ ] `fiber platform enable` and `disable` end with the line that says to run
       `fiber platform apply`
+- [ ] The installer's last step, in `provision/tests/install-test.sh` without `FIBER_NO_APPLY`:
+      exit status 0, and 10 with and without `FIBER_NO_REBOOT=1`, and 20
 - [ ] An Avahi service file (`_fiber._tcp`) whose TXT records carry the state, the step, the
       component and the release, so that FIBER Setup can follow the first start without a login
 - [ ] The converge test (`provision/tests/`): an arm64 Debian trixie container with systemd. It

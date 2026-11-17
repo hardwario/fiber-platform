@@ -69,6 +69,12 @@ enum PlatformCommand {
         #[arg(required = true, value_name = "COMPONENT")]
         components: Vec<String>,
     },
+    /// Take the choice and the login from a seed file written by FIBER Setup. Writes
+    /// /etc/fiber/platform.yaml and the login only where they are not there yet.
+    Seed {
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+    },
 }
 
 fn main() -> ExitCode {
@@ -84,6 +90,7 @@ fn main() -> ExitCode {
             PlatformCommand::Status => platform::status(&paths),
             PlatformCommand::Enable { components } => platform::change(&paths, &components, true),
             PlatformCommand::Disable { components } => platform::change(&paths, &components, false),
+            PlatformCommand::Seed { file } => platform::seed(&paths, &file),
         },
     };
     match result {

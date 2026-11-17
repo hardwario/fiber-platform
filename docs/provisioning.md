@@ -3,9 +3,9 @@
 How a vanilla Raspberry Pi OS becomes a FIBER: what is installed, how the choice is stored, and how
 it is applied again later.
 
-**Status: mostly design** (`TASKS.md`, T4 to T12). Built so far: `provision/components.yaml`, and the
-`fiber platform` commands that read and change `/etc/fiber/platform.yaml` ([`cli.md`](cli.md)).
-Nothing installs anything yet. The package sources and versions below were checked against the
+**Status: partly built** (`TASKS.md`, T4 to T12). Built so far: `provision/components.yaml`; the
+`fiber platform` commands that read and change `/etc/fiber/platform.yaml` and take the seed
+([`cli.md`](cli.md)); the release archive and the installer. No role installs anything yet. The package sources and versions below were checked against the
 upstream documentation and repositories on 2026-11-17; check them again when each role is
 written.
 
@@ -51,7 +51,8 @@ settings:
 | `/opt/fiber/current`, `previous` | Symlinks. A switch is one rename; the previous release stays for a rollback. |
 | `/usr/local/bin/fiber` | Symlink into `current` |
 | `/etc/fiber/platform.yaml` | The declared state |
-| `/etc/fiber/secrets/` | Root only: the seeded password, generated tokens |
+| `/etc/fiber/secrets/` | Root only: the seeded login (`login.json`), generated tokens |
+| `/opt/fiber/downloads/` | An archive while it is downloaded and checked; empty otherwise |
 | `/var/lib/fiber/` | State |
 | `/var/lib/fiber/platform/results.json` | The last result of each component: what it was brought to (`on` or `off`), `ok`, `failed` or `skipped`, when, and why. Written by `apply` as each component finishes; read by `fiber platform status` |
 | `/var/lib/fiber/platform/pending` | There while an apply is asked for and not finished |
@@ -167,19 +168,99 @@ gpio=23-25=ip,pu
 
 ## The release archive and the installer
 
-- A release holds `fiber-platform-<version>-linux-arm64.tar.gz` (built reproducibly), `install.sh`
-  stamped with the archive's sha256, `SHA256SUMS`, and a build-provenance attestation. Releases
-  are immutable.
-- `install.sh` is also the one-command path for someone who used Raspberry Pi Imager. It checks
-  the machine and the system, downloads and verifies the archive, unpacks it beside older
-  releases, installs Ansible, moves the seed file into `/etc/fiber` and starts the apply unit. It
-  honours `FIBER_NO_REBOOT=1`.
-- Through FIBER Setup the chain is: the signed desktop application pins the sha256 of
-  `install.sh`, which pins the archive. With `curl | bash` the same check gives integrity, not
-  authenticity; the documentation must say so. The provenance attestation is for people and CI: the
-  device does not verify it.
-- A weekly canary workflow converges the whole stack against the live upstream repositories and
-  opens an issue when one of them breaks.
+A release holds four things. `just release` builds the first three into `dist/`
+(`provision/release.py`); the release workflow (T11) adds the fourth and publishes them. A
+release is never changed after it is published.
+
+| File | What it is |
+|---|---|
+| `fiber-platform-<version>-linux-arm64.tar.gz` | `bin/fiber` (static, arm64), `provision/` (without its build and test tools), `manifest.json` |
+| `install.sh` | The installer, with the release's version and the archive's sha256 written in |
+| `SHA256SUMS` | The sha256 of the archive and of the installer |
+| A provenance attestation | For people and CI; the FIBER does not check it |
+
+**The archive is the same byte for byte in every build** from the same commit: its entries sorted,
+every date the commit's, everything owned by root, gzip without a name or a date. `just check`
+builds it twice and compares.
+
+**`manifest.json`** names the release and lists every other file with its sha256:
+
+```json
+{
+  "ansible_core": "2.19",
+  "commit": "370c2ae...",
+  "files": {"bin/fiber": "...", "provision/components.yaml": "..."},
+  "schema": 1,
+  "version": "0.1.0"
+}
+```
+
+### The installer
+
+```sh
+curl -fsSL https://github.com/hardwario/fiber-platform/releases/download/v<version>/install.sh | sudo bash
+```
+
+It is the one installer: FIBER Setup's first start runs it, `fiber platform update` (T10) runs
+it, and so can someone who wrote a plain Raspberry Pi OS with Raspberry Pi Imager. In six steps:
+
+1. **The machine:** root, arm64, Raspberry Pi OS (`/etc/rpi-issue`) trixie, and the tools it
+   uses. One installation runs at a time.
+2. **The download:** the archive, checked against the sha256 written into the installer. A
+   wrong one is deleted and nothing else happens.
+3. **Unpacking:** into `/opt/fiber/releases/<version>.partial`; every file is checked against the
+   manifest; then it is renamed and `.complete` is written last. `current` and `previous` move
+   by renaming a new link over the old one, `/usr/local/bin/fiber` points into `current`, and
+   only those two releases are kept. A release that is unpacked already is used as it is.
+4. **Ansible:** `ansible-core` and `python3-debian` from Debian, with `--no-install-recommends`
+   (otherwise apt brings the `ansible` bundle, 205 MB), after `dpkg --configure -a`, waiting up to
+   10 minutes for the package lock.
+5. **The choice:** the seed (below) through `fiber platform seed`, then the seed is overwritten
+   and deleted. Without a seed, `--components a,b,c` turns those components on.
+6. **The apply:** `fiber platform apply` (T6).
+
+| Setting | Meaning |
+|---|---|
+| `FIBER_NO_REBOOT=1` | Do not restart at the end, even when the apply asks for it |
+| `FIBER_NO_APPLY=1` | Install the release, but do not apply it |
+| `FIBER_RELEASE_URL` | Where the archive is downloaded from (default: the release on GitHub) |
+| `FIBER_ROOT` | A directory to install into instead of `/` (for the tests) |
+
+| Exit status | Meaning |
+|---|---|
+| 0 | Done |
+| 10 | Done; the FIBER needs a restart (it restarts by itself unless `FIBER_NO_REBOOT=1`) |
+| 20 | Partly done; the platform tries again by itself |
+| anything else | Failed; the message says why |
+
+**What the sha256 proves.** Through FIBER Setup the chain is: the signed desktop application
+pins the sha256 of `install.sh`, which pins the archive. With `curl | sudo bash` the same check
+proves that the archive is the one the installer was made for, not who made the installer:
+take the installer from the release page, over HTTPS.
+
+**Run again, it changes nothing.** **Stopped hard at any point,** it starts over cleanly the
+next time: a half unpacked release stays `.partial` and is removed. Both are tested in a container
+like Raspberry Pi OS (`just check-install`, `provision/tests/`), not yet on a FIBER.
+
+### The seed
+
+FIBER Setup writes `/boot/firmware/fiber-seed.yaml` beside its first-start script (T12). It is
+read as strictly as `platform.yaml`, plus the login:
+
+```yaml
+schema: 1
+components: {base: true, mosquitto: true, agent: true, node-red: true}
+settings: {mqtt: {lan: true}}
+login: {user: pi, password: "the password from FIBER Setup"}
+```
+
+`fiber platform seed` writes `/etc/fiber/platform.yaml` from it, in the form `enable` makes,
+and `/etc/fiber/secrets/login.json` (the directory and the file root only). Each only when it is
+not there yet: a `platform.yaml` that exists is the person's, and a password is set once
+(D16). The installer then overwrites the seed with zeros and deletes it.
+
+A weekly canary workflow (T11) converges the whole stack against the live package sources and
+opens an issue when one of them breaks.
 
 ## What changes in FIBER Setup
 
