@@ -88,15 +88,15 @@ which probe the same I2C bus as the board's own chips.
 
 ### T8. The `mosquitto` and `node-red` roles (M1)
 
-State (2026-11-17): both roles are written and pass the converge test on the maintainer's computer
-(the network listener with the seed's login; a password the owner changes stays; Node-RED behind
-the login, with the flow to start from; a second apply with nothing changed; only ports 1880,
-1883 on loopback and 1884 listening). Next: the push and CI; then the task waits for a FIBER and
-for D20. Settled: the password file is `/etc/mosquitto/fiber-passwd`, made once by
-`mosquitto_passwd` (the file is its own stamp); Node-RED's `settings.js` is written once, when
-there is none, with the login's bcrypt hash made by the `bcryptjs` Node-RED brings; the
-NodeSource key is vendored in the role (fingerprint checked 2026-11-17). Found on the way: the
-converge test's network test took the default route away with the link; it puts it back now.
+State (2026-11-18): waiting for a FIBER (T2) and for D20. Everything that needs neither is done,
+commit `14e348f`, and its CI run (44194596621) is green: the network listener with the seed's
+login; a password the owner changes stays; Node-RED behind the login, with the flow to start
+from; a second apply with nothing changed; only ports 1880, 1883 on loopback and 1884 listening.
+Settled: the password file is `/etc/mosquitto/fiber-passwd`, made once by `mosquitto_passwd`
+(the file is its own stamp); Node-RED's `settings.js` is written once, when there is none, with
+the login's bcrypt hash made by the `bcryptjs` Node-RED brings; the NodeSource key is vendored
+in the role (fingerprint checked 2026-11-17). Found on the way: the converge test's network test
+took the default route away with the link; it puts it back now.
 
 The broker everything else talks through, and the first thing a user sees working.
 
@@ -125,7 +125,7 @@ Node-RED:
 - [x] The starter flow, copied only when there is none: a broker node on `localhost:1883` and a
       debug node on `fiber/#`
 - [ ] The dashboard nodes, if D20 says so (waiting for D20)
-- [ ] In CI: after a converge only the expected ports listen; the editor asks for the login; a
+- [x] In CI: after a converge only the expected ports listen; the editor asks for the login; a
       second apply changes nothing
 
 Watch out: the installer script the old FIBER documentation names is gone (its address returns
@@ -136,6 +136,52 @@ eMMC.
 - Needs: T6.
 - Done when: `mosquitto_sub -t '#'` works on the FIBER; with the LAN listener only port 1884
   answers from outside and asks for the password; Node-RED's editor asks for the login.
+
+### T9. The `chirpstack` role (M1)
+
+State (2026-11-18): the role passes the converge test on the maintainer's computer: the API never
+answers to admin/admin during the apply, the seed's login works, Redis listens on loopback only,
+the API key is kept, the concentrator daemon and its udev rule are there, a second apply changes
+nothing. Next: the push and CI; then the task waits for a FIBER with a card (and T2). Tried
+first in a container with ChirpStack 4.20.0's own arm64 binary: `set-password --password-file`
+and `create-api-key` work before the first start, as the user `chirpstack`; `--stdin` wants a
+terminal. Settled: ChirpStack's user stays `admin` (its command line can only set the password
+of a user that exists), with the password typed into FIBER Setup; the service stays off until
+its password is set; the package's `region_eu868.toml` is used as it is (it has the eight
+channels); the MQTT forwarder runs only with the concentrator daemon, both started by udev. Read
+in the daemon's source (v4.7.1): over USB it sets up no reset line, so GPIO17, the buzzer, is
+left alone.
+
+A LoRaWAN network server on the FIBER, and with a RAK5146 USB card in the mini-PCIe slot also the
+gateway.
+
+- [x] ChirpStack's package source (in `docs/provisioning.md`, key vendored, fingerprint
+      checked); `chirpstack-sqlite` and `chirpstack-mqtt-forwarder`, installed so that they do
+      **not** start (`policy_rc_d: 101`); Debian's `redis-server`, on loopback
+- [x] `/etc/chirpstack/chirpstack.toml`: SQLite at `/var/lib/chirpstack/chirpstack.sqlite`
+      (write-ahead log, a busy timeout of 5 s), the API's address and a secret of our own, the
+      region from `lorawan.region`, the MQTT integration on the local broker in JSON. The
+      package's own region file for EU 868
+- [x] Before the first start, as the user `chirpstack`: `set-password --email admin
+      --password-file ...` from a file in `/run` that is deleted at once, then `create-api-key
+      --name fiber`, once (every call makes a new key); the key goes to `/etc/fiber/secrets`
+- [x] The concentrator daemon: the sx1302 tarball by its sha256, its settings (`rak_5146`,
+      `USB`, the port `/dev/rak5146`, its sockets under `/run`), our own unit bound to the
+      card's device
+- [x] The udev rule: USB `0483:5740` gets the name `/dev/rak5146` and starts the daemon. The
+      daemon is always installed with the component, never "when a card is there": the card can
+      appear long after the start
+- [x] The MQTT forwarder on the local broker, with the same topic prefix as the region
+- [ ] In CI: at no moment does a socket answer with admin/admin; a second apply changes nothing
+- [ ] On a FIBER with the card: the gateway shows uplinks in ChirpStack
+
+Watch out: the package would otherwise start at once on `0.0.0.0:8080` with admin/admin. Its
+source keeps one version of each package, so an exact pin breaks at the next upstream release:
+pin the major version. `0483:5740` is the id of any STM32 serial port, not of this card alone.
+The card is fed from the battery rail and goes away when the battery is low.
+
+- Needs: T6, T8; T2 (the level on mini-PCIe pin 22) for the part with a card.
+- Done when: the CI checks pass, and a FIBER with a card shows uplinks.
 
 ## Tasks ahead
 
@@ -187,39 +233,6 @@ STM32C0 keeps BOOT0 low until the next power-on, so do not mix a debug probe int
 Done when: a FIBER written with every box ticked reaches `state=ok` by itself, also on a network
 that blocks NTP; a second `apply` changes nothing; no service ever answers with a default
 password; update and rollback work.
-
-#### T9. The `chirpstack` role
-
-A LoRaWAN network server on the FIBER, and with a RAK5146 USB card in the mini-PCIe slot also the
-gateway.
-
-- [ ] ChirpStack's package source (in `docs/provisioning.md`); `chirpstack-sqlite` and
-      `chirpstack-mqtt-forwarder`, installed so that they do **not** start
-      (`policy_rc_d: 101`); Debian's `redis-server`, on loopback
-- [ ] `/etc/chirpstack/chirpstack.toml`: SQLite at `/var/lib/chirpstack/chirpstack.sqlite`
-      (write-ahead log, a busy timeout of 5 s), the API's address and a secret of our own, the
-      region from `lorawan.region`, the MQTT integration on the local broker in JSON. The region
-      file with the eight EU 868 channels
-- [ ] Before the first start, as the user `chirpstack`: `set-password --email admin
-      --password-file ...`, then `create-api-key --name fiber`, once (every call makes a new
-      key)
-- [ ] The concentrator daemon: the sx1302 tarball by its sha256, its settings (`rak_5146`,
-      `USB`, the port `/dev/rak5146`, its sockets under `/run`), our own unit bound to the
-      card's device
-- [ ] The udev rule: USB `0483:5740` gets the name `/dev/rak5146` and starts the daemon. The
-      daemon is always installed with the component, never "when a card is there": the card can
-      appear long after the start
-- [ ] The MQTT forwarder on the local broker, with the same topic prefix as the region
-- [ ] In CI: at no moment does a socket answer with admin/admin; a second apply changes nothing
-- [ ] On a FIBER with the card: the gateway shows uplinks in ChirpStack
-
-Watch out: the package would otherwise start at once on `0.0.0.0:8080` with admin/admin. Its
-source keeps one version of each package, so an exact pin breaks at the next upstream release:
-pin the major version. `0483:5740` is the id of any STM32 serial port, not of this card alone.
-The card is fed from the battery rail and goes away when the battery is low.
-
-- Needs: T6, T8; T2 (the level on mini-PCIe pin 22) for the part with a card.
-- Done when: the CI checks pass, and a FIBER with a card shows uplinks.
 
 #### T10. Update, rollback, uninstall
 

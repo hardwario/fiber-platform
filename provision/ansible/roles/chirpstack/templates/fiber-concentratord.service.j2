@@ -1,0 +1,17 @@
+# Written by the FIBER platform (the chirpstack role). udev starts it when a RAK5146 card shows up
+# as /dev/rak5146, and it stops when the card goes away.
+[Unit]
+Description=FIBER: the concentrator daemon of the RAK5146 card
+Documentation=https://www.chirpstack.io/docs/chirpstack-concentratord/
+BindsTo=dev-rak5146.device
+After=dev-rak5146.device
+
+[Service]
+User=chirpstack
+Group=chirpstack
+SupplementaryGroups=dialout
+RuntimeDirectory=fiber-concentratord
+RuntimeDirectoryMode=0750
+ExecStart=/opt/fiber/concentratord/{{ fiber_versions.concentratord }}/chirpstack-concentratord-sx1302 -c /etc/fiber/concentratord.toml
+Restart=on-failure
+RestartSec=5s

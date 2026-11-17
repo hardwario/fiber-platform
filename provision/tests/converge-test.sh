@@ -14,6 +14,9 @@
 #   7. Mosquitto's listener for the network with the seed's login; a changed password stays
 #   8. Node-RED behind the seed's login, with the flow to start from; a second apply changes
 #      nothing; only the expected ports listen
+#   9. ChirpStack: at no moment does its API answer to admin/admin; the seed's login works; Redis
+#      on loopback; the API key kept; the concentrator daemon and its udev rule there; a second
+#      apply changes nothing
 set -euo pipefail
 
 say() { printf '\n### %s\n' "$*"; }
@@ -193,8 +196,45 @@ say "8c. Only the expected ports listen: 1880 (Node-RED), 1883 (loopback), 1884 
 ports=$(listening | sed 's/.*://' | sort -un | grep -vx 8000 | tr '\n' ' ')
 [ "$ports" = "1880 1883 1884 " ] || fail "these ports listen: $ports"
 
-say "Turning Node-RED and Mosquitto off stops them, and keeps their settings"
-fiber platform disable node-red mosquitto
+say "9. ChirpStack: at no moment does its API answer to admin/admin"
+login() { python3 /tests/chirpstack-login.py "$@" 2> /dev/null || echo "no answer"; }
+rm -f /tmp/default-login-answered /tmp/watch-stop
+(
+    while [ ! -e /tmp/watch-stop ]; do
+        [ "$(login admin admin)" = ok ] && touch /tmp/default-login-answered
+        sleep 0.2
+    done
+) &
+watcher=$!
+fiber platform enable chirpstack
+expect 0 fiber platform apply
+seed_login_works() { [ "$(login admin "a secret")" = ok ]; }
+wait_for 60 seed_login_works || fail "ChirpStack does not take the login from the seed"
+touch /tmp/watch-stop
+wait "$watcher" || true
+[ ! -e /tmp/default-login-answered ] || fail "ChirpStack answered to admin/admin"
+[ "$(login admin admin)" != ok ] || fail "ChirpStack takes admin/admin"
+systemctl is-active --quiet chirpstack-sqlite || fail "ChirpStack does not run"
+systemctl is-enabled --quiet chirpstack-sqlite || fail "ChirpStack does not start with the FIBER"
+systemctl is-active --quiet redis-server || fail "Redis does not run"
+! listening | grep -qE '^(0\.0\.0\.0|\*|\[::\]):6379$' || fail "Redis listens on the network"
+[ "$(stat -c %a /etc/fiber/secrets/chirpstack-api-key)" = 600 ] || fail "the API key is not root only"
+grep -q '^eyJ' /etc/fiber/secrets/chirpstack-api-key || fail "the API key is not a token"
+[ ! -e /run/fiber/platform/chirpstack-password ] || fail "the password file was left behind"
+[ -x /opt/fiber/concentratord/4.7.1/chirpstack-concentratord-sx1302 ] || fail "the concentrator daemon is not there"
+/opt/fiber/concentratord/4.7.1/chirpstack-concentratord-sx1302 --version || fail "the concentrator daemon does not run here"
+[ -f /etc/udev/rules.d/99-fiber-rak5146.rules ] || fail "the udev rule for the card is not there"
+! systemctl is-enabled --quiet chirpstack-mqtt-forwarder || fail "the forwarder starts without the card"
+
+say "9b. Apply again: nothing changes"
+fiber platform apply | tee /tmp/apply.out
+grep -q '^chirpstack: up, nothing changed$' /tmp/apply.out || fail "the second apply changed ChirpStack"
+
+say "Turning ChirpStack, Node-RED and Mosquitto off stops them, and keeps their settings"
+fiber platform disable chirpstack node-red mosquitto
+expect 0 fiber platform apply
+! systemctl is-active --quiet chirpstack-sqlite || fail "ChirpStack still runs"
+! systemctl is-active --quiet redis-server || fail "Redis still runs"
 expect 0 fiber platform apply
 ! systemctl is-active --quiet mosquitto || fail "Mosquitto still runs"
 ! systemctl is-enabled --quiet mosquitto || fail "Mosquitto still starts with the FIBER"

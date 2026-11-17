@@ -8,3 +8,8 @@ fiber_versions:
   nodejs_major: 24
   # Node-RED from npm; checked 2026-11-17 (the newest then).
   node_red: "5.0.10"
+  # ChirpStack's package source keeps one version of each package, so only the major is pinned.
+  chirpstack_major: 4
+  # The concentrator daemon for the RAK5146 (SX1302), a tarball checked by its sha256.
+  concentratord: "4.7.1"
+  concentratord_sha256: "328faf7e6fe6fcc9f5a50f8368fd520807ac2939214c607593318e017e857345"

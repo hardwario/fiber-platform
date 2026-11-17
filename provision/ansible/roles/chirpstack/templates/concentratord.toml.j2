@@ -1,0 +1,43 @@
+# Written by the FIBER platform (the chirpstack role): the concentrator daemon of a RAK5146 USB card
+# in the mini-PCIe slot. Over USB the daemon sets up no reset line (its default for SPI would be
+# GPIO17, which is the buzzer on a FIBER).
+[concentratord]
+  log_level = "INFO"
+  log_to_syslog = false
+  stats_interval = "30s"
+
+  [concentratord.api]
+    event_bind = "ipc:///run/fiber-concentratord/event"
+    command_bind = "ipc:///run/fiber-concentratord/command"
+
+[gateway]
+  antenna_gain = 0
+  lorawan_public = true
+  region = {{ fiber.settings.lorawan.region | upper | to_json }}
+  model = "rak_5146"
+  model_flags = ["USB"]
+  time_fallback_enabled = true
+  com_dev_path = "/dev/rak5146"
+
+  # The eight channels of EU 868, as ChirpStack's region file has them.
+  [gateway.concentrator]
+    multi_sf_channels = [
+      868100000,
+      868300000,
+      868500000,
+      867100000,
+      867300000,
+      867500000,
+      867700000,
+      867900000,
+    ]
+
+    [gateway.concentrator.lora_std]
+      frequency = 868300000
+      bandwidth = 250000
+      spreading_factor = 7
+
+    [gateway.concentrator.fsk]
+      frequency = 868800000
+      bandwidth = 125000
+      datarate = 50000

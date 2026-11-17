@@ -1,0 +1,37 @@
+# Written by the FIBER platform (the chirpstack role). To change it, change
+# /etc/fiber/platform.yaml and run: sudo fiber platform apply
+# The region's own file, region_{{ fiber.settings.lorawan.region }}.toml, stays as the package has it.
+
+[logging]
+  level = "info"
+
+# SQLite, with a write-ahead log and a busy timeout of 5 s.
+[sqlite]
+  path = "sqlite:///var/lib/chirpstack/chirpstack.sqlite"
+  max_open_connections = 4
+  pragmas = [
+    "busy_timeout = 5000",
+    "foreign_keys = ON",
+    "journal_mode = WAL",
+  ]
+
+[redis]
+  servers = ["redis://127.0.0.1/"]
+  cluster = false
+
+# The API and the web interface, for the network. The secret is the FIBER's own
+# (/etc/fiber/secrets/chirpstack-api-secret).
+[api]
+  bind = "0.0.0.0:8080"
+  secret = {{ chirpstack_api_secret.content | b64decode | to_json }}
+
+[network]
+  net_id = "000000"
+  enabled_regions = [{{ fiber.settings.lorawan.region | to_json }}]
+
+# Events of the devices on the local broker, in JSON.
+[integration]
+  enabled = ["mqtt"]
+  [integration.mqtt]
+    server = "tcp://127.0.0.1:1883/"
+    json = true

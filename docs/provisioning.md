@@ -197,6 +197,43 @@ Both are tested in the converge test: the login from the seed works and nothing 
 a password the owner changes stays changed; a second apply changes nothing; only ports 1880, 1883
 (loopback) and 1884 listen. Not run on a FIBER yet.
 
+### ChirpStack
+
+The `chirpstack` role brings a LoRaWAN network server, and the gateway for a RAK5146 USB card in
+the mini-PCIe slot:
+
+- **From ChirpStack's package source** (key vendored, fingerprint checked; the source is signed by
+  the primary key, so the signing subkey that expired on 2025-12-21 does not matter):
+  `chirpstack-sqlite` and `chirpstack-mqtt-forwarder`; Redis from Debian, on loopback. Nothing
+  starts when it is installed.
+- **Never with admin/admin.** The package enables ChirpStack; the role turns it off again until
+  the admin password is set. Before ChirpStack first starts, as the user `chirpstack`,
+  `chirpstack set-password --email admin --password-file ...` takes the password typed into FIBER
+  Setup from a root-only file in `/run` that is deleted at once (`--stdin` wants a terminal). A
+  stamp keeps it from ever being set again. The converge test asks the API with admin/admin all
+  through the apply, and it never answers.
+- **ChirpStack's user is `admin`,** with the FIBER's password: its command line can only set the
+  password of a user that exists. The other services take the user name typed into FIBER Setup.
+- **An API key** for the FIBER, made once (`create-api-key --name fiber`; every call makes a new
+  one), kept in `/etc/fiber/secrets/chirpstack-api-key`. **The API's secret** is the FIBER's own,
+  made once, in `/etc/fiber/secrets/chirpstack-api-secret`.
+- **`/etc/chirpstack/chirpstack.toml`** is the platform's: SQLite at
+  `/var/lib/chirpstack/chirpstack.sqlite` with a write-ahead log and a busy timeout of 5 s, the
+  API and the web interface on port 8080, the region from `lorawan.region`, device events on the
+  local broker in JSON. The region's own file (`region_eu868.toml`) stays as the package has it:
+  it has the eight EU 868 channels and listens on MQTT under `eu868/`.
+- **The concentrator daemon** (`chirpstack-concentratord-sx1302`, a tarball checked by its
+  sha256) goes to `/opt/fiber/concentratord/<version>/`, with `/etc/fiber/concentratord.toml`
+  (`rak_5146`, `USB`, `/dev/rak5146`, its sockets in `/run/fiber-concentratord/`) and our own
+  `fiber-concentratord.service`, bound to the card's device. Over USB the daemon sets up no reset
+  line; its default for SPI would be GPIO17, the buzzer (read in its source, v4.7.1).
+- **A udev rule** names a USB `0483:5740` serial port `/dev/rak5146` and starts the daemon and the
+  MQTT forwarder; the forwarder runs only with the daemon. Both are always installed with the
+  component, as the card can appear long after the start. `0483:5740` is any STM32 serial port,
+  not this card alone.
+
+Tested in the converge test, without a card. Not run on a FIBER yet.
+
 ### Sources (checked 2026-11-17)
 
 Third-party repositories are written in deb822 form with a vendored armored key

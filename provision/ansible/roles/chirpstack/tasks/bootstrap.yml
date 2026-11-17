@@ -1,0 +1,105 @@
+---
+# Redis first; then, before ChirpStack ever starts, its admin password and an API key, each once,
+# as the user chirpstack. Then ChirpStack starts.
+- name: Redis runs, on loopback
+  ansible.builtin.systemd_service:
+    name: redis-server
+    state: started
+    enabled: true
+
+- name: The set-once stamps' directory
+  ansible.builtin.file:
+    path: "{{ fiber.paths.state }}/set-once"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The admin password, once, before the first start
+  when: not chirpstack_password_set.stat.exists
+  block:
+    - name: Whether there is the login from FIBER Setup
+      ansible.builtin.stat:
+        path: "{{ fiber.paths.secrets }}/login.json"
+      register: chirpstack_login_file
+
+    - name: ChirpStack needs a login
+      ansible.builtin.fail:
+        msg: >-
+          there is no login in {{ fiber.paths.secrets }}/login.json (it comes with FIBER Setup's
+          seed), and ChirpStack must not start with admin/admin
+      when: not chirpstack_login_file.stat.exists
+
+    - name: The login
+      ansible.builtin.slurp:
+        src: "{{ fiber.paths.secrets }}/login.json"
+      register: chirpstack_login
+
+    - name: The password, in a file only the user chirpstack can read
+      ansible.builtin.copy:
+        content: "{{ (chirpstack_login.content | b64decode | from_json).password }}"
+        dest: "{{ fiber.paths.run }}/chirpstack-password"
+        owner: chirpstack
+        group: chirpstack
+        mode: "0600"
+      no_log: true
+
+    - name: The admin password set
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - chirpstack
+          - --
+          - chirpstack
+          - -c
+          - /etc/chirpstack
+          - set-password
+          - --email
+          - admin
+          - --password-file
+          - "{{ fiber.paths.run }}/chirpstack-password"
+        creates: "{{ fiber.paths.state }}/set-once/chirpstack-admin"
+
+    - name: The stamp, so that the password is never set again
+      ansible.builtin.copy:
+        content: "ChirpStack's admin password was set from the FIBER Setup login.\n"
+        dest: "{{ fiber.paths.state }}/set-once/chirpstack-admin"
+        owner: root
+        group: root
+        mode: "0644"
+  always:
+    - name: The password file removed
+      ansible.builtin.file:
+        path: "{{ fiber.paths.run }}/chirpstack-password"
+        state: absent
+
+- name: Whether there is the API key
+  ansible.builtin.stat:
+    path: "{{ fiber.paths.secrets }}/chirpstack-api-key"
+  register: chirpstack_api_key_file
+
+- name: An API key for the FIBER, once (every call makes a new one)
+  when: not chirpstack_api_key_file.stat.exists
+  block:
+    - name: The API key made
+      ansible.builtin.command:
+        argv: [runuser, -u, chirpstack, --, chirpstack, -c, /etc/chirpstack, create-api-key, --name, fiber]
+      register: chirpstack_api_key
+      changed_when: true
+      no_log: true
+
+    - name: The API key kept
+      ansible.builtin.copy:
+        content: "{{ chirpstack_api_key.stdout | regex_search('token: (\\S+)', '\\1') | first }}"
+        dest: "{{ fiber.paths.secrets }}/chirpstack-api-key"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+- name: ChirpStack runs, and starts with the FIBER
+  ansible.builtin.systemd_service:
+    name: chirpstack-sqlite
+    state: started
+    enabled: true

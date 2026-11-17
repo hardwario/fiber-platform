@@ -1,5 +1,29 @@
 ---
-# Nothing of it can have been installed yet, so there is nothing to turn off.
-- name: The chirpstack role is not written yet; nothing to turn off
-  ansible.builtin.debug:
-    msg: "the chirpstack role is not written yet (TASKS.md, T9)"
+# Turned off: ChirpStack, the forwarder, the concentrator daemon and Redis stopped and not started
+# again. The database, the settings, the secrets and the key stay.
+- name: The installed packages
+  ansible.builtin.package_facts:
+
+- name: ChirpStack's services stopped and turned off
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: [chirpstack-sqlite, chirpstack-mqtt-forwarder, redis-server]
+  when: item in ansible_facts.packages
+
+- name: Whether the concentrator daemon's service is there
+  ansible.builtin.stat:
+    path: /etc/systemd/system/fiber-concentratord.service
+  register: chirpstack_concentratord_unit
+
+- name: The concentrator daemon stopped
+  ansible.builtin.systemd_service:
+    name: fiber-concentratord
+    state: stopped
+  when: chirpstack_concentratord_unit.stat.exists
+
+- name: The card no longer starts it
+  ansible.builtin.file:
+    path: /etc/udev/rules.d/99-fiber-rak5146.rules
+    state: absent

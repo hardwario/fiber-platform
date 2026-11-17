@@ -1,0 +1,85 @@
+---
+# ChirpStack with SQLite, Redis, the MQTT forwarder and the concentrator daemon for a RAK5146 card
+# (docs/provisioning.md). Nothing is started here: ChirpStack would answer with admin/admin until
+# its password is set (bootstrap).
+- name: ChirpStack's key (fingerprint E078226D4144665AD8793A601CE2AFD36DBCCA00)
+  ansible.builtin.copy:
+    src: chirpstack.asc
+    dest: /etc/apt/keyrings/fiber-chirpstack.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: ChirpStack's package source
+  ansible.builtin.deb822_repository:
+    name: fiber-chirpstack
+    types: deb
+    uris: "https://artifacts.chirpstack.io/packages/{{ fiber_versions.chirpstack_major }}.x/deb"
+    suites: stable
+    components: main
+    signed_by: /etc/apt/keyrings/fiber-chirpstack.asc
+
+- name: ChirpStack, its MQTT forwarder and Redis, none of them started
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: packages
+  vars:
+    common_packages: [chirpstack-sqlite, chirpstack-mqtt-forwarder, redis-server]
+
+- name: Whether ChirpStack's password is set
+  ansible.builtin.stat:
+    path: "{{ fiber.paths.state }}/set-once/chirpstack-admin"
+  register: chirpstack_password_set
+
+# The package enables its service. Until the password is set it stays off, so that a power cut
+# before the bootstrap cannot start it with admin/admin.
+- name: ChirpStack off until its password is set
+  ansible.builtin.systemd_service:
+    name: chirpstack-sqlite
+    enabled: false
+    state: stopped
+  when: not chirpstack_password_set.stat.exists
+
+- name: The API's secret, made once
+  ansible.builtin.copy:
+    content: "{{ lookup('ansible.builtin.password', '/dev/null', length=48,
+      chars=['ascii_letters', 'digits']) }}"
+    dest: "{{ fiber.paths.secrets }}/chirpstack-api-secret"
+    owner: root
+    group: root
+    mode: "0600"
+    force: false
+  no_log: true
+
+- name: The API's secret, for the settings
+  ansible.builtin.slurp:
+    src: "{{ fiber.paths.secrets }}/chirpstack-api-secret"
+  register: chirpstack_api_secret
+
+- name: ChirpStack's database directory
+  ansible.builtin.file:
+    path: /var/lib/chirpstack
+    state: directory
+    owner: chirpstack
+    group: chirpstack
+    mode: "0750"
+
+- name: ChirpStack's settings
+  ansible.builtin.template:
+    src: chirpstack.toml.j2
+    dest: /etc/chirpstack/chirpstack.toml
+    owner: chirpstack
+    group: chirpstack
+    mode: "0640"
+  notify: Restart ChirpStack
+
+- name: The MQTT forwarder's settings
+  ansible.builtin.template:
+    src: chirpstack-mqtt-forwarder.toml.j2
+    dest: /etc/chirpstack-mqtt-forwarder/chirpstack-mqtt-forwarder.toml
+    owner: chirpstack
+    group: chirpstack
+    mode: "0640"
+
+- name: The concentrator daemon
+  ansible.builtin.import_tasks: concentratord.yml

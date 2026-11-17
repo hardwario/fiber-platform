@@ -1,0 +1,16 @@
+# Written by the FIBER platform (the chirpstack role): from the concentrator daemon of the RAK5146
+# card to the local broker, under the region's topic prefix, which is what ChirpStack's region
+# file listens to.
+[logging]
+  level = "info"
+  log_to_syslog = false
+
+[backend]
+  enabled = "concentratord"
+  [backend.concentratord]
+    event_url = "ipc:///run/fiber-concentratord/event"
+    command_url = "ipc:///run/fiber-concentratord/command"
+
+[mqtt]
+  topic_prefix = {{ fiber.settings.lorawan.region | to_json }}
+  server = "tcp://127.0.0.1:1883"

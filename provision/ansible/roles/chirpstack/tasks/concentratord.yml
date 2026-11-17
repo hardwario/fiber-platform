@@ -1,0 +1,88 @@
+---
+# The concentrator daemon of the RAK5146 USB card, always installed with the component: the card
+# can show up long after the start. udev starts it, with the MQTT forwarder, when the card is
+# there (docs/provisioning.md, "ChirpStack").
+- name: The concentrator daemon's directory
+  ansible.builtin.file:
+    path: "/opt/fiber/concentratord/{{ fiber_versions.concentratord }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The concentrator daemon, checked by its sha256
+  ansible.builtin.get_url:
+    url: "{{ 'https://artifacts.chirpstack.io/downloads/chirpstack-concentratord/'
+      ~ 'chirpstack-concentratord-sx1302_' ~ fiber_versions.concentratord ~ '_linux_arm64.tar.gz' }}"
+    checksum: "sha256:{{ fiber_versions.concentratord_sha256 }}"
+    dest: "/opt/fiber/concentratord/{{ fiber_versions.concentratord }}/concentratord.tar.gz"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: The concentrator daemon, unpacked
+  ansible.builtin.unarchive:
+    src: "/opt/fiber/concentratord/{{ fiber_versions.concentratord }}/concentratord.tar.gz"
+    dest: "/opt/fiber/concentratord/{{ fiber_versions.concentratord }}"
+    remote_src: true
+    creates: "/opt/fiber/concentratord/{{ fiber_versions.concentratord }}/chirpstack-concentratord-sx1302"
+
+- name: The concentrator daemon's settings
+  ansible.builtin.template:
+    src: concentratord.toml.j2
+    dest: /etc/fiber/concentratord.toml
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: The concentrator daemon's service
+  ansible.builtin.template:
+    src: fiber-concentratord.service.j2
+    dest: /etc/systemd/system/fiber-concentratord.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: The MQTT forwarder's drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/chirpstack-mqtt-forwarder.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The MQTT forwarder runs with the concentrator daemon, and only then
+  ansible.builtin.copy:
+    content: |
+      # Written by the FIBER platform (the chirpstack role): the forwarder runs while the
+      # concentrator daemon runs, which is while a RAK5146 card is there.
+      [Unit]
+      BindsTo=fiber-concentratord.service
+      After=fiber-concentratord.service
+    dest: /etc/systemd/system/chirpstack-mqtt-forwarder.service.d/fiber.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: The MQTT forwarder not started with the FIBER, only with the card
+  ansible.builtin.systemd_service:
+    name: chirpstack-mqtt-forwarder
+    enabled: false
+    daemon_reload: true
+
+- name: The udev rules' directory
+  ansible.builtin.file:
+    path: /etc/udev/rules.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: The udev rule for the card
+  ansible.builtin.copy:
+    src: 99-fiber-rak5146.rules
+    dest: /etc/udev/rules.d/99-fiber-rak5146.rules
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload the udev rules

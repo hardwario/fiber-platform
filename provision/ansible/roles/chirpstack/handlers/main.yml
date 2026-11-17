@@ -1,0 +1,12 @@
+---
+- name: Restart ChirpStack
+  ansible.builtin.systemd_service:
+    name: chirpstack-sqlite
+    state: restarted
+  when: chirpstack_password_set.stat.exists
+
+# Where udev does not run (a container, a chroot), the rule is read at the next start.
+- name: Reload the udev rules
+  ansible.builtin.command: udevadm control --reload
+  changed_when: true
+  failed_when: false

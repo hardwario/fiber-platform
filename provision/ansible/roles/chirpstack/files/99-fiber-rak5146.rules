@@ -1,0 +1,4 @@
+# Written by the FIBER platform (the chirpstack role): a RAK5146 USB card shows up as /dev/rak5146
+# and starts the concentrator daemon and the MQTT forwarder. 0483:5740 is the id of any STM32 serial
+# port, not of this card alone.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="5740", SYMLINK+="rak5146", TAG+="systemd", ENV{SYSTEMD_WANTS}+="fiber-concentratord.service chirpstack-mqtt-forwarder.service"
