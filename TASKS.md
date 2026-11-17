@@ -35,56 +35,65 @@ is done, long before the rest of M5.
 
 ## Tasks in progress
 
-### T5. The release archive and the installer (M1)
+### T6. `fiber platform apply` (M1)
 
-State (2026-11-17): built, and the four container tests pass on the maintainer's computer
-(`just check-install`). Next: the push, and the CI job `arm64` running them too. Settled on the
-way: `install.sh` is bash with all its code in functions; `provision/release.py` builds the
-archive (Python's standard library only, the same bytes every time); the seed goes through
-`fiber platform seed`; `FIBER_NO_APPLY=1` installs without applying. The installer's apply step
-is written but can only be tested once `fiber platform apply` exists: that test is now a step of
-T6.
+State (2026-11-17): started. Settled at the start: the program runs `ansible-playbook` once per
+component (and once for `common` before them), so that each component's result is the exit
+status of its own run, and the order, the skips and the bookkeeping are in the program, tested;
+the plan had one run with a block and a rescue per component. The `mosquitto` role's first part
+(Debian's broker on loopback, and turning it off) is the small example role, so that the
+converge test has a real component; T8 adds the rest of it. The other roles fail with "not
+written yet" until their tasks. Next: `fiber platform apply --foreground`.
 
-How the platform gets onto a FIBER, and how two releases live side by side (D2).
+The one way the system is brought to what the file says, whoever asks for it.
 
-- [x] `fiber platform seed <file>`: the seed's components and settings become
-      `/etc/fiber/platform.yaml` (only when there is none), its login goes to
-      `/etc/fiber/secrets/login.json` (root only, set once); checked like `platform.yaml`
-- [x] The archive `fiber-platform-<version>-linux-arm64.tar.gz`, built the same byte for byte
-      every time (sorted, fixed dates, owned by root): `bin/fiber`, `provision/` (what exists of
-      it), and `manifest.json` (version, commit, the sha256 of every file, the Ansible version it
-      works with). `provision/release.py`, `just release`
-- [x] `provision/install.sh`, stamped at release time with its version and the archive's sha256.
-      It checks that it runs as root on an arm64 Raspberry Pi OS trixie; downloads the archive
-      and checks the sha256; unpacks into `/opt/fiber/releases/<version>.partial`, checks every
-      file against the manifest, syncs, renames, and writes `.complete` last
-- [x] The switch: `current` moves by renaming a temporary link, `previous` points at the release
-      before, `/usr/local/bin/fiber` points into `current`. Two releases are kept
-- [x] Ansible: `apt-get install --no-install-recommends ansible-core python3-debian`, with a
-      lock timeout of ten minutes and `dpkg --configure -a` first
-- [x] The seed: `/boot/firmware/fiber-seed.yaml` goes through `fiber platform seed`, and the copy
-      on the boot partition is overwritten and then deleted. Without a seed, `--components
-      a,b,c` turns those components on
-- [x] It then starts the apply (T6), unless `FIBER_NO_APPLY=1`. `FIBER_NO_REBOOT=1` is
-      honoured. Exit status 0: done; 10: done, restart needed; 20: partly done, the platform
-      tries again by itself; anything else: failed. Written; tested in T6, which makes the apply
-- [x] Settings for the tests: where the release comes from (`FIBER_RELEASE_URL`), a root
-      directory to install into (`FIBER_ROOT`)
-- [x] `shellcheck` on every shell script in `just check`
-- [x] Tests in a container like Raspberry Pi OS (Debian trixie arm64 with what the image has):
-      install from a local server; run it again (nothing changes); stop it hard in the middle of
-      unpacking and run it again; a wrong checksum is refused. `just check-install`, and a CI job
-- [x] `docs/provisioning.md`: the seed, the installer's settings and exit statuses; `docs/cli.md`:
-      `fiber platform seed`
+- [ ] `fiber platform apply --foreground` does the work: it reads the file, turns off what is
+      `false` (in the reverse order of `components.yaml`), then brings up what is on (in its
+      order), each with one `ansible-playbook` run on the playbook of the program's own release,
+      with what it worked out as variables (the component, its roles, on or off, the settings).
+      A component whose requirement failed in this run is skipped. One apply at a time
+- [ ] `provision/ansible/ansible.cfg`: facts gathered only when asked for, one fork, temporary
+      files under `/run`, the collections path pointed at an empty directory in the release, and
+      a lock timeout of ten minutes as the default of every `apt` task
+- [ ] `site.yml`: a first task checks the Ansible version and what the program handed over, then
+      the component's roles run, their `main` (install, then bootstrap) or their `disable`
+- [ ] The `common` role: the directories, `/etc/fiber/secrets` (root only); the rule that a
+      password is set once and never set again, written down
+- [ ] The shape every role has, shown by the `mosquitto` role's first part and written into
+      `docs/provisioning.md`: `install` (packages, files, enabling; it must work in a chroot, so
+      that T32 can build an image from it), `bootstrap` (what needs the running service: tokens,
+      passwords) and `disable`; a drop-in file where the service takes one, never an edit of the
+      package's own settings; every version pin in one file. The other roles fail with "not
+      written yet" until their tasks
+- [ ] `fiber-platform-apply.service`: a oneshot that runs only while
+      `/var/lib/fiber/platform/pending` exists, tries again after a failure with growing pauses,
+      and sets `LC_ALL=C.UTF-8` and `HOME=/root`. The program writes it from its release
+- [ ] `fiber platform apply` writes `pending`, starts the unit and follows it: one line per
+      component, and at the end whether a restart is needed. Exit status 0, 10 or 20 as in T5
+- [ ] `/run/fiber/platform/status.json` (state, step n of m, the result of each component,
+      restart needed) and `/var/log/fiber/platform.log`; both are copied to the boot partition
+      at the end
+- [ ] `/var/lib/fiber/platform/results.json`, written as each component finishes, in the form
+      `fiber platform status` already reads (`agent/src/platform/results.rs`,
+      `docs/provisioning.md`): what it was brought to, `ok`, `failed` or `skipped`, when, why
+- [ ] An Avahi service file (`_fiber._tcp`) whose TXT records carry the state, the step, the
+      component and the release, so that FIBER Setup can follow the first start without a login
+- [ ] `fiber platform enable` and `disable` end with the line that says to run
+      `fiber platform apply`
+- [ ] The installer's last step, in `provision/tests/install-test.sh` without `FIBER_NO_APPLY`:
+      exit status 0, and 10 with and without `FIBER_NO_REBOOT=1`, and 20
+- [ ] The converge test (`provision/tests/`): an arm64 Debian trixie container with systemd. It
+      applies twice (the second run reports no change), applies with the network taken away
+      (passes when nothing needs installing), and applies with a role made to fail (the others
+      end `ok`, the unit tries again)
+- [ ] `yamllint` and `ansible-lint` with its `only-builtins` rule, in `just check` and in CI
 
-Watch out: `ansible-core` recommends the `ansible` bundle, 205 MB, which apt installs unless
-told not to. The stock image has no `python3-debian`, which the module for package sources
-needs. The checksum in a script fetched with `curl` proves the download is whole, not who made
-it: the documentation has to say so. A script piped into `bash` is read as it runs: a command in
-it that reads the standard input eats the rest of the script.
+Watch out: Ansible refuses to run without a UTF-8 locale, which neither systemd nor cloud-init
+gives it. Roles have no `meta` dependencies: the program resolves what a component requires.
+Every `command` task has `creates` or a real `changed_when`, or the second run is never clean.
 
-- Needs: T4.
-- Done when: the four container tests pass.
+- Needs: T5.
+- Done when: the three converge tests pass in CI.
 
 ## Tasks ahead
 
@@ -136,55 +145,6 @@ STM32C0 keeps BOOT0 low until the next power-on, so do not mix a debug probe int
 Done when: a FIBER written with every box ticked reaches `state=ok` by itself, also on a network
 that blocks NTP; a second `apply` changes nothing; no service ever answers with a default
 password; update and rollback work.
-
-#### T6. `fiber platform apply`
-
-The one way the system is brought to what the file says, whoever asks for it.
-
-- [ ] `provision/ansible/ansible.cfg`: facts gathered only when asked for, one fork, temporary
-      files under `/run`, the collections path pointed at an empty directory in the release, and
-      a lock timeout of ten minutes as the default of every `apt` task
-- [ ] `site.yml` and `tasks/component.yml`: every component runs in its own block with a rescue,
-      and its result is written down; a component whose requirement failed is skipped. A first
-      task checks the Ansible version and that the list of components is complete
-- [ ] The `common` role: the directories, `/etc/fiber/secrets` (root only), and the rule that a
-      password is set once and never set again
-- [ ] The shape every role has, shown by a small example role and written into
-      `docs/provisioning.md`: `install` (packages, files, enabling; it must work in a chroot, so
-      that T32 can build an image from it), `bootstrap` (what needs the running service: tokens,
-      passwords) and `disable`; a drop-in file where the service takes one, never an edit of the
-      package's own settings; every version pin in one file
-- [ ] `fiber-platform-apply.service`: a oneshot that runs only while
-      `/var/lib/fiber/platform/pending` exists, tries again after a failure with growing pauses,
-      and sets `LC_ALL=C.UTF-8` and `HOME=/root`
-- [ ] `fiber platform apply` writes `pending`, starts the unit and follows it: one line per
-      component, and at the end whether a restart is needed. Exit status 0, 10 or 20 as in T5
-- [ ] `/run/fiber/platform/status.json` (state, step n of m, the result of each component,
-      restart needed) and `/var/log/fiber/platform.log`; both are copied to the boot partition
-      at the end
-- [ ] `/var/lib/fiber/platform/results.json`, written as each component finishes, in the form
-      `fiber platform status` already reads (`agent/src/platform/results.rs`,
-      `docs/provisioning.md`): what it was brought to, `ok`, `failed` or `skipped`, when, why
-- [ ] The program hands Ansible what it worked out (the components to bring up and to turn off,
-      with what they require, and the settings), so that no role reads `platform.yaml` itself
-- [ ] `fiber platform enable` and `disable` end with the line that says to run
-      `fiber platform apply`
-- [ ] The installer's last step, in `provision/tests/install-test.sh` without `FIBER_NO_APPLY`:
-      exit status 0, and 10 with and without `FIBER_NO_REBOOT=1`, and 20
-- [ ] An Avahi service file (`_fiber._tcp`) whose TXT records carry the state, the step, the
-      component and the release, so that FIBER Setup can follow the first start without a login
-- [ ] The converge test (`provision/tests/`): an arm64 Debian trixie container with systemd. It
-      applies twice (the second run reports no change), applies with the network taken away
-      (passes when nothing needs installing), and applies with a role made to fail (the others
-      end `ok`, the unit tries again)
-- [ ] `yamllint` and `ansible-lint` with its `only-builtins` rule, in `just check` and in CI
-
-Watch out: Ansible refuses to run without a UTF-8 locale, which neither systemd nor cloud-init
-gives it. Roles have no `meta` dependencies: the program resolves what a component requires.
-Every `command` task has `creates` or a real `changed_when`, or the second run is never clean.
-
-- Needs: T5.
-- Done when: the three converge tests pass in CI.
 
 #### T7. The `base` role and `fiber doctor`
 
@@ -946,6 +906,56 @@ The file that holds the choice, and the first commands that read and change it. 
       44182158761, job `container`)
 
 - Done when: the commands run in a bare container, with no broker, no hardware and no settings.
+
+### T5. The release archive and the installer (M1)
+
+Done 2026-11-17, commit `4430086`. Checked: the CI run of `4430086` (44186517138) is green: the
+four installer tests in a container like Raspberry Pi OS, on the arm64 runner (an install piped
+into `bash` with a seed; a second run that changes nothing; a hard stop while unpacking, then a
+clean run; a wrong checksum refused; also an unstamped installer and a user who is not root are
+refused); the archive built twice is the same; `shellcheck`. Not checked: the installer's apply
+step (it needs `fiber platform apply`; now a step of T6), and nothing has run on a FIBER.
+
+How the platform gets onto a FIBER, and how two releases live side by side (D2).
+
+- [x] `fiber platform seed <file>`: the seed's components and settings become
+      `/etc/fiber/platform.yaml` (only when there is none), its login goes to
+      `/etc/fiber/secrets/login.json` (root only, set once); checked like `platform.yaml`
+- [x] The archive `fiber-platform-<version>-linux-arm64.tar.gz`, built the same byte for byte
+      every time (sorted, fixed dates, owned by root): `bin/fiber`, `provision/` (what exists of
+      it), and `manifest.json` (version, commit, the sha256 of every file, the Ansible version it
+      works with). `provision/release.py`, `just release`
+- [x] `provision/install.sh`, stamped at release time with its version and the archive's sha256.
+      It checks that it runs as root on an arm64 Raspberry Pi OS trixie; downloads the archive
+      and checks the sha256; unpacks into `/opt/fiber/releases/<version>.partial`, checks every
+      file against the manifest, syncs, renames, and writes `.complete` last
+- [x] The switch: `current` moves by renaming a temporary link, `previous` points at the release
+      before, `/usr/local/bin/fiber` points into `current`. Two releases are kept
+- [x] Ansible: `apt-get install --no-install-recommends ansible-core python3-debian`, with a
+      lock timeout of ten minutes and `dpkg --configure -a` first
+- [x] The seed: `/boot/firmware/fiber-seed.yaml` goes through `fiber platform seed`, and the copy
+      on the boot partition is overwritten and then deleted. Without a seed, `--components
+      a,b,c` turns those components on
+- [x] It then starts the apply (T6), unless `FIBER_NO_APPLY=1`. `FIBER_NO_REBOOT=1` is
+      honoured. Exit status 0: done; 10: done, restart needed; 20: partly done, the platform
+      tries again by itself; anything else: failed. Written; tested in T6, which makes the apply
+- [x] Settings for the tests: where the release comes from (`FIBER_RELEASE_URL`), a root
+      directory to install into (`FIBER_ROOT`)
+- [x] `shellcheck` on every shell script in `just check`
+- [x] Tests in a container like Raspberry Pi OS (Debian trixie arm64 with what the image has):
+      install from a local server; run it again (nothing changes); stop it hard in the middle of
+      unpacking and run it again; a wrong checksum is refused. `just check-install`, and a CI job
+- [x] `docs/provisioning.md`: the seed, the installer's settings and exit statuses; `docs/cli.md`:
+      `fiber platform seed`
+
+Watch out: `ansible-core` recommends the `ansible` bundle, 205 MB, which apt installs unless
+told not to. The stock image has no `python3-debian`, which the module for package sources
+needs. The checksum in a script fetched with `curl` proves the download is whole, not who made
+it: the documentation has to say so. A script piped into `bash` is read as it runs: a command in
+it that reads the standard input eats the rest of the script.
+
+- Needs: T4.
+- Done when: the four container tests pass.
 
 ## Decisions ahead
 
