@@ -35,60 +35,7 @@ is done, long before the rest of M5.
 
 ## Tasks in progress
 
-### T4. The platform file and its commands (M1)
-
-State (2026-11-17): the CI run of `2fe8334` (44182158761) ran every command in a bare Debian
-arm64 container (job `container`: passed), which is the "Done when". Its `host` job failed in one
-test: `status_names_the_release_the_program_is_in` copies the program and starts it at once, and
-on Linux a process forked meanwhile by another test thread can hold the copy open ("Text file
-busy"). The test now tries again while the file is busy. Next: push that, and see `host` pass,
-with the static build step that it skipped. Settled on the way: `serde-saphyr` for the YAML;
-`components.yaml` compiled into the program; `enable` and `disable` change only the lines under
-`components:`; `--root` (hidden) for the tests; `status` reads
-`/var/lib/fiber/platform/results.json` (T6 writes it). Locally, Docker Desktop does not start
-(its disk image `Docker.raw` is owned by root); `sudo chown $USER` on it would let
-`just check-container` run here.
-
-The file that holds the choice, and the first commands that read and change it. No Ansible yet.
-
-- [x] `provision/components.yaml` (`schema: 1`): for each component its title, what it brings,
-      its roles, what it requires and suggests, its services and its ports. The components:
-      `base`; `mosquitto`; `agent` (requires `base`, `mosquitto`); `node-red` (requires
-      `mosquitto`); `chirpstack` (requires `mosquitto`). Its sizes have a place in the file but
-      stay empty until they are measured on a FIBER (T12)
-- [x] The program reads `components.yaml` compiled into it; the archive carries the same file
-      for FIBER Setup (T5, T12)
-- [x] `/etc/fiber/platform.yaml` (`schema: 1`): `components` as a map of `true` (bring it up),
-      `false` (stop and disable it, keep its data) or absent (leave it alone), and `settings`
-      (`mqtt.lan`, `lorawan.region`, `hardware.minipcie`), each with a default. Reading it gives
-      plain messages with the line: an unknown component is named, a wrong value says what is
-      allowed. No file, or a file with nothing in it, means nothing is chosen
-- [x] Requirements are worked out in the `fiber` program, from `components.yaml`: a component
-      that is on brings up what it requires; one that is on while something it requires is
-      `false` is an error that names both
-- [x] One module for the paths (`/etc/fiber`, `/var/lib/fiber`, `/run/fiber`, `/opt/fiber`),
-      with a root directory in front of them for the tests (`--root`, hidden)
-- [x] The program finds its release from its own path (the directory above its `bin/`, when it
-      has a `provision/`), so it never runs another release's roles
-- [x] `fiber platform list`: every component, on, off or left alone, and what it requires
-- [x] `fiber platform status`: the release, whether an apply is waiting, and the last result of
-      each component, from `/var/lib/fiber/platform/results.json` (written by T6). Exit status
-      0 when every component that is on or off has been brought there with `ok` and no apply is
-      waiting, 3 when not
-- [x] `fiber platform enable <component>...` and `disable <component>...` change the file:
-      `enable` turns on what is required too; `disable` is refused while a component that is on
-      needs it, with its name. Only the lines under `components:` change; the rest, comments
-      too, stays. The new text is read back before it is written, and written by a rename. A
-      new file starts with a line that says so, and with the settings at their defaults
-- [ ] The static build for the FIBER (`aarch64-unknown-linux-musl`), built in CI. Built here;
-      the CI step is written and has not run yet
-- [x] `docs/cli.md`: the `fiber platform` commands and their exit statuses
-- [x] Tests: reading, checking and resolving the file; the line editor; every command against a
-      temporary root
-- [x] The static build runs every command in a bare Debian arm64 container (CI, run
-      44182158761, job `container`)
-
-- Done when: the commands run in a bare container, with no broker, no hardware and no settings.
+Nothing. The next task is T2, which needs a FIBER on the bench, or T5, which needs no board.
 
 ## Tasks ahead
 
@@ -934,6 +881,59 @@ Watch out: what makes such a firmware big is formatting code (`{:?}`, `unwrap` o
 floats, 64-bit division at run time, and `defmt` left in a release build.
 
 - Done when: the size is written down. The budget is 24 KB.
+
+### T4. The platform file and its commands (M1)
+
+Done 2026-11-17, commits `2fe8334` and `bf69fda`. Checked: the CI run of `bf69fda`
+(44182504508) is green: 41 unit tests and 11 tests that run the program against a temporary
+root; the static arm64 build (`file`: "statically linked"); and every command run in a bare
+Debian arm64 container with no broker, no hardware and no settings (job `container`). Not
+checked, because it needs a board: nothing of it has run on a FIBER. Settled on the way:
+`serde-saphyr` reads the YAML; `components.yaml` is compiled into the program; `enable` and
+`disable` change only the lines under `components:`; `--root` (hidden) is for the tests;
+`status` reads `/var/lib/fiber/platform/results.json`, which T6 writes. Locally, Docker Desktop
+does not start (its disk image `Docker.raw` is owned by root); `sudo chown $USER` on it would let
+`just check-container` run on the maintainer's computer.
+
+The file that holds the choice, and the first commands that read and change it. No Ansible yet.
+
+- [x] `provision/components.yaml` (`schema: 1`): for each component its title, what it brings,
+      its roles, what it requires and suggests, its services and its ports. The components:
+      `base`; `mosquitto`; `agent` (requires `base`, `mosquitto`); `node-red` (requires
+      `mosquitto`); `chirpstack` (requires `mosquitto`). Its sizes have a place in the file but
+      stay empty until they are measured on a FIBER (T12)
+- [x] The program reads `components.yaml` compiled into it; the archive carries the same file
+      for FIBER Setup (T5, T12)
+- [x] `/etc/fiber/platform.yaml` (`schema: 1`): `components` as a map of `true` (bring it up),
+      `false` (stop and disable it, keep its data) or absent (leave it alone), and `settings`
+      (`mqtt.lan`, `lorawan.region`, `hardware.minipcie`), each with a default. Reading it gives
+      plain messages with the line: an unknown component is named, a wrong value says what is
+      allowed. No file, or a file with nothing in it, means nothing is chosen
+- [x] Requirements are worked out in the `fiber` program, from `components.yaml`: a component
+      that is on brings up what it requires; one that is on while something it requires is
+      `false` is an error that names both
+- [x] One module for the paths (`/etc/fiber`, `/var/lib/fiber`, `/run/fiber`, `/opt/fiber`),
+      with a root directory in front of them for the tests (`--root`, hidden)
+- [x] The program finds its release from its own path (the directory above its `bin/`, when it
+      has a `provision/`), so it never runs another release's roles
+- [x] `fiber platform list`: every component, on, off or left alone, and what it requires
+- [x] `fiber platform status`: the release, whether an apply is waiting, and the last result of
+      each component, from `/var/lib/fiber/platform/results.json` (written by T6). Exit status
+      0 when every component that is on or off has been brought there with `ok` and no apply is
+      waiting, 3 when not
+- [x] `fiber platform enable <component>...` and `disable <component>...` change the file:
+      `enable` turns on what is required too; `disable` is refused while a component that is on
+      needs it, with its name. Only the lines under `components:` change; the rest, comments
+      too, stays. The new text is read back before it is written, and written by a rename. A
+      new file starts with a line that says so, and with the settings at their defaults
+- [x] The static build for the FIBER (`aarch64-unknown-linux-musl`), built in CI
+- [x] `docs/cli.md`: the `fiber platform` commands and their exit statuses
+- [x] Tests: reading, checking and resolving the file; the line editor; every command against a
+      temporary root
+- [x] The static build runs every command in a bare Debian arm64 container (CI, run
+      44182158761, job `container`)
+
+- Done when: the commands run in a bare container, with no broker, no hardware and no settings.
 
 ## Decisions ahead
 

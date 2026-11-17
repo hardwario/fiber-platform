@@ -4,7 +4,8 @@
 so far: `fiber version` and the `fiber platform` commands that read and change the choice of
 components. `apply` and the rest come with their tasks (`TASKS.md`, T6 and on).
 
-**Status:** tested on a computer. Not run on a FIBER yet.
+**Status:** tested on a computer, and in a bare Debian arm64 container in CI (no broker, no
+hardware, no settings). Not run on a FIBER yet.
 
 ## Exit statuses
 
