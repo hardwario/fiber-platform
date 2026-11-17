@@ -30,6 +30,11 @@ impl Paths {
         self.root == std::path::Path::new("/")
     }
 
+    /// The agent's settings; it needs none.
+    pub fn agent_config(&self) -> PathBuf {
+        self.under("/etc/fiber/agent.toml")
+    }
+
     /// The releases, `current` and `previous`.
     pub fn opt_dir(&self) -> PathBuf {
         self.under("/opt/fiber")

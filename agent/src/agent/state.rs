@@ -33,8 +33,8 @@ impl FirmwareState {
 pub struct Chip {
     pub state: FirmwareState,
     pub hello: Option<Hello>,
-    /// The CRC-32 of the image the agent carries for it.
-    pub carried: u32,
+    /// The CRC-32 of the image the agent carries for it; none in a build without the firmware.
+    pub carried: Option<u32>,
 }
 
 /// The agent's settings that the state needs (`agent.toml`).
@@ -58,7 +58,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(settings: Settings, south_carried: u32) -> Self {
+    pub fn new(settings: Settings, south_carried: Option<u32>) -> Self {
         State {
             settings,
             ports: 0xFF,
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn the_desired_follows_the_state() {
-        let mut state = State::new(Settings { dividers: true }, 1);
+        let mut state = State::new(Settings { dividers: true }, Some(1));
         state.ports = 0b0000_0101;
         let desired = state.desired();
         assert_eq!(desired.ports, 0b0000_0101);
@@ -159,7 +159,7 @@ mod tests {
             vref: 1505,
             ..Status::default()
         };
-        let mut state = State::new(Settings { dividers: true }, 1);
+        let mut state = State::new(Settings { dividers: true }, Some(1));
         state.south_status(status);
         assert_eq!(
             state.power.source,
@@ -170,7 +170,7 @@ mod tests {
         assert_eq!(state.south.state, FirmwareState::Running);
         state.south_status(status);
         assert_eq!(state.power.source, Source::Poe);
-        let mut without = State::new(Settings { dividers: false }, 1);
+        let mut without = State::new(Settings { dividers: false }, Some(1));
         without.south_hello(hello());
         without.south_status(status);
         assert_eq!(

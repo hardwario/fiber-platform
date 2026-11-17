@@ -67,7 +67,7 @@ pub fn firmware(chip: &Chip, ts: u64) -> Value {
         "state": chip.state.name(),
         "version": hello.map(|h| format!("{}.{}.{}", h.version[0], h.version[1], h.version[2])),
         "crc": hello.map(|h| format!("0x{:08x}", h.image_crc)),
-        "carried": format!("0x{:08x}", chip.carried),
+        "carried": chip.carried.map(|crc| format!("0x{crc:08x}")),
         "reset": hello.map(|h| reset_name(h.reset)),
         "fault": hello.and_then(|h| h.fault).map(|f| json!({"code": f.code, "address": format!("0x{:08x}", f.address)})),
         "ts": ts,
@@ -107,7 +107,7 @@ mod tests {
         );
         assert_eq!(offline().to_string(), r#"{"schema":1,"state":"offline"}"#);
 
-        let mut state = State::new(Settings { dividers: true }, 0x6f1c_2a90);
+        let mut state = State::new(Settings { dividers: true }, Some(0x6f1c_2a90));
         assert_eq!(
             power(&state, 5).to_string(),
             r#"{"battery":null,"input":null,"source":"unknown","ts":5}"#

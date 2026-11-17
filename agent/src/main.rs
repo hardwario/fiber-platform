@@ -50,6 +50,9 @@ enum Command {
         #[arg(long)]
         all: bool,
     },
+    /// The agent: the one process that owns the board and shows it on MQTT. Run by
+    /// fiber-agent.service.
+    Agent,
     /// Check that the board's hardware is there as Linux should see it, and say what to do
     /// where it is not.
     Doctor,
@@ -113,6 +116,7 @@ fn main() -> ExitCode {
             print!("{}", version_text(all));
             Ok(ExitCode::SUCCESS)
         }
+        Command::Agent => agent::agent(&paths),
         Command::Doctor => doctor::doctor(&paths),
         Command::Platform { command } => match command {
             PlatformCommand::List => platform::list(&paths),

@@ -41,6 +41,13 @@ serde_json = "1"
 # YAML for `/etc/fiber/platform.yaml` and `provision/components.yaml`: pure Rust, never panics on
 # bad input, and its errors name the line and show it. Only the reading half.
 serde-saphyr = { version = "2.1", default-features = false, features = ["deserialize"] }
+# The agent's I/O: one thread; MQTT without TLS (the broker is on the FIBER itself); the serial
+# links without libudev, so that the static program needs no C library.
+tokio = { version = "1", features = ["rt", "macros", "time", "sync", "io-util", "signal"] }
+rumqttc = { version = "0.25", default-features = false }
+tokio-serial = { version = "5.5", default-features = false }
+# /etc/fiber/agent.toml (only the reading half).
+toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }
 
 # Opted into by every member with `[lints] workspace = true` (the same rules as FIBER Setup).
 [workspace.lints.rust]

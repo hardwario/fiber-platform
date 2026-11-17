@@ -16,7 +16,13 @@ workspace = true
 
 [dependencies]
 fiber-protocol = { path = "../crates/protocol" }
+fiber-south-core = { path = "../crates/south-core" }
+fiber-flasher = { path = "../crates/flasher" }
 anyhow.workspace = true
+tokio.workspace = true
+rumqttc.workspace = true
+tokio-serial.workspace = true
+toml.workspace = true
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -26,6 +32,13 @@ serde-saphyr.workspace = true
 tower-protocol.workspace = true
 
 [dev-dependencies]
+# A paused clock for the tests of the agent's loop.
+tokio = { workspace = true, features = ["test-util"] }
 # The 1-bit framebuffer, fonts and menus the front panel will draw with (milestone M4). Only a
 # test uses it so far: it pins the frame type of the 128 x 64 LCD.
 tower-hmi.workspace = true
+
+# The GPIO lines (BOOT0 and NRST of the two microcontrollers), through the kernel's character
+# device: Linux only. Elsewhere the agent builds for its tests, without lines.
+[target.'cfg(target_os = "linux")'.dependencies]
+gpiocdev = "0.8"

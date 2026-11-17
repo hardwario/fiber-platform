@@ -222,7 +222,7 @@ mod tests {
     use crate::agent::state::Settings;
 
     fn state() -> State {
-        State::new(Settings { dividers: true }, 1)
+        State::new(Settings { dividers: true }, Some(1))
     }
 
     fn request(op: &str, params: Value) -> Request {

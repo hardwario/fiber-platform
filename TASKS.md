@@ -350,25 +350,25 @@ costs 82 bytes.
 
 ### T17. The agent's core (M2)
 
-State (2026-11-18): the core's logic is written and tested (`agent/src/agent/`, 19 tests): the
-volts from the counts and PoE or battery without flapping, the LEDs (auto, or set by a client),
-the requests and their answers, when to flash a chip and the three tries an hour kept across
-restarts, the topics' payloads. Next: the I/O around it (the serial link, MQTT, the flasher's
-adapters), then the command line's clients. Settled: `Hello` carries the chip's `VREFINT_CAL`,
-which the agent needs to turn counts into volts (changed in `fiber-protocol`, its pinned frames,
-the firmware and `docs/firmware/south-link.md`); a board without the dividers is a setting
-(`dividers`), as the two pins cannot tell; the power LED is green on PoE and yellow on the
-battery, a port's LED green while its power is on; `firmware.flash` for the north bridge answers
-that its firmware is not written yet.
+State (2026-11-18): `fiber agent` runs: the core's logic (`agent/src/agent/`, 20 tests), the loop
+around it (the south link every second, MQTT, requests, port cycles), MQTT through rumqttc
+without TLS, `agent.toml` with defaults. The loop is tested against a simulated south bridge on an
+in-memory pipe and a fake bus (paused clock): Hello and Status, the volts, a request delivered
+twice and answered once, a cycle, a reconnect, a south bridge going silent. Not done yet: flashing
+(the flasher's adapters to the real port and lines, and the images carried in the program); the
+command line's clients; the service; a test against a real broker. Next: the command line's
+clients. Settled: `Hello` carries `VREFINT_CAL`; a board without dividers is a setting
+(`[board] dividers`); rumqttc's loop runs in a task of its own, and a publish while the broker is
+down is dropped (every retained topic is sent again after the reconnect).
 
 The one program that owns the board. This task gives it the south bridge and its first topics.
 
-- [ ] The crates: `tokio` on one thread, `rumqttc` without TLS, `tokio-serial`, `gpiocdev`
+- [x] The crates: `tokio` on one thread, `rumqttc` without TLS, `tokio-serial`, `gpiocdev`
 - [x] `agent/src/board.rs`: every pin, device path and I2C address of rev 2.1, from
       `docs/hardware.md`. A test that no GPIO is used twice (done with T7, for `fiber doctor`)
-- [ ] The shape: one task holds the state; MQTT is an adapter around it (the LCD and Bluetooth
+- [x] The shape: one task holds the state; MQTT is an adapter around it (the LCD and Bluetooth
       will be two more). The board keeps working while the broker is down
-- [ ] The south link: `Desired` every second, `Status` and `Hello` read; the counts turned into
+- [x] The south link: `Desired` every second, `Status` and `Hello` read; the counts turned into
       volts (battery: the pin times 2; input: the pin times 398 / 68); PoE or battery, with a
       margin so that it does not flap
 - [ ] Firmware: both images are built into the program. A chip whose `Hello` names another
@@ -376,9 +376,9 @@ The one program that owns the board. This task gives it the south bridge and its
       for one image in an hour, remembered across restarts
 - [ ] The mini-PCIe card's two lines (GPIO10 and 11), set for the card that
       `hardware.minipcie` names, with the levels T2 found
-- [ ] MQTT: the last will on `status`, every retained topic sent again after a reconnect,
+- [x] MQTT: the last will on `status`, every retained topic sent again after a reconnect,
       requests and answers, the `schema` number
-- [ ] `/etc/fiber/agent.toml`, with defaults that need no file
+- [x] `/etc/fiber/agent.toml`, with defaults that need no file
 - [ ] The command line as a client of MQTT: `status`, `power`, `ports`, `leds`, `firmware
       status`. `firmware flash` and `doctor` talk to the hardware themselves and refuse while
       the agent holds it
