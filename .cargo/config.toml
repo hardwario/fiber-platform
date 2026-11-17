@@ -1,0 +1,5 @@
+# The `fiber` program for the FIBER: a static arm64 Linux binary (`just build-fiber`). rust-lld
+# links it with the musl C library that comes with the target, so no C cross toolchain is needed
+# on any build machine. The firmware workspaces have their own `.cargo/config.toml`.
+[target.aarch64-unknown-linux-musl]
+linker = "rust-lld"

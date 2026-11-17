@@ -15,6 +15,10 @@ set windows-shell := ["cmd.exe", "/c"]
 # The running `just`, so the delegating recipes use the same binary.
 just := just_executable()
 
+# The bare container of `check-container`: Debian trixie, the base of Raspberry Pi OS, pinned by
+# the digest of its multi-platform index (looked up 2026-11-17).
+debian_image := "debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2"
+
 # List the available recipes.
 default:
     @{{just}} --list
@@ -23,8 +27,8 @@ default:
 # === Gates ========================================================================================
 
 # What CI runs. Needs cargo-audit, python3 and network access (the RustSec advisory database).
-# Run every hardware-free gate (host workspace, bench scripts, no long dashes, audit).
-check: check-host check-hil no-dashes audit
+# Run every hardware-free gate (host workspace, the FIBER's build, bench scripts, no long dashes, audit).
+check: check-host build-fiber check-hil no-dashes audit
 
 # The thumbv7em build proves the pinned TOWER kernels and our own no_std crates still build for
 # the north bridge (an STM32WL55, Cortex-M4 without FPU) on their own.
@@ -34,6 +38,20 @@ check-host: doc
     cargo clippy --workspace --all-targets --locked -- -D warnings
     cargo test --workspace --locked
     cargo build --locked --target thumbv7em-none-eabi -p fiber-tower-air
+
+# rust-lld links it with the target's own musl (.cargo/config.toml): no C toolchain needed.
+# Build the static `fiber` program for the FIBER (arm64 Linux, musl).
+build-fiber:
+    cargo build --locked --release --target aarch64-unknown-linux-musl -p fiber-agent
+
+# Needs Docker on an arm64 machine (an Apple silicon Mac, or CI's arm64 runner). The container
+# has no network, no broker, no hardware and no settings. Not part of `check`.
+# Run the static program's commands in a bare Debian container.
+check-container: build-fiber
+    docker run --rm --platform linux/arm64 --network none \
+        -v "{{justfile_directory()}}/target/aarch64-unknown-linux-musl/release/fiber:/usr/local/bin/fiber:ro" \
+        -v "{{justfile_directory()}}/agent/tests/bare-container.sh:/bare-container.sh:ro" \
+        {{debian_image}} sh /bare-container.sh
 
 # The probe talks to a fake ROM bootloader on a pseudo-terminal: the protocol code is exercised,
 # no GPIO is touched.

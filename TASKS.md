@@ -35,7 +35,59 @@ is done, long before the rest of M5.
 
 ## Tasks in progress
 
-Nothing. The next task is T2, which needs a FIBER on the bench, or T4, which needs no board.
+### T4. The platform file and its commands (M1)
+
+State (2026-11-17): everything is written and `just check` passes, but the "Done when" is not
+checked yet: the container run is missing. The commands are tested (41 unit tests, 11 that run
+the program against a temporary root); `just build-fiber` makes the static arm64 program (checked
+with `file`: "statically linked"); `docs/cli.md` is written. `just check-container` and the CI
+job `container` (on `ubuntu-24.04-arm`) are written but have not run: Docker Desktop on the
+maintainer's computer does not start (its disk image `Docker.raw` is owned by root, so it cannot
+be opened), and CI runs only after a push. Next: run `just check-container` (after
+`sudo chown $USER ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw`), or push
+and see the CI job. Settled on the way: `serde-saphyr` for the YAML; `components.yaml` compiled
+into the program; `enable` and `disable` change only the lines under `components:`; `--root`
+(hidden) for the tests; `status` reads `/var/lib/fiber/platform/results.json` (T6 writes it).
+
+The file that holds the choice, and the first commands that read and change it. No Ansible yet.
+
+- [x] `provision/components.yaml` (`schema: 1`): for each component its title, what it brings,
+      its roles, what it requires and suggests, its services and its ports. The components:
+      `base`; `mosquitto`; `agent` (requires `base`, `mosquitto`); `node-red` (requires
+      `mosquitto`); `chirpstack` (requires `mosquitto`). Its sizes have a place in the file but
+      stay empty until they are measured on a FIBER (T12)
+- [x] The program reads `components.yaml` compiled into it; the archive carries the same file
+      for FIBER Setup (T5, T12)
+- [x] `/etc/fiber/platform.yaml` (`schema: 1`): `components` as a map of `true` (bring it up),
+      `false` (stop and disable it, keep its data) or absent (leave it alone), and `settings`
+      (`mqtt.lan`, `lorawan.region`, `hardware.minipcie`), each with a default. Reading it gives
+      plain messages with the line: an unknown component is named, a wrong value says what is
+      allowed. No file, or a file with nothing in it, means nothing is chosen
+- [x] Requirements are worked out in the `fiber` program, from `components.yaml`: a component
+      that is on brings up what it requires; one that is on while something it requires is
+      `false` is an error that names both
+- [x] One module for the paths (`/etc/fiber`, `/var/lib/fiber`, `/run/fiber`, `/opt/fiber`),
+      with a root directory in front of them for the tests (`--root`, hidden)
+- [x] The program finds its release from its own path (the directory above its `bin/`, when it
+      has a `provision/`), so it never runs another release's roles
+- [x] `fiber platform list`: every component, on, off or left alone, and what it requires
+- [x] `fiber platform status`: the release, whether an apply is waiting, and the last result of
+      each component, from `/var/lib/fiber/platform/results.json` (written by T6). Exit status
+      0 when every component that is on or off has been brought there with `ok` and no apply is
+      waiting, 3 when not
+- [x] `fiber platform enable <component>...` and `disable <component>...` change the file:
+      `enable` turns on what is required too; `disable` is refused while a component that is on
+      needs it, with its name. Only the lines under `components:` change; the rest, comments
+      too, stays. The new text is read back before it is written, and written by a rename. A
+      new file starts with a line that says so, and with the settings at their defaults
+- [ ] The static build for the FIBER (`aarch64-unknown-linux-musl`), built in CI. Built here;
+      the CI step is written and has not run yet
+- [x] `docs/cli.md`: the `fiber platform` commands and their exit statuses
+- [x] Tests: reading, checking and resolving the file; the line editor; every command against a
+      temporary root
+- [ ] The static build runs every command in a bare Debian arm64 container
+
+- Done when: the commands run in a bare container, with no broker, no hardware and no settings.
 
 ## Tasks ahead
 
@@ -88,33 +140,6 @@ Done when: a FIBER written with every box ticked reaches `state=ok` by itself, a
 that blocks NTP; a second `apply` changes nothing; no service ever answers with a default
 password; update and rollback work.
 
-#### T4. The platform file and its commands
-
-The file that holds the choice, and the first commands that read and change it. No Ansible yet.
-
-- [ ] `provision/components.yaml` (`schema: 1`): for each component its title, its roles, what
-      it requires and suggests, its services, its ports and its sizes. The components: `base`;
-      `mosquitto`; `agent` (requires `base`, `mosquitto`); `node-red` (requires `mosquitto`);
-      `chirpstack` (requires `mosquitto`)
-- [ ] `/etc/fiber/platform.yaml` (`schema: 1`): `components` as a map of `true` (bring it up),
-      `false` (stop and disable it, keep its data) or absent (leave it alone), and `settings`
-      (`mqtt.lan`, `lorawan.region`, `hardware.minipcie`). Reading it gives plain messages: an
-      unknown component is named, a wrong value says what is allowed
-- [ ] Requirements are worked out in the `fiber` program, from `components.yaml`: turning a
-      component on turns on what it requires; turning one off that another needs is refused,
-      with the name of the other
-- [ ] `fiber platform list` (every component, on or off, what it requires) and
-      `fiber platform status` (the last result of each)
-- [ ] `fiber platform enable <component>` and `disable <component>` change the file. Settle how
-      they treat comments a person wrote into it, and say so in the file's first line
-- [ ] The program finds its release from its own path, so it never runs another release's
-      roles. A root directory can be given for the tests
-- [ ] The static build for the FIBER (`aarch64-unknown-linux-musl`), built in CI
-- [ ] `docs/cli.md`: the `fiber platform` commands and their exit statuses
-- [ ] Tests: reading, checking and resolving the file; every command against a temporary root
-
-- Done when: the commands run in a bare container, with no broker, no hardware and no settings.
-
 #### T5. The release archive and the installer
 
 How the platform gets onto a FIBER, and how two releases live side by side (D2).
@@ -134,7 +159,9 @@ How the platform gets onto a FIBER, and how two releases live side by side (D2).
       lock timeout of ten minutes and `dpkg --configure -a` first
 - [ ] The seed: `/boot/firmware/fiber-seed.yaml` becomes `/etc/fiber/platform.yaml`, its
       password goes to `/etc/fiber/secrets/` (root only), and the copy on the boot partition is
-      overwritten and then deleted. Without a seed, `--components a,b,c` makes the file
+      overwritten and then deleted. Without a seed, `--components a,b,c` makes the file. Either
+      way the file is written by the `fiber` program, in the form it writes a new one (its first
+      line says how `enable` and `disable` treat it; `agent/src/platform/mod.rs`, `new_file`)
 - [ ] It then starts the apply (T6). `FIBER_NO_REBOOT=1` is honoured. Exit status 0: done; 10:
       done, restart needed; 20: partly done, the platform tries again by itself; anything else:
       failed
@@ -176,6 +203,13 @@ The one way the system is brought to what the file says, whoever asks for it.
 - [ ] `/run/fiber/platform/status.json` (state, step n of m, the result of each component,
       restart needed) and `/var/log/fiber/platform.log`; both are copied to the boot partition
       at the end
+- [ ] `/var/lib/fiber/platform/results.json`, written as each component finishes, in the form
+      `fiber platform status` already reads (`agent/src/platform/results.rs`,
+      `docs/provisioning.md`): what it was brought to, `ok`, `failed` or `skipped`, when, why
+- [ ] The program hands Ansible what it worked out (the components to bring up and to turn off,
+      with what they require, and the settings), so that no role reads `platform.yaml` itself
+- [ ] `fiber platform enable` and `disable` end with the line that says to run
+      `fiber platform apply`
 - [ ] An Avahi service file (`_fiber._tcp`) whose TXT records carry the state, the step, the
       component and the release, so that FIBER Setup can follow the first start without a login
 - [ ] The converge test (`provision/tests/`): an arm64 Debian trixie container with systemd. It
@@ -371,7 +405,8 @@ In `../fiber-setup`. The one place where a user makes the choice.
 - [ ] On a FIBER: every box ticked; the same with NTP blocked; with the Ethernet cable plugged
       in only later; with the power cut in the middle of the installation; with a RAK5146 card
       and with the LTE modem in the slot; and on a module with 1 GB of RAM, with the time, the
-      download size and the memory in use written down
+      download size and the memory in use written down. Each component's download and installed
+      size go into `size` in `provision/components.yaml`, which is empty until then
 
 Watch out: today the script tests `https://github.com` before the clock is right. On a network
 that blocks NTP, TLS then fails, the script says "no internet", and its clock fallback (also
@@ -874,7 +909,7 @@ board: nothing here has run on a FIBER (T2).
 
 ### T3. Does the south bridge firmware fit? (M0)
 
-Done 2026-11-17, not committed yet. Checked: the skeleton builds at the release profile and
+Done 2026-11-17, commit `586569c`. Checked: the skeleton builds at the release profile and
 takes 15348 bytes of flash (15.0 KB) of the 24 KB budget; `cargo bloat` and the disassembly say
 what weighs most; `just check` passes. Not checked, because it needs a board: the skeleton was
 never flashed (T16 runs the real firmware on a FIBER).

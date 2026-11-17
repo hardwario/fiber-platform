@@ -41,9 +41,9 @@ that is already wired together, and that you can read and change.
 ## Where it stands
 
 **Not ready to use yet.** The plan, the design and the map of the board are written, and the
-foundations are in place: the repository's rules, its checks, and a `fiber` program that so far
-only knows its version. Nothing here installs on a FIBER yet, and nothing has been tried on a real
-board.
+foundations are in place: the repository's rules, its checks, and a `fiber` program that knows
+its version and can choose components (`fiber platform list`, `status`, `enable`, `disable`).
+Nothing here installs on a FIBER yet, and nothing has been tried on a real board.
 
 [`TASKS.md`](TASKS.md) lists every task, what is in progress and what is done.
 
@@ -104,6 +104,7 @@ cd fiber-platform
 
 just test                              # the tests
 cargo run -p fiber-agent -- version    # the fiber program
+just build-fiber                       # the fiber program for the FIBER: static, arm64 Linux
 just check                             # everything CI checks
 ```
 
@@ -117,7 +118,7 @@ touches no hardware.
 | [`agent`](agent) | `fiber`: the platform's commands, the agent and the command line |
 | [`crates`](crates) | What the agent and the firmware share (`crates/X` is the package `fiber-X`) |
 | `firmware` | The firmware of the south bridge (STM32C031) and of the north bridge (STM32WL55). To come |
-| `provision` | The installer and the Ansible roles, one per component. To come |
+| [`provision`](provision) | The components (`components.yaml`); the installer and the Ansible roles, one per component, to come |
 | [`hil`](hil) | Scripts that are run by hand on a FIBER on the bench |
 | [`docs`](docs/README.md) | All documentation |
 
@@ -129,6 +130,7 @@ touches no hardware.
 | [Architecture](docs/architecture.md) | The pieces and how they fit: the agent, both firmwares, the radio |
 | [Provisioning](docs/provisioning.md) | The components, the file that holds your choice, the release archive, the package sources |
 | [Bench checks](docs/bench-checks.md) | What has to be seen on a real FIBER first, and what was seen |
+| [The command line](docs/cli.md) | The `fiber` commands and their exit statuses |
 
 ## Contributing
 

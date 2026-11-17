@@ -2,7 +2,8 @@
 #
 # One Cargo workspace so far: the HOST workspace at the root (crates/*, agent). The two firmware
 # workspaces (firmware/south, firmware/north) get jobs of their own when they exist. There is no
-# hardware in CI.
+# hardware in CI; the `fiber` program for the FIBER is built for arm64 and run in a container on
+# an arm64 runner.
 #
 # `just check` runs the same gates locally.
 #
@@ -43,11 +44,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Rust (rust-toolchain.toml pin) + thumbv7em
+      - name: Install Rust (rust-toolchain.toml pin) + its targets
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master @ 2026-10-16
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
-          targets: thumbv6m-none-eabi, thumbv7em-none-eabi
+          targets: aarch64-unknown-linux-musl, thumbv6m-none-eabi, thumbv7em-none-eabi
           components: rustfmt, clippy, llvm-tools
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
@@ -68,6 +69,11 @@ jobs:
         run: cargo doc --locked --no-deps --workspace
         env:
           RUSTDOCFLAGS: -D warnings
+      # The `fiber` program as it goes onto a FIBER: arm64 Linux, linked statically by rust-lld.
+      - name: the FIBER's build (aarch64 musl, static)
+        run: |
+          just build-fiber
+          file target/aarch64-unknown-linux-musl/release/fiber | tee /dev/stderr | grep -q "statically linked"
       # The bench scripts' protocol code, against a fake ROM bootloader on a pseudo-terminal.
       - name: bench scripts self-test (no hardware)
         run: just check-hil
@@ -75,7 +81,29 @@ jobs:
       - name: no long dashes
         run: just no-dashes
 
-  # 2. RustSec advisories for the lockfile, and the toolchain pin. Vulnerabilities fail the job;
+  # 2. The static `fiber` program in a bare Debian container on an arm64 machine: no broker, no
+  #    hardware, no settings (`just check-container`, agent/tests/bare-container.sh).
+  container:
+    name: fiber platform in a bare arm64 container
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust (rust-toolchain.toml pin) + aarch64 musl
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master @ 2026-10-16
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: aarch64-unknown-linux-musl
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: 1.59.0
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: just check-container
+        run: just check-container
+
+  # 3. RustSec advisories for the lockfile, and the toolchain pin. Vulnerabilities fail the job;
   #    informational warnings (unmaintained / unsound / yanked) are printed but do not.
   audit:
     name: cargo audit (RustSec)

@@ -3,9 +3,10 @@
 # crates require (their `rust-version`), so bump it together with the TOWER pin in Cargo.toml.
 # CI installs exactly this channel through the RUST_TOOLCHAIN env of each workflow, and the
 # `audit` job fails while the two differ.
-#   thumbv6m-none-eabi   : the south bridge, STM32C031C6 (Cortex-M0+)
-#   thumbv7em-none-eabi  : the north bridge, STM32WL55 M4 core (no FPU)
+#   aarch64-unknown-linux-musl : the `fiber` program for the FIBER, static
+#   thumbv6m-none-eabi         : the south bridge, STM32C031C6 (Cortex-M0+)
+#   thumbv7em-none-eabi        : the north bridge, STM32WL55 M4 core (no FPU)
 [toolchain]
 channel = "1.99.1"
 components = ["rustfmt", "clippy", "llvm-tools"]
-targets = ["thumbv6m-none-eabi", "thumbv7em-none-eabi"]
+targets = ["aarch64-unknown-linux-musl", "thumbv6m-none-eabi", "thumbv7em-none-eabi"]

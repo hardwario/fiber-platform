@@ -3,14 +3,18 @@
 How a vanilla Raspberry Pi OS becomes a FIBER: what is installed, how the choice is stored, and how
 it is applied again later.
 
-**Status: design, nothing is built yet** (`TASKS.md`, T4 to T12). The package sources and versions below
-were checked against the upstream documentation and repositories on 2026-11-17; check them again
-when each role is written.
+**Status: mostly design** (`TASKS.md`, T4 to T12). Built so far: `provision/components.yaml`, and the
+`fiber platform` commands that read and change `/etc/fiber/platform.yaml` ([`cli.md`](cli.md)).
+Nothing installs anything yet. The package sources and versions below were checked against the
+upstream documentation and repositories on 2026-11-17; check them again when each role is
+written.
 
 ## The idea
 
 - **The state is one file**, `/etc/fiber/platform.yaml`: which components are wanted, and a few
-  settings. FIBER Setup writes the first version; a person can edit it.
+  settings. FIBER Setup writes the first version; a person can edit it. `fiber platform enable`
+  and `disable` change only the lines under `components:`, so comments and everything else stay
+  ([`cli.md`](cli.md)).
 - **Ansible converges the system to that file.** It runs on the device itself. It keeps no memory
   of what it installed, so turning a component off is an explicit path in its role.
 - **Everything arrives in one release archive**, unpacked under `/opt/fiber`; nothing is spread
@@ -30,6 +34,15 @@ settings:
   hardware: { minipcie: none }       # none | lte | rak5146
 ```
 
+- **A component that is on brings up what it requires,** whether the file names it or not. A
+  component that is on while something it requires is `false` is an error, and the file is
+  refused with both names.
+- **Every setting has a default:** `mqtt.lan: false`, `lorawan.region: eu868` (the only region the
+  `chirpstack` role sets up so far), `hardware.minipcie: none`.
+- **Strict values:** `true` and `false` only, not `yes` or `on`. An unknown key or component is
+  named, with its line.
+- **`schema: 1`** must be there. A file for another schema is refused as a whole.
+
 ## On the device
 
 | Path | What |
@@ -40,6 +53,8 @@ settings:
 | `/etc/fiber/platform.yaml` | The declared state |
 | `/etc/fiber/secrets/` | Root only: the seeded password, generated tokens |
 | `/var/lib/fiber/` | State |
+| `/var/lib/fiber/platform/results.json` | The last result of each component: what it was brought to (`on` or `off`), `ok`, `failed` or `skipped`, when, and why. Written by `apply` as each component finishes; read by `fiber platform status` |
+| `/var/lib/fiber/platform/pending` | There while an apply is asked for and not finished |
 | `/var/log/fiber/platform.log` | Every apply |
 | `/run/fiber/platform/status.json` | Live progress: state, step, result per component, reboot needed |
 
@@ -51,7 +66,7 @@ converge and fails on anything that neither a Debian package nor the footprint a
 ## Commands
 
 `fiber platform list | status | apply | enable <component> | disable <component> | update [--to
-version] | rollback | uninstall`
+version] | rollback | uninstall`. The ones that exist are described in [`cli.md`](cli.md).
 
 - `apply` starts `fiber-platform-apply.service`, a oneshot with retry and backoff, and follows
   it. An apply therefore survives a dropped SSH session and a power cut, and two never run at once.
@@ -67,8 +82,10 @@ version] | rollback | uninstall`
 
 ## Components
 
-`provision/components.yaml` is the one manifest: ids, titles, what each requires, its ports and
-sizes. FIBER Setup's picker is built from a copy of it.
+`provision/components.yaml` is the one manifest: ids, titles, what each requires and suggests,
+its roles, services and ports, and its sizes once they are measured. The `fiber` program is
+built with it inside, so the two never disagree; FIBER Setup's picker is built from a copy of
+it.
 
 | Id | What it installs | Requires |
 |---|---|---|

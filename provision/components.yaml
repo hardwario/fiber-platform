@@ -1,0 +1,54 @@
+# The components of the FIBER platform: what each brings, what it needs, and where it listens.
+#
+# The `fiber` program is built with this file in it, and works out requirements from it. FIBER
+# Setup builds its picker from a copy of it. A component's id is what `/etc/fiber/platform.yaml`
+# and `fiber platform enable` name.
+#
+# For each component:
+#   title     : its name on a screen
+#   about     : what it brings, in one sentence of plain text (it is shown on a screen)
+#   roles     : the Ansible roles that bring it up, in order
+#   requires  : components that are brought up with it
+#   suggests  : components that go well with it; nothing turns them on
+#   services  : its systemd units
+#   ports     : where it listens: `loopback` (the FIBER itself) or `network`, and the setting
+#               that opens the port, if one does
+#   size      : download and installed size in MB, as measured on a FIBER. Empty until then (T12)
+schema: 1
+components:
+  base:
+    title: Basic system configuration
+    about: The config.txt block, the 1-Wire overlay, the i2c-dev module and the groups, so that the board works as plain Linux.
+    roles: [base]
+  mosquitto:
+    title: Mosquitto
+    about: Mosquitto, the broker everything on the FIBER talks through.
+    roles: [mosquitto]
+    services: [mosquitto]
+    ports:
+      - { port: 1883, listen: loopback }
+      - { port: 1884, listen: network, when: mqtt.lan }
+  agent:
+    title: FIBER agent
+    about: The service that shows the board, the front panel and the radio on MQTT.
+    roles: [agent]
+    requires: [base, mosquitto]
+    services: [fiber-agent]
+  node-red:
+    title: Node-RED
+    about: Node.js and Node-RED, with a starter flow on the local broker.
+    roles: [node_red]
+    requires: [mosquitto]
+    suggests: [agent]
+    services: [nodered]
+    ports:
+      - { port: 1880, listen: network }
+  chirpstack:
+    title: ChirpStack
+    about: A LoRaWAN network server, and the gateway when a RAK5146 card is in the mini-PCIe slot.
+    roles: [chirpstack]
+    requires: [mosquitto]
+    # The unit name of `chirpstack-sqlite` is not verified yet (docs/provisioning.md).
+    services: [chirpstack, chirpstack-mqtt-forwarder, redis-server, fiber-concentratord]
+    ports:
+      - { port: 8080, listen: network }

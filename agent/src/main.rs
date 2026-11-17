@@ -6,11 +6,22 @@
 //! * the agent, `fiber agent`, the one process that owns the board and presents it over MQTT;
 //! * the command line that queries and commands the board through the agent.
 //!
-//! Today it only knows its version. `fiber version` is a contract with FIBER Setup, whose
-//! first-start script records its output: one line, the bare version.
+//! `fiber version` is a contract with FIBER Setup, whose first-start script records its output:
+//! one line, the bare version. The commands are written down in `docs/cli.md`.
+
+mod paths;
+mod platform;
+mod release;
+#[cfg(test)]
+mod testdir;
+
+use std::path::PathBuf;
+use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use tower_protocol::radio::RADIO_TAG;
+
+use paths::Paths;
 
 /// The commit of github.com/hardwario/tower this binary was built against (`build.rs`).
 const TOWER_REV: &str = env!("FIBER_TOWER_REV");
@@ -18,6 +29,10 @@ const TOWER_REV: &str = env!("FIBER_TOWER_REV");
 #[derive(Parser)]
 #[command(name = "fiber", version, about = "The HARDWARIO FIBER on-device software")]
 struct Cli {
+    /// Read and write every file below this directory instead of `/` (for the tests).
+    #[arg(long, global = true, hide = true, value_name = "DIR")]
+    root: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -31,11 +46,52 @@ enum Command {
         #[arg(long)]
         all: bool,
     },
+    /// The components of the FIBER platform, and the file that chooses them.
+    Platform {
+        #[command(subcommand)]
+        command: PlatformCommand,
+    },
 }
 
-fn main() {
-    match Cli::parse().command {
-        Command::Version { all } => print!("{}", version_text(all)),
+#[derive(Subcommand)]
+enum PlatformCommand {
+    /// Show every component: on, off or left alone, and what it requires.
+    List,
+    /// Show the release, and the last result of each component.
+    Status,
+    /// Turn components on in /etc/fiber/platform.yaml, with what they require.
+    Enable {
+        #[arg(required = true, value_name = "COMPONENT")]
+        components: Vec<String>,
+    },
+    /// Turn components off in /etc/fiber/platform.yaml. Their data stays.
+    Disable {
+        #[arg(required = true, value_name = "COMPONENT")]
+        components: Vec<String>,
+    },
+}
+
+fn main() -> ExitCode {
+    let cli = Cli::parse();
+    let paths = Paths::new(cli.root);
+    let result = match cli.command {
+        Command::Version { all } => {
+            print!("{}", version_text(all));
+            Ok(ExitCode::SUCCESS)
+        }
+        Command::Platform { command } => match command {
+            PlatformCommand::List => platform::list(&paths),
+            PlatformCommand::Status => platform::status(&paths),
+            PlatformCommand::Enable { components } => platform::change(&paths, &components, true),
+            PlatformCommand::Disable { components } => platform::change(&paths, &components, false),
+        },
+    };
+    match result {
+        Ok(code) => code,
+        Err(e) => {
+            eprintln!("error: {e:#}");
+            ExitCode::FAILURE
+        }
     }
 }
 
