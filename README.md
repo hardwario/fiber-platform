@@ -111,8 +111,8 @@ just release                           # a release in dist/: the archive and the
 just check                             # everything CI checks
 ```
 
-`just check` also needs `cargo-audit` (`cargo install --locked cargo-audit`), `shellcheck`, `dtc`
-and the internet. It touches no hardware. `just check-container`, `just check-install`, `just
+`just check` also needs `cargo-audit` (`cargo install --locked cargo-audit`), `flip-link`
+(`cargo install --locked flip-link`), `shellcheck`, `dtc` and the internet. It touches no hardware. `just check-container`, `just check-install`, `just
 check-converge` and `just lint-ansible` run the program, the installer, an apply and the linters
 in containers; they need Docker on an arm64 machine, such as a Mac with Apple silicon.
 
@@ -122,7 +122,7 @@ in containers; they need Docker on an arm64 machine, such as a Mac with Apple si
 |---|---|
 | [`agent`](agent) | `fiber`: the platform's commands, the agent and the command line |
 | [`crates`](crates) | What the agent and the firmware share (`crates/X` is the package `fiber-X`) |
-| `firmware` | The firmware of the south bridge (STM32C031) and of the north bridge (STM32WL55). To come |
+| [`firmware`](firmware) | The firmware of the south bridge (STM32C031, built, not run on a chip yet) and of the north bridge (STM32WL55, to come) |
 | [`provision`](provision) | The components (`components.yaml`), the installer and the release build; the Ansible roles, one per component, to come |
 | [`hil`](hil) | Scripts that are run by hand on a FIBER on the bench |
 | [`docs`](docs/README.md) | All documentation |

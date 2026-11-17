@@ -1,0 +1,7 @@
+# The south bridge: Cortex-M0+. flip-link puts the stack below the static memory, so that an
+# overflow faults at once instead of overwriting statics (the chip has no MPU).
+[build]
+target = "thumbv6m-none-eabi"
+
+[target.thumbv6m-none-eabi]
+linker = "flip-link"

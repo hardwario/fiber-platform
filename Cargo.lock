@@ -300,6 +300,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fiber-south-core"
+version = "0.1.0"
+dependencies = [
+ "fiber-protocol",
+]
+
+[[package]]
 name = "fiber-tower-air"
 version = "0.0.0"
 dependencies = [

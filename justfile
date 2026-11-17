@@ -27,8 +27,8 @@ default:
 # === Gates ========================================================================================
 
 # What CI runs. Needs cargo-audit, python3 and network access (the RustSec advisory database).
-# Run every hardware-free gate (host workspace, the FIBER's build, the release, scripts, no long dashes, audit).
-check: check-host build-fiber check-release shellcheck check-hil no-dashes audit
+# Run every hardware-free gate (host workspace, firmware, the FIBER's build, the release, scripts, no long dashes, audit).
+check: check-host check-south build-fiber check-release shellcheck check-hil no-dashes audit
 
 # The thumb builds prove the pinned TOWER kernels and our own no_std crates still build for the
 # north bridge (an STM32WL55, Cortex-M4 without FPU) and the south bridge (STM32C031, Cortex-M0+).
@@ -39,6 +39,30 @@ check-host: doc
     cargo test --workspace --locked
     cargo build --locked --target thumbv7em-none-eabi -p fiber-tower-air -p fiber-protocol
     cargo build --locked --target thumbv6m-none-eabi -p fiber-protocol
+
+# A workspace of its own, built inside its directory so that its target, its linker (flip-link) and
+# its profile apply.
+# Build the south bridge's firmware.
+south:
+    cd firmware/south && cargo build --locked --release
+
+# The flash it takes: its sections as llvm-size (from the toolchain's llvm-tools) has them.
+# Measure the south bridge's firmware against its budget of 24 KB.
+south-size: south
+    #!/usr/bin/env bash
+    set -euo pipefail
+    size_tool=$(find "$(rustc --print sysroot)/lib/rustlib" -name llvm-size -type f | head -n 1)
+    flash=$("$size_tool" -A firmware/south/target/thumbv6m-none-eabi/release/fiber-south |
+        awk '/^\.vector_table|^\.text|^\.rodata|^\.data/ {f += $2} END {print f}')
+    echo "south bridge firmware: $flash bytes of flash, budget 24576"
+    [ "$flash" -le 24576 ] || { echo "error: over the budget (docs/bench-checks.md, check 5)"; exit 1; }
+
+# Needs flip-link (cargo install flip-link).
+# Check the south bridge's firmware: fmt, clippy, rustdoc, and its size.
+check-south: south-size
+    cd firmware/south && cargo fmt -- --check
+    cd firmware/south && cargo clippy --locked --release -- -D warnings
+    cd firmware/south && RUSTDOCFLAGS="-D warnings" cargo doc --locked --release --no-deps
 
 # rust-lld links it with the target's own musl (.cargo/config.toml): no C toolchain needed.
 # Build the static `fiber` program for the FIBER (arm64 Linux, musl).
@@ -130,6 +154,7 @@ check-hil:
 # RustSec audit of the lockfile.
 audit:
     cargo audit
+    cargo audit --file firmware/south/Cargo.lock
 
 # Build the rustdoc of the workspace, failing on any warning.
 [env("RUSTDOCFLAGS", "-D warnings")]

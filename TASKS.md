@@ -303,6 +303,51 @@ the south bridge firmware changes them, once (T16).
 - Needs: T2 (the bootloaders answer).
 - Done when: the three steps on a FIBER pass.
 
+### T16. The south bridge firmware (M2)
+
+State (2026-11-18): waiting for a FIBER (T2) to run it, and for T13's drafts. Built on the draft of
+`docs/firmware/south-link.md`: `crates/south-core` (6 tests) and `firmware/south`, 16096 bytes of
+flash (15.7 KB of the 24 KB), with fmt, clippy, rustdoc and the size in `just check-south` and a
+CI job. Not run on a chip: not the LEDs, not the ports, not the ADC, and above all not the write of
+the option bytes, which is for the bench with a debug probe at hand. Settled: one tick counter for
+every LED; the start pattern is the power LED blinking green, the fallback the power LED blinking
+yellow with the port LEDs dark; a panic is reported without its place (3.2 KB); the ADC's longest
+sample time, for the dividers' resistance. Not done yet: the simulator on a pseudo-terminal for the
+agent's tests (it comes with T17, which uses it).
+
+The status lights, the power of the 1-Wire ports and two voltages, in at most 24 KB.
+
+- [ ] `crates/south-core`: the LED engine (off, on, blinking, by colour, on a 50 Hz tick), what
+      happens with a `Desired`, the fallback pattern after 5 s without one, the ports switched
+      on one after another at start. Tested on the computer, and built as a simulator on a
+      pseudo-terminal for the agent's tests
+- [x] `firmware/south`: a workspace of its own for `thumbv6m-none-eabi`, with the linker and
+      the profile from T3 (`docs/bench-checks.md`, check 5: `flip-link`, `opt-level = "z"`,
+      fat LTO, one codegen unit, `panic = "abort"`)
+- [x] The board: USART1 on PA9/PA10 at 115200; the 18 LED lines (low = lit) and the 8 port
+      lines (high = on) as `docs/hardware.md` has them; the ADC on PA11, PA12 and the internal
+      reference, as raw counts; the watchdog; the 32.768 kHz crystal
+- [x] `Hello` at start, with the CRC-32 the firmware works out over its own image
+- [x] A start pattern on the LEDs until the agent sends its first `Desired`
+- [x] A panic stores a fault code and the address in memory that survives a reset, resets, and
+      reports them in the next `Hello`
+- [x] The option bytes: read at start; if `nBOOT_SEL` is 1, bit 24 is cleared, once (the value
+      then is `0xDEFFE1AA` on a factory part). Nothing else in them is ever touched. The stale
+      "empty" flag is cleared at start
+- [x] `just` recipes for building and measuring; a CI job: build, clippy, rustdoc, and the size
+      against the budget
+- [x] `docs/firmware/south.md`
+
+Watch out: no formatting code, no floats: the counts are turned into volts by the agent. The
+chip has no EEPROM and keeps nothing: after a reset the agent's next `Desired` puts everything
+back. It is fed from the CM4's 3.3 V and is off whenever the CM4 is. T3's skeleton took 15.0 KB;
+a panic handler that reads the panic's location costs 3.2 KB of it (every source path in the
+HAL), so a panic may have to record its fault code without a location; the HardFault's address
+costs 82 bytes.
+
+- Needs: T3, T14.
+- Done when: it builds under 24 KB, and on a FIBER the lights and the ports follow `Desired`.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -401,41 +446,6 @@ password also opens services on the network.
 
 Done when: a unit with the earlier south bridge firmware is flashed by the agent on its own; a
 power cut in the middle of flashing recovers; stopping the agent shows the fallback LED pattern.
-
-#### T16. The south bridge firmware
-
-The status lights, the power of the 1-Wire ports and two voltages, in at most 24 KB.
-
-- [ ] `crates/south-core`: the LED engine (off, on, blinking, by colour, on a 50 Hz tick), what
-      happens with a `Desired`, the fallback pattern after 5 s without one, the ports switched
-      on one after another at start. Tested on the computer, and built as a simulator on a
-      pseudo-terminal for the agent's tests
-- [ ] `firmware/south`: a workspace of its own for `thumbv6m-none-eabi`, with the linker and
-      the profile from T3 (`docs/bench-checks.md`, check 5: `flip-link`, `opt-level = "z"`,
-      fat LTO, one codegen unit, `panic = "abort"`)
-- [ ] The board: USART1 on PA9/PA10 at 115200; the 18 LED lines (low = lit) and the 8 port
-      lines (high = on) as `docs/hardware.md` has them; the ADC on PA11, PA12 and the internal
-      reference, as raw counts; the watchdog; the 32.768 kHz crystal
-- [ ] `Hello` at start, with the CRC-32 the firmware works out over its own image
-- [ ] A start pattern on the LEDs until the agent sends its first `Desired`
-- [ ] A panic stores a fault code and the address in memory that survives a reset, resets, and
-      reports them in the next `Hello`
-- [ ] The option bytes: read at start; if `nBOOT_SEL` is 1, bit 24 is cleared, once (the value
-      then is `0xDEFFE1AA` on a factory part). Nothing else in them is ever touched. The stale
-      "empty" flag is cleared at start
-- [ ] `just` recipes for building and measuring; a CI job: build, clippy, rustdoc, and the size
-      against the budget
-- [ ] `docs/firmware/south.md`
-
-Watch out: no formatting code, no floats: the counts are turned into volts by the agent. The
-chip has no EEPROM and keeps nothing: after a reset the agent's next `Desired` puts everything
-back. It is fed from the CM4's 3.3 V and is off whenever the CM4 is. T3's skeleton took 15.0 KB;
-a panic handler that reads the panic's location costs 3.2 KB of it (every source path in the
-HAL), so a panic may have to record its fault code without a location; the HardFault's address
-costs 82 bytes.
-
-- Needs: T3, T14.
-- Done when: it builds under 24 KB, and on a FIBER the lights and the ports follow `Desired`.
 
 #### T17. The agent's core
 
