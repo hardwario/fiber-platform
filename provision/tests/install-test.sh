@@ -28,8 +28,9 @@ export FIBER_RELEASE_URL=http://127.0.0.1:8000 FIBER_NO_APPLY=1
 
 # The web server: /dist as it is, and /bad with an archive that has one byte more.
 mkdir -p /srv/bad
-cp /dist/* /srv/
-cp /dist/* /srv/bad/
+# The release's files only (dist/ also holds the update test's releases, in dist/test/).
+find /dist -maxdepth 1 -type f -exec cp {} /srv/ \;
+find /dist -maxdepth 1 -type f -exec cp {} /srv/bad/ \;
 printf 'x' >> "/srv/bad/fiber-platform-$VERSION-linux-arm64.tar.gz"
 (cd /srv && exec python3 -m http.server 8000 --bind 127.0.0.1 > /dev/null 2>&1) &
 for _ in $(seq 50); do curl -fs -o /dev/null http://127.0.0.1:8000/install.sh && break; sleep 0.1; done
