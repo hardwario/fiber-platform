@@ -1,0 +1,27 @@
+[package]
+name = "fiber-protocol"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The links between the agent and the FIBER's two microcontrollers: COBS frames with a CRC-32 and a schema tag around postcard messages. no_std; the agent and both firmwares build this one source."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Without the standard library, so the firmware of both microcontrollers can build this crate.
+serde = { version = "1", default-features = false, features = ["derive"] }
+postcard = { version = "1.1", default-features = false }
+# COBS around each frame; used directly, as the frame ends in a CRC after the postcard payload.
+cobs = { version = "0.5", default-features = false }
+# The schema of every message, for the schema tag (src/fingerprint.rs). Pinned exactly, with the
+# derive crate: the host and the firmware workspaces each resolve their own lock file and work
+# out the tag when they build, so another release of either could give the two ends different
+# tags for the same source.
+postcard-schema = { version = "=0.2.5", default-features = false, features = ["derive"] }
+postcard-derive = { version = "=0.2.2" }
+
+[dev-dependencies]
+cobs = { version = "0.5" }

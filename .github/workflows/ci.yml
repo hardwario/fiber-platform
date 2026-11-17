@@ -65,9 +65,11 @@ jobs:
       - name: test
         run: cargo test --workspace --locked
       # The pinned TOWER kernels and our own no_std crates must build for the north bridge
-      # (STM32WL55, Cortex-M4 without FPU) on their own.
-      - name: no_std build of the shared crates (thumbv7em)
-        run: cargo build --locked --target thumbv7em-none-eabi -p fiber-tower-air
+      # (STM32WL55, Cortex-M4 without FPU) and the south bridge (STM32C031, Cortex-M0+).
+      - name: no_std build of the shared crates (thumbv7em, thumbv6m)
+        run: |
+          cargo build --locked --target thumbv7em-none-eabi -p fiber-tower-air -p fiber-protocol
+          cargo build --locked --target thumbv6m-none-eabi -p fiber-protocol
       - name: rustdoc (-D warnings)
         run: cargo doc --locked --no-deps --workspace
         env:

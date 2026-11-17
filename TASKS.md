@@ -245,6 +245,57 @@ workflow by hand first after any change to the build.
 - Needs: T5, T6.
 - Done when: a dry run of a release passes, and the canary has run once.
 
+### T13. The interfaces, written first (M2)
+
+State (2026-11-18): waiting for the maintainer to read the three drafts. Written: `docs/mqtt-api.md`,
+the board's commands in `docs/cli.md`, `docs/firmware/south-link.md`. Settled for the drafts: a
+request carries `op`, as TOWER's gateway API does, not `method` as this task first said, so that
+one client shape fits both; the south link's `Desired` has a state for each of the 18 LED lines
+(in ticks of 20 ms), the agent can ask for a `Hello` at any time (`HelloRequest`), and `Status`
+counts the frames the firmware dropped.
+
+Nothing of the agent is written before its interfaces are on paper (D19).
+
+- [x] `docs/mqtt-api.md`: the rules (the prefix `fiber/`, QoS 1, state retained, events not, a
+      request on `cmd` as `{id, op, params}` answered on `rsp/{id}` as `{id, ok, data}` or
+      `{id, ok, error}`, the `schema` number, the last will), then the topics `status`, `power`,
+      `power/event`, `ports/{1..8}`, `firmware/{south,north}`, each with its payload and an
+      example, and the ops `ports.power`, `leds.set`, `leds.auto`, `firmware.flash`
+- [x] `docs/cli.md`: `fiber agent`, `status`, `power`, `ports [on|off|cycle N]`, `leds`,
+      `firmware [status|flash|chip]`, `doctor`; what each prints, and its exit statuses
+- [x] `docs/firmware/south-link.md`: the frame, the messages `Hello`, `Desired` and `Status`
+      field by field, and the timing (a `Desired` every second, the fallback after 5 s)
+
+- Done when: the maintainer has read and agreed the three documents.
+
+### T14. `fiber-protocol` (M2)
+
+State (2026-11-18): built on the draft of `docs/firmware/south-link.md`, and `just check` passes:
+11 tests, and the builds for `thumbv6m` and `thumbv7em`. Next: the push and CI. It stays in
+progress until T13's drafts are agreed: a change there is a change here. Settled: the schema tag
+is worked out as TOWER's is (a structural hash of the postcard schema, names left out, folded
+to 16 bits), by code of our own, so it does not move with the TOWER pin; the south link's tag is
+`0x90d6` now; `serde` and `postcard` without their standard library.
+
+The one contract between the agent and the firmware, built by both from the same source.
+
+- [x] The frame: COBS around `type(1) | tag(2) | seq(2) | payload | crc32(4)`, ended by a zero
+      byte; the payload is postcard. A decoder that takes bytes as they come, and a check that
+      looks at the CRC first, then the tag, then the type
+- [x] The schema tag: worked out from the message types when the crate is built, one for each
+      link, so that a firmware and an agent from different builds refuse each other. It is ours
+      alone and does not move with the TOWER pin
+- [x] The south link's messages: `Hello` (who it is, the CRC-32 of its own image, why it reset,
+      a fault code, its option bytes), `Desired` (18 LED states and the port mask), `Status`
+      (what is applied, the three raw ADC counts, the time since start), `HelloRequest`
+- [x] `no_std`, nothing allocated, no growing collections in a message
+- [x] Tests: every message there and back; a damaged frame, a wrong tag and a frame with bytes
+      left over are refused; a few frames kept as bytes; the crate builds for `thumbv6m` and
+      `thumbv7em` in `just check`
+
+- Needs: T13.
+- Done when: the tests pass and both microcontroller targets build.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -343,43 +394,6 @@ password also opens services on the network.
 
 Done when: a unit with the earlier south bridge firmware is flashed by the agent on its own; a
 power cut in the middle of flashing recovers; stopping the agent shows the fallback LED pattern.
-
-#### T13. The interfaces, written first
-
-Nothing of the agent is written before its interfaces are on paper (D19).
-
-- [ ] `docs/mqtt-api.md`: the rules (the prefix `fiber/`, QoS 1, state retained, events not, a
-      request on `cmd` as `{id, method, params}` answered on `rsp/{id}` as `{id, ok, data}` or
-      `{id, ok, error}`, the `schema` number, the last will), then the topics `status`, `power`,
-      `power/event`, `ports/{1..8}`, `firmware/{south,north}`, each with its payload and an
-      example, and the methods `ports.power`, `leds.set`, `leds.auto`, `firmware.flash`
-- [ ] `docs/cli.md`: `fiber agent`, `status`, `power`, `ports [on|off|cycle N]`, `leds`,
-      `firmware [status|flash|chip]`, `doctor`; what each prints, and its exit statuses
-- [ ] `docs/firmware/south-link.md`: the frame, the messages `Hello`, `Desired` and `Status`
-      field by field, and the timing (a `Desired` every second, the fallback after 5 s)
-
-- Done when: the maintainer has read and agreed the three documents.
-
-#### T14. `fiber-protocol`
-
-The one contract between the agent and the firmware, built by both from the same source.
-
-- [ ] The frame: COBS around `type(1) | tag(2) | seq(2) | payload | crc32(4)`, ended by a zero
-      byte; the payload is postcard. A decoder that takes bytes as they come, and a check that
-      looks at the CRC first, then the tag, then the type
-- [ ] The schema tag: worked out from the message types when the crate is built, one for each
-      link, so that a firmware and an agent from different builds refuse each other. It is ours
-      alone and does not move with the TOWER pin
-- [ ] The south link's messages: `Hello` (who it is, the CRC-32 of its own image, why it reset,
-      a fault code, its option bytes), `Desired` (18 LED states and the port mask), `Status`
-      (what is applied, the three raw ADC counts, the time since start)
-- [ ] `no_std`, nothing allocated, no growing collections in a message
-- [ ] Tests: every message there and back; a damaged frame, a wrong tag and a frame with bytes
-      left over are refused; a few frames kept as bytes; the crate builds for `thumbv6m` and
-      `thumbv7em` in `just check`
-
-- Needs: T13.
-- Done when: the tests pass and both microcontroller targets build.
 
 #### T15. `fiber-flasher`
 

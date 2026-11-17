@@ -35,6 +35,69 @@ $ fiber version
 `fiber version --all` adds what the build is made of: the TOWER revision its radio is compatible
 with, and the schema tag of the TOWER radio messages.
 
+## The board: `fiber agent`, `status`, `power`, `ports`, `leds`, `firmware`
+
+**A draft for the maintainer to read (T13); not written yet (T17).** These commands are clients of
+the agent's MQTT API ([`mqtt-api.md`](mqtt-api.md)): each one reads its retained topics or sends a
+request on `fiber/cmd`, so whatever they do, a program of your own can do too. They connect to
+the broker on the FIBER (`127.0.0.1:1883`); `--broker HOST[:PORT]`, `--user` and the password in
+`FIBER_MQTT_PASSWORD` reach another FIBER, through its listener for the network.
+
+Their exit statuses, beside the ones at the top of this page:
+
+| Status | Meaning |
+|---|---|
+| 4 | The agent does not answer: its `status` is `offline`, or not there |
+| 125 | The agent speaks another schema of the API ([`mqtt-api.md`](mqtt-api.md), "The rules") |
+
+### `fiber agent`
+
+The agent itself: the one process that owns the board. `fiber-agent.service` runs it (the `agent`
+component, T18); it is not meant to be started by hand while the service runs.
+
+### `fiber status`
+
+```
+$ fiber status
+FIBER       fiber-abcdef12, FIBER-R2 2.1, serial 10000000abcdef12
+Agent       online, 0.2.0, schema 1
+Power       PoE, input 12.08 V, battery 4.11 V
+Ports       1 2 3 4 5 6 7 8 on
+South       running 0.2.0, image 0x6f1c2a90 (the one carried)
+North       running 0.2.0, image 0x1a2b3c4d (the one carried)
+```
+
+### `fiber power`
+
+The power source and the two voltages, as `power` has them. `--follow` prints a line on every
+change, and each `power/event`, until Ctrl+C.
+
+### `fiber ports [on|off|cycle [SECONDS]] [PORT...]`
+
+Without an action, the power of every port. With one, it switches the ports named (1 to 8; all
+when none is named) and prints them all after it. `cycle` switches them off and on again after
+5 s, or `SECONDS`.
+
+```
+$ fiber ports cycle 3
+Ports       1 2 3 4 5 6 7 8 on
+```
+
+### `fiber leds [auto | COLOUR [--blink ON_MS OFF_MS]] [LED...]`
+
+Without an action, how each LED is set (`auto`, or the colour a client set). With a colour
+(`off`, `green`, `red`, `amber`, `yellow`), it sets the LEDs named (`power`, `port1` to `port8`;
+all port LEDs when none is named); `auto` gives them back to the agent.
+
+### `fiber firmware [status | flash CHIP | chip CHIP]`
+
+- `status` (the default): both chips, as `firmware/south` and `firmware/north` have them.
+- `flash south` or `flash north`: writes the image the agent carries to the chip, through the
+  agent (`firmware.flash`), and waits for it, up to 2 minutes.
+- `chip south` or `chip north`: talks to the chip's ROM bootloader directly and prints what it
+  is (product id, option bytes, readout protection). It needs root, and it refuses while the
+  agent holds the serial port: stop the agent first.
+
 ## `fiber doctor`
 
 Checks that the board's hardware is there as Linux should see it, and says what to do where it

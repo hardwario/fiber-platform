@@ -30,14 +30,15 @@ default:
 # Run every hardware-free gate (host workspace, the FIBER's build, the release, scripts, no long dashes, audit).
 check: check-host build-fiber check-release shellcheck check-hil no-dashes audit
 
-# The thumbv7em build proves the pinned TOWER kernels and our own no_std crates still build for
-# the north bridge (an STM32WL55, Cortex-M4 without FPU) on their own.
+# The thumb builds prove the pinned TOWER kernels and our own no_std crates still build for the
+# north bridge (an STM32WL55, Cortex-M4 without FPU) and the south bridge (STM32C031, Cortex-M0+).
 # Host workspace gates: fmt, clippy, tests, the no_std build, rustdoc.
 check-host: doc
     cargo fmt --all -- --check
     cargo clippy --workspace --all-targets --locked -- -D warnings
     cargo test --workspace --locked
-    cargo build --locked --target thumbv7em-none-eabi -p fiber-tower-air
+    cargo build --locked --target thumbv7em-none-eabi -p fiber-tower-air -p fiber-protocol
+    cargo build --locked --target thumbv6m-none-eabi -p fiber-protocol
 
 # rust-lld links it with the target's own musl (.cargo/config.toml): no C toolchain needed.
 # Build the static `fiber` program for the FIBER (arm64 Linux, musl).

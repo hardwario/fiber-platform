@@ -10,10 +10,12 @@ says only what the directory is and how to build it.
 | [`provisioning.md`](provisioning.md) | Components, the state file, the release archive, the `config.txt` block, package sources |
 | [`cli.md`](cli.md) | The `fiber` command line: its commands and their exit statuses |
 | [`release.md`](release.md) | How a release is made, and the weekly canary |
+| [`mqtt-api.md`](mqtt-api.md) | The agent's MQTT API: its topics, its requests (a draft, T13) |
+| [`firmware/south-link.md`](firmware/south-link.md) | The serial link between the agent and the south bridge (a draft, T13) |
 | [`bench-checks.md`](bench-checks.md) | What must be confirmed on a real FIBER first, how, and the results |
 
-To come, each written before the code it describes: `mqtt-api.md` (the agent's MQTT interface),
-`firmware/` (the two link schemas and the radio), `ble.md` (the Bluetooth profile for HARDWARIO
-Manager). `cli.md` grows with each command.
+To come, each written before the code it describes: the north link and the radio in
+`firmware/`, `ble.md` (the Bluetooth profile for HARDWARIO Manager). `cli.md` and `mqtt-api.md`
+grow with each task.
 
 The work itself, its order and the decisions taken are in [`../TASKS.md`](../TASKS.md).
