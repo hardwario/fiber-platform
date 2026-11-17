@@ -62,6 +62,7 @@ Who the firmware is, and how it came to be running.
 | `reset` | `Reset` | Why it last started: `PowerOn`, `Pin` (NRST, the agent's reset), `Watchdog`, `Software`, `BrownOut`, `Other` |
 | `fault` | `Option<Fault>` | What made it reset, when it was a fault it caught: `code` (`u8`: 1 a panic, 2 a hard fault) and `address` (`u32`: where; 0 when not known) |
 | `option_bytes` | `u32` | `FLASH_OPTR` as it reads at start |
+| `vrefint_cal` | `u16` | The factory calibration of the internal reference (`VREFINT_CAL`): its ADC count at a supply of 3.0 V. With it the agent turns the counts into volts |
 
 The fault is kept across the reset in memory that a reset leaves alone, reported once, then
 cleared.
@@ -116,8 +117,9 @@ The answer to a `Desired`: what is applied, and the three voltages as raw counts
 | `uptime` | `u32` | Seconds since the firmware started |
 | `rx_dropped` | `u16` | Frames dropped since start (damaged, another tag, another type, bytes left over); it wraps |
 
-The counts are 12 bits. The agent turns them into volts (`vref` gives the supply), so the
-firmware has no floats: battery = pin x 2, input = pin x 398 / 68. On the board variant without
+The counts are 12 bits. The agent turns them into volts, so the firmware has no floats: the
+supply is 3.0 V x `Hello.vrefint_cal` / `vref`, a pin is its count x the supply / 4095, the
+battery is its pin x 2, and the input its pin x 398 / 68. On the board variant without
 the two dividers, `vbat` and `vin` mean nothing, and the agent says so.
 
 ### `HelloRequest`

@@ -238,7 +238,7 @@ State (2026-11-18): built on the draft of `docs/firmware/south-link.md`, and `ju
 progress until T13's drafts are agreed: a change there is a change here. Settled: the schema tag
 is worked out as TOWER's is (a structural hash of the postcard schema, names left out, folded
 to 16 bits), by code of our own, so it does not move with the TOWER pin; the south link's tag is
-`0x90d6` now; `serde` and `postcard` without their standard library.
+`0x9a90` now (`Hello` got `vrefint_cal` for T17); `serde` and `postcard` without their standard library.
 
 The one contract between the agent and the firmware, built by both from the same source.
 
@@ -306,8 +306,8 @@ the south bridge firmware changes them, once (T16).
 ### T16. The south bridge firmware (M2)
 
 State (2026-11-18): waiting for a FIBER (T2) to run it, and for T13's drafts. Built on the draft of
-`docs/firmware/south-link.md`: `crates/south-core` (6 tests) and `firmware/south`, 16096 bytes of
-flash (15.7 KB of the 24 KB), with fmt, clippy, rustdoc and the size in `just check-south` and a
+`docs/firmware/south-link.md`: `crates/south-core` (6 tests) and `firmware/south`, 16224 bytes of
+flash (15.8 KB of the 24 KB), with fmt, clippy, rustdoc and the size in `just check-south` and a
 CI job. Not run on a chip: not the LEDs, not the ports, not the ADC, and above all not the write of
 the option bytes, which is for the bench with a debug probe at hand. Settled: one tick counter for
 every LED; the start pattern is the power LED blinking green, the fallback the power LED blinking
@@ -347,6 +347,51 @@ costs 82 bytes.
 
 - Needs: T3, T14.
 - Done when: it builds under 24 KB, and on a FIBER the lights and the ports follow `Desired`.
+
+### T17. The agent's core (M2)
+
+State (2026-11-18): the core's logic is written and tested (`agent/src/agent/`, 19 tests): the
+volts from the counts and PoE or battery without flapping, the LEDs (auto, or set by a client),
+the requests and their answers, when to flash a chip and the three tries an hour kept across
+restarts, the topics' payloads. Next: the I/O around it (the serial link, MQTT, the flasher's
+adapters), then the command line's clients. Settled: `Hello` carries the chip's `VREFINT_CAL`,
+which the agent needs to turn counts into volts (changed in `fiber-protocol`, its pinned frames,
+the firmware and `docs/firmware/south-link.md`); a board without the dividers is a setting
+(`dividers`), as the two pins cannot tell; the power LED is green on PoE and yellow on the
+battery, a port's LED green while its power is on; `firmware.flash` for the north bridge answers
+that its firmware is not written yet.
+
+The one program that owns the board. This task gives it the south bridge and its first topics.
+
+- [ ] The crates: `tokio` on one thread, `rumqttc` without TLS, `tokio-serial`, `gpiocdev`
+- [x] `agent/src/board.rs`: every pin, device path and I2C address of rev 2.1, from
+      `docs/hardware.md`. A test that no GPIO is used twice (done with T7, for `fiber doctor`)
+- [ ] The shape: one task holds the state; MQTT is an adapter around it (the LCD and Bluetooth
+      will be two more). The board keeps working while the broker is down
+- [ ] The south link: `Desired` every second, `Status` and `Hello` read; the counts turned into
+      volts (battery: the pin times 2; input: the pin times 398 / 68); PoE or battery, with a
+      margin so that it does not flap
+- [ ] Firmware: both images are built into the program. A chip whose `Hello` names another
+      image or another schema tag, or that says nothing, is flashed (T15). At most three tries
+      for one image in an hour, remembered across restarts
+- [ ] The mini-PCIe card's two lines (GPIO10 and 11), set for the card that
+      `hardware.minipcie` names, with the levels T2 found
+- [ ] MQTT: the last will on `status`, every retained topic sent again after a reconnect,
+      requests and answers, the `schema` number
+- [ ] `/etc/fiber/agent.toml`, with defaults that need no file
+- [ ] The command line as a client of MQTT: `status`, `power`, `ports`, `leds`, `firmware
+      status`. `firmware flash` and `doctor` talk to the hardware themselves and refuse while
+      the agent holds it
+- [ ] The service: the user `fiber`, read-only system directories, only the devices it needs, no
+      capabilities, a watchdog
+- [ ] Tests without a board: against the south bridge simulator, the simulated bootloader, and
+      a broker inside the test
+
+Watch out: the schematic has a variant of the board without the two voltage dividers. On such a
+board the two voltages read nothing useful, and `power` has to say so.
+
+- Needs: T14 to T16.
+- Done when: the three lines under "M2" hold on a FIBER.
 
 ## Tasks ahead
 
@@ -446,40 +491,6 @@ password also opens services on the network.
 
 Done when: a unit with the earlier south bridge firmware is flashed by the agent on its own; a
 power cut in the middle of flashing recovers; stopping the agent shows the fallback LED pattern.
-
-#### T17. The agent's core
-
-The one program that owns the board. This task gives it the south bridge and its first topics.
-
-- [ ] The crates: `tokio` on one thread, `rumqttc` without TLS, `tokio-serial`, `gpiocdev`
-- [ ] `agent/src/board.rs`: every pin, device path and I2C address of rev 2.1, from
-      `docs/hardware.md`. A test that no GPIO is used twice
-- [ ] The shape: one task holds the state; MQTT is an adapter around it (the LCD and Bluetooth
-      will be two more). The board keeps working while the broker is down
-- [ ] The south link: `Desired` every second, `Status` and `Hello` read; the counts turned into
-      volts (battery: the pin times 2; input: the pin times 398 / 68); PoE or battery, with a
-      margin so that it does not flap
-- [ ] Firmware: both images are built into the program. A chip whose `Hello` names another
-      image or another schema tag, or that says nothing, is flashed (T15). At most three tries
-      for one image in an hour, remembered across restarts
-- [ ] The mini-PCIe card's two lines (GPIO10 and 11), set for the card that
-      `hardware.minipcie` names, with the levels T2 found
-- [ ] MQTT: the last will on `status`, every retained topic sent again after a reconnect,
-      requests and answers, the `schema` number
-- [ ] `/etc/fiber/agent.toml`, with defaults that need no file
-- [ ] The command line as a client of MQTT: `status`, `power`, `ports`, `leds`, `firmware
-      status`. `firmware flash` and `doctor` talk to the hardware themselves and refuse while
-      the agent holds it
-- [ ] The service: the user `fiber`, read-only system directories, only the devices it needs, no
-      capabilities, a watchdog
-- [ ] Tests without a board: against the south bridge simulator, the simulated bootloader, and
-      a broker inside the test
-
-Watch out: the schematic has a variant of the board without the two voltage dividers. On such a
-board the two voltages read nothing useful, and `power` has to say so.
-
-- Needs: T14 to T16.
-- Done when: the three lines under "M2" hold on a FIBER.
 
 #### T18. The `agent` role
 

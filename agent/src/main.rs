@@ -9,6 +9,8 @@
 //! `fiber version` is a contract with FIBER Setup, whose first-start script records its output:
 //! one line, the bare version. The commands are written down in `docs/cli.md`.
 
+#[allow(dead_code)] // The agent's I/O around it comes next (T17).
+mod agent;
 mod board;
 mod doctor;
 mod paths;

@@ -18,6 +18,7 @@ fn hello() -> Hello {
             address: 0x0800_1f3c,
         }),
         option_bytes: 0xdeff_e1aa,
+        vrefint_cal: 1655,
     }
 }
 
@@ -190,18 +191,18 @@ fn bytes_as_they_come() {
 fn frames_kept_as_bytes() {
     let hex =
         |message: &Message| -> String { wire(message, 0x0102).iter().map(|b| format!("{b:02x}")).collect() };
-    assert_eq!(TAG, 0x90d6);
+    assert_eq!(TAG, 0x9a90);
     assert_eq!(
         hex(&Message::Hello(hello())),
-        "0601d690020124020190d5f0f8060102030405060708090a0b0c020101bcbe8040aac3fff70d87491c3c00"
+        "0601909a020126020190d5f0f8060102030405060708090a0b0c020101bcbe8040aac3fff70df70cb2a0ef4e00"
     );
     assert_eq!(
         hex(&Message::Status(status())),
-        "1502d690020129ff8014b113dc0b901c02c678db7800"
+        "1502909a020129ff8014b113dc0b901c02d20ded4200"
     );
     assert_eq!(
         hex(&Message::Desired(desired())),
-        "0710d690020101010402052d010101010101010101010101010106f78c154a6800"
+        "0710909a020101010402052d010101010101010101010101010106f7f41a232f00"
     );
-    assert_eq!(hex(&Message::HelloRequest), "0a11d69002018e45bf2000");
+    assert_eq!(hex(&Message::HelloRequest), "0a11909a0201b9c7579300");
 }

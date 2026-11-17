@@ -110,6 +110,13 @@ fn image_crc() -> u32 {
     crc::crc32(image)
 }
 
+/// The internal reference's factory calibration: its ADC count at 3.0 V (DS13866, "Embedded
+/// internal voltage reference": `VREFINT_CAL` at 0x1FFF 7568).
+fn vrefint_cal() -> u16 {
+    // SAFETY: a half-word of the system memory, always mapped and read-only.
+    unsafe { core::ptr::read_volatile(0x1FFF_7568 as *const u16) }
+}
+
 /// Why the chip last started, from RCC_CSR2; the flags are cleared after.
 fn reset_cause() -> Reset {
     let csr = pac::RCC.csr2().read();
@@ -223,6 +230,7 @@ async fn main(spawner: Spawner) {
         reset,
         fault,
         option_bytes: pac::FLASH.optr().read().0,
+        vrefint_cal: vrefint_cal(),
     };
 
     // The 18 LED lines (low = lit): the power LED's green and yellow, then each port's green and

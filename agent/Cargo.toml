@@ -15,6 +15,7 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
+fiber-protocol = { path = "../crates/protocol" }
 anyhow.workspace = true
 clap.workspace = true
 serde.workspace = true

@@ -4,7 +4,7 @@ What runs on the south bridge (STM32C031C6): the status lights, the power of the
 two voltages, on the agent's word. The link it speaks is in [`south-link.md`](south-link.md); the
 board's pins in [`../hardware.md`](../hardware.md).
 
-**Status:** built, 16096 bytes (15.7 KB) of flash of the budget of 24 KB, and checked in CI. Not
+**Status:** built, 16224 bytes (15.8 KB) of flash of the budget of 24 KB, and checked in CI. Not
 run on a chip yet: there is no FIBER on the bench (T2, T16).
 
 ## Where it is

@@ -120,7 +120,7 @@ What weighs most:
 **If it gets close:** drop the panic locations first (3.2 KB), and keep the HardFault's
 address: its handler and the store take 82 bytes. Nothing else was tried.
 
-**The firmware itself (T16, 2026-11-18):** 16096 bytes (15.7 KB), with the panic locations left
+**The firmware itself (T16, 2026-11-18):** 16224 bytes (15.8 KB), with the panic locations left
 out and everything of the skeleton plus the core's LED engine, the frames of `fiber-protocol`, the
 reset cause, the option bytes and the empty flag. `just south-size` checks it against the budget
 in CI. Not run on a chip yet.

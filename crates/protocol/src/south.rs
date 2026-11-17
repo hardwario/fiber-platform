@@ -82,6 +82,9 @@ pub struct Hello {
     pub fault: Option<Fault>,
     /// `FLASH_OPTR` as it reads at start.
     pub option_bytes: u32,
+    /// The factory calibration of the internal reference (`VREFINT_CAL`): its ADC count at a
+    /// supply of 3.0 V, so the agent can turn the counts into volts.
+    pub vrefint_cal: u16,
 }
 
 /// The messages of the south link, each with its type byte.
