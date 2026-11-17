@@ -6,6 +6,6 @@
 #   thumbv6m-none-eabi   : the south bridge, STM32C031C6 (Cortex-M0+)
 #   thumbv7em-none-eabi  : the north bridge, STM32WL55 M4 core (no FPU)
 [toolchain]
-channel = "1.99.1"
+channel = "1.100.0"
 components = ["rustfmt", "clippy", "llvm-tools"]
 targets = ["thumbv6m-none-eabi", "thumbv7em-none-eabi"]
