@@ -1,0 +1,26 @@
+# The apply of the FIBER platform (docs/provisioning.md, "How an apply runs"). `fiber platform
+# apply` puts this file in place and starts it. It runs while an apply is asked for (the file
+# `pending`), at every start too, and tries again after a failure with growing pauses.
+[Unit]
+Description=FIBER platform: bring the system to /etc/fiber/platform.yaml
+Documentation=https://github.com/hardwario/fiber-platform/blob/main/docs/provisioning.md
+ConditionPathExists=/var/lib/fiber/platform/pending
+Wants=network-online.target
+After=network-online.target time-sync.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fiber platform apply --foreground
+# Ansible refuses to run without a UTF-8 locale, and wants a home.
+Environment=LC_ALL=C.UTF-8 HOME=/root
+# 10: done, and the FIBER needs a restart. 20 (partly done) and anything else: try again.
+SuccessExitStatus=10
+Restart=on-failure
+RestartSec=10s
+RestartSteps=8
+RestartMaxDelaySec=30min
+TimeoutStartSec=2h
+
+[Install]
+WantedBy=multi-user.target

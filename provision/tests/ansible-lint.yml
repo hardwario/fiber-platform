@@ -1,0 +1,7 @@
+# ansible-lint's settings for the playbook and the roles (`just lint-ansible`).
+profile: production
+# ansible.builtin only (AGENTS.md, "Provisioning").
+enable_list:
+  - only-builtins
+# Nothing is downloaded: the roles need no collection.
+offline: true

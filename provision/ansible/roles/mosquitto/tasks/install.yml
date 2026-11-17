@@ -1,0 +1,28 @@
+---
+# Packages, files, enabling. Nothing here needs the service running, so it works in a chroot.
+- name: Mosquitto and its clients, from Debian
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: packages
+  vars:
+    common_packages: [mosquitto, mosquitto-clients]
+
+# The network listener with a login comes with T8.
+- name: The listener for the network is not written yet
+  ansible.builtin.fail:
+    msg: "mqtt.lan: true is not written yet (TASKS.md, T8); set it to false"
+  when: fiber.settings.mqtt.lan
+
+- name: Our settings, in one drop-in file
+  ansible.builtin.template:
+    src: fiber.conf.j2
+    dest: /etc/mosquitto/conf.d/fiber.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Mosquitto
+
+- name: Mosquitto starts with the FIBER
+  ansible.builtin.systemd_service:
+    name: mosquitto
+    enabled: true

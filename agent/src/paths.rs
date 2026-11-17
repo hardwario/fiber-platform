@@ -49,9 +49,39 @@ impl Paths {
         self.platform_state_dir().join("results.json")
     }
 
-    /// There while an apply is wanted and not yet done.
+    /// There while an apply is wanted and not yet done. It holds the id of the last request.
     pub fn platform_pending(&self) -> PathBuf {
         self.platform_state_dir().join("pending")
+    }
+
+    /// What a running apply keeps; gone at the next start.
+    pub fn platform_run_dir(&self) -> PathBuf {
+        self.under("/run/fiber/platform")
+    }
+
+    /// The progress of the apply that runs or ran last since the start.
+    pub fn platform_status(&self) -> PathBuf {
+        self.platform_run_dir().join("status.json")
+    }
+
+    /// Every apply's output, appended.
+    pub fn platform_log(&self) -> PathBuf {
+        self.under("/var/log/fiber/platform.log")
+    }
+
+    /// The boot partition, where the status and the log are copied for reading over USB.
+    pub fn boot_dir(&self) -> PathBuf {
+        self.under("/boot/firmware")
+    }
+
+    /// The service that runs the apply.
+    pub fn apply_unit(&self) -> PathBuf {
+        self.under("/etc/systemd/system/fiber-platform-apply.service")
+    }
+
+    /// The Avahi service whose TXT records carry the progress of an apply.
+    pub fn avahi_service(&self) -> PathBuf {
+        self.under("/etc/avahi/services/fiber-platform.service")
     }
 }
 

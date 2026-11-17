@@ -63,7 +63,9 @@ grep -q '^    lan: true ' /etc/fiber/platform.yaml || fail "the seed's settings 
 [ "$(stat -c %a /etc/fiber/secrets/login.json)" = 600 ] || fail "login.json is not root only"
 [ ! -e /boot/firmware/fiber-seed.yaml ] || fail "the seed is still on the boot partition"
 command -v ansible-playbook > /dev/null || fail "Ansible is not installed"
-dpkg-query -W -f='${Status}' python3-debian | grep -q 'ok installed' || fail "python3-debian is not installed"
+for package in python3-apt python3-debian; do
+    dpkg-query -W -f='${Status}' "$package" | grep -q 'ok installed' || fail "$package is not installed"
+done
 ! dpkg-query -W -f='${Status}' ansible 2> /dev/null | grep -q 'ok installed' || fail "the ansible bundle came in"
 # Its status ends with 3 (nothing is applied yet), so it is read first and searched after.
 status=$(fiber platform status || true)

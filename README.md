@@ -41,9 +41,10 @@ that is already wired together, and that you can read and change.
 ## Where it stands
 
 **Not ready to use yet.** The plan, the design and the map of the board are written, and the
-foundations are in place: the repository's rules, its checks, and a `fiber` program that knows
-its version and can choose components (`fiber platform list`, `status`, `enable`, `disable`).
-Nothing here installs on a FIBER yet, and nothing has been tried on a real board.
+foundations are in place: the repository's rules, its checks, a `fiber` program that chooses
+components and applies them (`fiber platform list`, `status`, `enable`, `disable`, `apply`),
+and the installer. Of the components only Mosquitto installs so far, and nothing has been tried
+on a real board.
 
 [`TASKS.md`](TASKS.md) lists every task, what is in progress and what is done.
 
@@ -110,9 +111,9 @@ just check                             # everything CI checks
 ```
 
 `just check` also needs `cargo-audit` (`cargo install --locked cargo-audit`), `shellcheck` and the
-internet. It touches no hardware. `just check-container` and `just check-install` run the program
-and the installer in containers; they need Docker on an arm64 machine, such as a Mac with Apple
-silicon.
+internet. It touches no hardware. `just check-container`, `just check-install`, `just
+check-converge` and `just lint-ansible` run the program, the installer, an apply and the linters
+in containers; they need Docker on an arm64 machine, such as a Mac with Apple silicon.
 
 ## Project layout
 

@@ -17,8 +17,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use anyhow::{Result, anyhow, bail};
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 use super::catalog::Catalog;
 use super::edit;
@@ -35,7 +35,7 @@ pub struct Platform {
 }
 
 /// The settings, each with its default.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Settings {
     pub mqtt: Mqtt,
@@ -43,21 +43,21 @@ pub struct Settings {
     pub hardware: Hardware,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Mqtt {
     /// Also listen on port 1884 for the network, with a login.
     pub lan: bool,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Lorawan {
     pub region: Region,
 }
 
 /// The LoRaWAN regions the `chirpstack` role can set up.
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Region {
     #[default]
@@ -73,14 +73,14 @@ impl Region {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Hardware {
     pub minipcie: MiniPcie,
 }
 
 /// The card in the mini-PCIe slot.
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MiniPcie {
     #[default]

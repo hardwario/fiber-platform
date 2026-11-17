@@ -1,0 +1,15 @@
+---
+# Installs the Debian packages in `common_packages`. The package lists are updated only when one
+# of them is missing, so that an apply with nothing to install needs no network. A package is
+# installed without starting its service (`policy_rc_d: 101`): the role writes its settings
+# first, and its bootstrap starts it.
+- name: The installed packages
+  ansible.builtin.package_facts:
+
+- name: Install what is missing of {{ common_packages | join(', ') }}
+  ansible.builtin.apt:
+    name: "{{ common_packages | reject('in', ansible_facts.packages) | list }}"
+    update_cache: true
+    install_recommends: false
+    policy_rc_d: 101
+  when: common_packages | reject('in', ansible_facts.packages) | list | length > 0

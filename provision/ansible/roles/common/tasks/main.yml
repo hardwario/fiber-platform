@@ -1,0 +1,18 @@
+---
+# Before every component: the platform's own places (AGENTS.md: /opt/fiber, /etc/fiber,
+# /var/lib/fiber).
+- name: The platform's directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /etc/fiber, mode: "0755" }
+    - { path: "{{ fiber.paths.secrets }}", mode: "0700" }
+    - { path: /var/lib/fiber, mode: "0755" }
+    - { path: "{{ fiber.paths.state }}", mode: "0755" }
+    - { path: /var/log/fiber, mode: "0755" }
+  loop_control:
+    label: "{{ item.path }}"

@@ -2,7 +2,7 @@
 
 `fiber` is the one program of the FIBER platform. This page describes its commands. What exists
 so far: `fiber version` and the `fiber platform` commands that read and change the choice of
-components, and take the seed. `apply` and the rest come with their tasks (`TASKS.md`, T6 and on).
+components, take the seed, and apply the choice. `apply` and the rest come with their tasks (`TASKS.md`, T6 and on).
 
 **Status:** tested on a computer, and in a bare Debian arm64 container in CI (no broker, no
 hardware, no settings). Not run on a FIBER yet.
@@ -17,6 +17,7 @@ Every command ends with one of these:
 | 1 | Failed; the message says why and, where it can, what to do |
 | 2 | The command was not understood (a wrong or missing argument) |
 | 3 | `fiber platform status` only: a component that is on or off has not been brought there yet |
+| 10, 20 | `fiber platform apply` only: done but a restart is needed; partly done |
 
 A message about a mistake goes to the standard error and starts with `error:`. A mistake in a
 file names the file and the line, and shows the line.
@@ -118,6 +119,32 @@ together works.
 $ sudo fiber platform disable mosquitto
 error: mosquitto is needed by agent and node-red, which are on. Turn them off with it: fiber platform disable agent node-red mosquitto
 ```
+
+### `fiber platform apply`
+
+Brings the FIBER to what `/etc/fiber/platform.yaml` says: installs, sets up and starts what is
+on, stops and turns off what is off. It runs as the service `fiber-platform-apply.service`, so
+it goes on when the SSH session drops; the command starts it and prints each step as it ends
+([`provisioning.md`](provisioning.md), "How an apply runs"). It needs root.
+
+```
+$ sudo fiber platform apply
+The apply runs as fiber-platform-apply.service; its log: /var/log/fiber/platform.log
+common: up, nothing changed
+chirpstack: off, nothing changed
+mosquitto: up, 4 changes
+Done.
+```
+
+| Exit status | Meaning |
+|---|---|
+| 0 | Every step ended `ok` |
+| 10 | The same, and the FIBER needs a restart |
+| 20 | Partly done: a step failed or was skipped. The service tries again by itself |
+| 1 | The apply could not run (a mistake in the file, no release) |
+
+`--foreground` does the work in this process instead of the service; the service runs that, and
+so can a system without systemd.
 
 ### `fiber platform seed <file>`
 

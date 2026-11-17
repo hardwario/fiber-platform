@@ -1,0 +1,4 @@
+---
+- name: The node_red role is not written yet
+  ansible.builtin.fail:
+    msg: "the node_red role is not written yet (TASKS.md, T8)"

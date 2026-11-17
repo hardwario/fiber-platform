@@ -1,0 +1,5 @@
+---
+# Nothing of it can have been installed yet, so there is nothing to turn off.
+- name: The node_red role is not written yet; nothing to turn off
+  ansible.builtin.debug:
+    msg: "the node_red role is not written yet (TASKS.md, T8)"

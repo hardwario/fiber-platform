@@ -87,10 +87,12 @@ jobs:
         run: just no-dashes
 
   # 2. On an arm64 machine, in containers: the static `fiber` program in a bare Debian container
-  #    (no broker, no hardware, no settings; `just check-container`), and the installer in a
-  #    container like Raspberry Pi OS (`just check-install`, provision/tests/install-test.sh).
+  #    (no broker, no hardware, no settings; `just check-container`); the installer in a
+  #    container like Raspberry Pi OS (`just check-install`); the playbook and the roles linted
+  #    (`just lint-ansible`); and the converge test in a container with systemd running
+  #    (`just check-converge`). provision/tests/ has the scripts.
   arm64:
-    name: arm64 containers (the program, the installer)
+    name: arm64 containers (the program, the installer, the roles)
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -110,6 +112,10 @@ jobs:
         run: just check-container
       - name: just check-install
         run: just check-install
+      - name: just lint-ansible
+        run: just lint-ansible
+      - name: just check-converge
+        run: just check-converge
 
   # 3. RustSec advisories for the lockfile, and the toolchain pin. Vulnerabilities fail the job;
   #    informational warnings (unmaintained / unsound / yanked) are printed but do not.

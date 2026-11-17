@@ -1,0 +1,4 @@
+---
+- name: The base role is not written yet
+  ansible.builtin.fail:
+    msg: "the base role is not written yet (TASKS.md, T7)"

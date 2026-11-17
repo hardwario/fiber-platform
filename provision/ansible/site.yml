@@ -1,0 +1,44 @@
+---
+# One step of `fiber platform apply`: one component brought up or turned off. The `fiber`
+# program runs it, once per component, with what it worked out in the variable `fiber`
+# (docs/provisioning.md, "How an apply runs"); it is not meant to be run by hand.
+- name: FIBER platform
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - versions.yml
+  module_defaults:
+    ansible.builtin.apt:
+      lock_timeout: 600
+  tasks:
+    - name: Check the Ansible version
+      ansible.builtin.assert:
+        that: ansible_version.full is version(fiber_versions.ansible_core, '>=')
+        fail_msg: >-
+          ansible-core {{ ansible_version.full }} is older than {{ fiber_versions.ansible_core }},
+          which these roles are written for
+        quiet: true
+
+    - name: Check what the fiber program handed over
+      ansible.builtin.assert:
+        that:
+          - fiber is defined
+          - fiber.component is string
+          - fiber.roles | length > 0
+          - fiber.wanted in ['on', 'off']
+        fail_msg: "site.yml is run by `fiber platform apply`, not by hand"
+        quiet: true
+
+    - name: Fail on purpose (the converge test)
+      ansible.builtin.fail:
+        msg: "{{ fiber.component }} fails on purpose ({{ fiber.paths.run }}/fail-on-purpose)"
+      when: fiber.fail_on_purpose
+
+    - name: Bring the component up, or turn it off
+      ansible.builtin.include_role:
+        name: "{{ fiber_role }}"
+        tasks_from: "{{ 'main' if fiber.wanted == 'on' else 'disable' }}"
+      loop: "{{ fiber.roles if fiber.wanted == 'on' else fiber.roles | reverse }}"
+      loop_control:
+        loop_var: fiber_role

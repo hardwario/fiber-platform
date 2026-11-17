@@ -69,6 +69,13 @@ enum PlatformCommand {
         #[arg(required = true, value_name = "COMPONENT")]
         components: Vec<String>,
     },
+    /// Bring the FIBER to /etc/fiber/platform.yaml: install, configure and start what is on,
+    /// stop and turn off what is off. Runs as a service and follows it.
+    Apply {
+        /// Do the work in this process instead of the service (the service runs this).
+        #[arg(long)]
+        foreground: bool,
+    },
     /// Take the choice and the login from a seed file written by FIBER Setup. Writes
     /// /etc/fiber/platform.yaml and the login only where they are not there yet.
     Seed {
@@ -91,6 +98,8 @@ fn main() -> ExitCode {
             PlatformCommand::Enable { components } => platform::change(&paths, &components, true),
             PlatformCommand::Disable { components } => platform::change(&paths, &components, false),
             PlatformCommand::Seed { file } => platform::seed(&paths, &file),
+            PlatformCommand::Apply { foreground: true } => platform::apply_foreground(&paths),
+            PlatformCommand::Apply { foreground: false } => platform::apply(&paths),
         },
     };
     match result {

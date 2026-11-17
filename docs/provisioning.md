@@ -69,17 +69,47 @@ converge and fails on anything that neither a Debian package nor the footprint a
 `fiber platform list | status | apply | enable <component> | disable <component> | update [--to
 version] | rollback | uninstall`. The ones that exist are described in [`cli.md`](cli.md).
 
-- `apply` starts `fiber-platform-apply.service`, a oneshot with retry and backoff, and follows
-  it. An apply therefore survives a dropped SSH session and a power cut, and two never run at once.
-  The unit runs `ansible-playbook -c local` on the playbook of the release the binary itself
-  belongs to, so a binary never runs another release's roles.
-- Each component runs in its own block: one unreachable upstream does not stop the others, and
-  the result is recorded per component. Exit status 0: converged; 10: converged, restart needed;
-  20: partly (it retries by itself).
+- `apply` starts `fiber-platform-apply.service` and follows it (below, "How an apply runs").
 - `disable` stops and disables the services and keeps the data. Nothing is purged.
 - `update` fetches the target release's `install.sh`, verifies it and runs it: there is one
   installer. The new release is unpacked beside the old one and `current` moves only on success.
 - `rollback` restores our binary, roles and units. It does not downgrade third-party packages.
+
+### How an apply runs
+
+`fiber platform apply` writes the id of its request into `/var/lib/fiber/platform/pending`,
+puts `fiber-platform-apply.service` in place from its release (when it differs), starts it, and
+prints each step as it ends. The service runs `fiber platform apply --foreground`, which does the
+work:
+
+1. **The plan:** `common` first; then every component that is `false`, in the reverse order of
+   `components.yaml`; then every component that is on (named or required), in its order.
+2. **One `ansible-playbook` run per step,** `-c local`, on `provision/ansible/site.yml` of the
+   release the program itself belongs to, so a program never runs another release's roles. The
+   program hands over what it worked out in one variable, `fiber`: the component, its roles, `on`
+   or `off`, the settings, the release and the paths. No role reads `platform.yaml` itself.
+3. **A step's result is its run's exit status.** A component whose requirement did not come up in
+   this run is skipped, and so is everything when `common` fails. One unreachable package source
+   stops only the components that need it.
+4. **As each step ends:** its result goes to `results.json`, the progress to
+   `/run/fiber/platform/status.json` and to the Avahi record, and Ansible's output to
+   `/var/log/fiber/platform.log`. At the end the status and the log are copied to the boot
+   partition (`fiber-platform-status.json`, `fiber-platform.log`).
+5. **The end:** 0 when every step is `ok`; 10 when also a role asked for a restart (it touches
+   `/run/fiber/platform/restart-needed`); 20 otherwise. On 0 and 10 `pending` is removed; on 20 it
+   stays, and the service tries again after 10 s, then with longer and longer pauses, up to
+   30 minutes. A request that comes in while an apply runs makes it run once more.
+
+The service runs only while `pending` exists, at every start too, so an apply cut by a power cut
+goes on after the next start. Two never run at once. An apply that has nothing to install needs
+no network: a role updates the package lists only when a package is missing.
+
+**The Avahi record** (`/etc/avahi/services/fiber-platform.service`, `_fiber._tcp`) carries the
+progress in its TXT records (`state`, `step`, `component`, `release`, `restart`), so that FIBER
+Setup can follow the first start without a login. It is written only where Avahi is installed.
+
+**For the converge test,** the components named in `/run/fiber/platform/fail-on-purpose` fail on
+purpose. The file is in `/run`, so it is gone after a restart.
 
 ## Components
 
@@ -104,13 +134,35 @@ the 1-Wire sysfs tree (`w1_bus_master1` to `8`, one per port), `/dev/ttyAMA3` an
 
 ### Rules for every role
 
-- Three phases: `install` (packages, files, enabling; safe in a chroot, so an image build can
-  reuse it), `bootstrap` (needs the running service: tokens, passwords), `disable`.
-- Configure a service before its first start. No service may ever answer with a default password.
-- Drop-in files in place of edited package configuration.
-- Credentials are seeded once and never re-asserted: a password changed by the owner stays changed.
-- Version pins live in one file.
-- `ansible.builtin` modules only.
+A role is `provision/ansible/roles/<name>/`. The `mosquitto` role shows the shape:
+
+| File | What it does |
+|---|---|
+| `tasks/install.yml` | Packages, files, enabling. Nothing that needs the service running, so that an image build (T32) can run it in a chroot |
+| `tasks/bootstrap.yml` | What needs the running service: starting it, tokens, passwords |
+| `tasks/main.yml` | `install`, then `bootstrap`: what `on` runs |
+| `tasks/disable.yml` | What `off` runs: the services stopped and turned off, the settings and the data kept |
+| `handlers/main.yml`, `templates/` | As Ansible has them |
+
+- **Packages** come through the `common` role's `packages` tasks (`common_packages: [...]`): they
+  update the package lists only when a package is missing, and install without starting the
+  service (`policy_rc_d: 101`).
+- **Configure a service before its first start.** No service may ever answer with a default
+  password.
+- **Drop-in files** in place of edits to a package's own settings, named `fiber.conf` or
+  `fiber-*`, and on the footprint list.
+- **A password is set once and never set again,** so that one the owner changed stays changed.
+  The task that sets it runs only while its stamp `/var/lib/fiber/platform/set-once/<name>` does
+  not exist (`creates:`), and makes the stamp when it is done. Every other task can run again and
+  again.
+- **Every `command` task** has `creates` or a real `changed_when`, or a second apply is never
+  clean.
+- **Version pins** live in one file, `provision/ansible/versions.yml`.
+- **`ansible.builtin` modules only,** and no `meta` dependencies: the program works out what a
+  component requires. `just lint-ansible` runs `yamllint` and `ansible-lint` (its `production`
+  profile and `only-builtins` rule) in a Debian container.
+- **A role that is not written yet** fails with a message that names its task, and its `disable`
+  does nothing, as nothing of it can have been installed.
 
 ### Sources (checked 2026-11-17)
 
@@ -212,9 +264,10 @@ it, and so can someone who wrote a plain Raspberry Pi OS with Raspberry Pi Image
    manifest; then it is renamed and `.complete` is written last. `current` and `previous` move
    by renaming a new link over the old one, `/usr/local/bin/fiber` points into `current`, and
    only those two releases are kept. A release that is unpacked already is used as it is.
-4. **Ansible:** `ansible-core` and `python3-debian` from Debian, with `--no-install-recommends`
-   (otherwise apt brings the `ansible` bundle, 205 MB), after `dpkg --configure -a`, waiting up to
-   10 minutes for the package lock.
+4. **Ansible:** `ansible-core`, `python3-apt` (for its `apt` modules) and `python3-debian` (for
+   its `deb822_repository` module) from Debian, with `--no-install-recommends` (otherwise apt
+   brings the `ansible` bundle, 205 MB), after `dpkg --configure -a`, waiting up to 10 minutes for
+   the package lock.
 5. **The choice:** the seed (below) through `fiber platform seed`, then the seed is overwritten
    and deleted. Without a seed, `--components a,b,c` turns those components on.
 6. **The apply:** `fiber platform apply` (T6).

@@ -1,0 +1,5 @@
+---
+# Every version the roles pin, in one place (docs/provisioning.md, "Sources").
+fiber_versions:
+  # The ansible-core the roles are written for: Debian trixie's.
+  ansible_core: "2.19"

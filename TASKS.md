@@ -37,56 +37,61 @@ is done, long before the rest of M5.
 
 ### T6. `fiber platform apply` (M1)
 
-State (2026-11-17): started. Settled at the start: the program runs `ansible-playbook` once per
-component (and once for `common` before them), so that each component's result is the exit
-status of its own run, and the order, the skips and the bookkeeping are in the program, tested;
-the plan had one run with a block and a rescue per component. The `mosquitto` role's first part
-(Debian's broker on loopback, and turning it off) is the small example role, so that the
-converge test has a real component; T8 adds the rest of it. The other roles fail with "not
-written yet" until their tasks. Next: `fiber platform apply --foreground`.
+State (2026-11-17): built; the converge test, the installer tests, the role lint and `just check`
+pass on the maintainer's computer. Next: the push, and CI's `arm64` job running the converge test
+too. Settled on the way: the program runs `ansible-playbook` once per step (`common`, then every
+component), and a step's result is its run's exit status; the plan had one run with a block
+and a rescue per component. The `mosquitto` role's first part (Debian's broker on loopback, and
+turning it off) is the example role; T8 adds its network listener. The other roles fail with
+"not written yet". The installer also installs `python3-apt` (Ansible's `apt` modules need it).
+`yamllint` and `ansible-lint` run in a Debian container (`just lint-ansible`), as neither is on the
+maintainer's computer, and in CI's `arm64` job rather than in `just check`. Not tested: the
+installer's exit 10 without `FIBER_NO_REBOOT=1`, which restarts the machine.
 
 The one way the system is brought to what the file says, whoever asks for it.
 
-- [ ] `fiber platform apply --foreground` does the work: it reads the file, turns off what is
+- [x] `fiber platform apply --foreground` does the work: it reads the file, turns off what is
       `false` (in the reverse order of `components.yaml`), then brings up what is on (in its
       order), each with one `ansible-playbook` run on the playbook of the program's own release,
       with what it worked out as variables (the component, its roles, on or off, the settings).
       A component whose requirement failed in this run is skipped. One apply at a time
-- [ ] `provision/ansible/ansible.cfg`: facts gathered only when asked for, one fork, temporary
+- [x] `provision/ansible/ansible.cfg`: facts gathered only when asked for, one fork, temporary
       files under `/run`, the collections path pointed at an empty directory in the release, and
       a lock timeout of ten minutes as the default of every `apt` task
-- [ ] `site.yml`: a first task checks the Ansible version and what the program handed over, then
+- [x] `site.yml`: a first task checks the Ansible version and what the program handed over, then
       the component's roles run, their `main` (install, then bootstrap) or their `disable`
-- [ ] The `common` role: the directories, `/etc/fiber/secrets` (root only); the rule that a
+- [x] The `common` role: the directories, `/etc/fiber/secrets` (root only); the rule that a
       password is set once and never set again, written down
-- [ ] The shape every role has, shown by the `mosquitto` role's first part and written into
+- [x] The shape every role has, shown by the `mosquitto` role's first part and written into
       `docs/provisioning.md`: `install` (packages, files, enabling; it must work in a chroot, so
       that T32 can build an image from it), `bootstrap` (what needs the running service: tokens,
       passwords) and `disable`; a drop-in file where the service takes one, never an edit of the
       package's own settings; every version pin in one file. The other roles fail with "not
       written yet" until their tasks
-- [ ] `fiber-platform-apply.service`: a oneshot that runs only while
+- [x] `fiber-platform-apply.service`: a oneshot that runs only while
       `/var/lib/fiber/platform/pending` exists, tries again after a failure with growing pauses,
       and sets `LC_ALL=C.UTF-8` and `HOME=/root`. The program writes it from its release
-- [ ] `fiber platform apply` writes `pending`, starts the unit and follows it: one line per
+- [x] `fiber platform apply` writes `pending`, starts the unit and follows it: one line per
       component, and at the end whether a restart is needed. Exit status 0, 10 or 20 as in T5
-- [ ] `/run/fiber/platform/status.json` (state, step n of m, the result of each component,
+- [x] `/run/fiber/platform/status.json` (state, step n of m, the result of each component,
       restart needed) and `/var/log/fiber/platform.log`; both are copied to the boot partition
       at the end
-- [ ] `/var/lib/fiber/platform/results.json`, written as each component finishes, in the form
+- [x] `/var/lib/fiber/platform/results.json`, written as each component finishes, in the form
       `fiber platform status` already reads (`agent/src/platform/results.rs`,
       `docs/provisioning.md`): what it was brought to, `ok`, `failed` or `skipped`, when, why
-- [ ] An Avahi service file (`_fiber._tcp`) whose TXT records carry the state, the step, the
+- [x] An Avahi service file (`_fiber._tcp`) whose TXT records carry the state, the step, the
       component and the release, so that FIBER Setup can follow the first start without a login
-- [ ] `fiber platform enable` and `disable` end with the line that says to run
+- [x] `fiber platform enable` and `disable` end with the line that says to run
       `fiber platform apply`
-- [ ] The installer's last step, in `provision/tests/install-test.sh` without `FIBER_NO_APPLY`:
-      exit status 0, and 10 with and without `FIBER_NO_REBOOT=1`, and 20
-- [ ] The converge test (`provision/tests/`): an arm64 Debian trixie container with systemd. It
+- [x] The installer's last step, without `FIBER_NO_APPLY` (in the converge test): exit status 0,
+      10 with `FIBER_NO_REBOOT=1`, and 20. Without `FIBER_NO_REBOOT=1` it restarts the machine,
+      which the test does not do
+- [x] The converge test (`provision/tests/`): an arm64 Debian trixie container with systemd. It
       applies twice (the second run reports no change), applies with the network taken away
       (passes when nothing needs installing), and applies with a role made to fail (the others
       end `ok`, the unit tries again)
-- [ ] `yamllint` and `ansible-lint` with its `only-builtins` rule, in `just check` and in CI
+- [x] `yamllint` and `ansible-lint` with its `only-builtins` rule (`just lint-ansible`, in a
+      Debian container) and in CI
 
 Watch out: Ansible refuses to run without a UTF-8 locale, which neither systemd nor cloud-init
 gives it. Roles have no `meta` dependencies: the program resolves what a component requires.
@@ -188,15 +193,15 @@ The broker everything else talks through, and the first thing a user sees workin
 
 Mosquitto:
 
-- [ ] Debian's `mosquitto` and `mosquitto-clients`. The package's `mosquitto.conf` stays as it
-      is; ours is one file, `/etc/mosquitto/conf.d/fiber.conf`
-- [ ] `mqtt.lan: false`: no listener is written. The broker then serves port 1883 on loopback
-      only, without a login, which is what is wanted
+- [x] Debian's `mosquitto` and `mosquitto-clients`. The package's `mosquitto.conf` stays as it
+      is; ours is one file, `/etc/mosquitto/conf.d/fiber.conf` (done in T6, as its example role)
+- [x] `mqtt.lan: false`: no listener is written. The broker then serves port 1883 on loopback
+      only, without a login, which is what is wanted (T6; the converge test checks it)
 - [ ] `mqtt.lan: true`: `per_listener_settings true` first; port 1883 on loopback without a
       login; port 1884 for the network with a login, its password file owned by `mosquitto` and
       readable by nobody else. The password is made with `mosquitto_passwd`, once, behind a
       stamp file (its output differs every time)
-- [ ] Turning it off: the service stopped and disabled, the settings and data kept
+- [x] Turning it off: the service stopped and disabled, the settings and data kept (T6)
 
 Node-RED:
 

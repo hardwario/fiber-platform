@@ -114,7 +114,7 @@ fn enable_makes_the_file() {
     assert_eq!(
         out,
         format!(
-            "mosquitto: on, node-red requires it\nnode-red: on\nChanged {}.\n",
+            "mosquitto: on, node-red requires it\nnode-red: on\nChanged {}. Bring the FIBER to it with: sudo fiber platform apply\n",
             file.display()
         )
     );

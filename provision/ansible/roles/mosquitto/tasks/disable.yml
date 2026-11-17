@@ -1,0 +1,11 @@
+---
+# Turned off: stopped and not started with the FIBER. Its settings and its data stay.
+- name: The installed packages
+  ansible.builtin.package_facts:
+
+- name: Mosquitto stopped and turned off
+  ansible.builtin.systemd_service:
+    name: mosquitto
+    state: stopped
+    enabled: false
+  when: "'mosquitto' in ansible_facts.packages"

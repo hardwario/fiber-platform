@@ -28,6 +28,8 @@ pub struct Component {
     pub id: String,
     pub title: String,
     pub requires: Vec<String>,
+    /// The Ansible roles that bring it up, in order.
+    pub roles: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -139,6 +141,7 @@ impl Catalog {
                     id,
                     title: fields.title,
                     requires: fields.requires,
+                    roles: fields.roles,
                 })
                 .collect(),
         };

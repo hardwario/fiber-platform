@@ -1,0 +1,4 @@
+---
+- name: The chirpstack role is not written yet
+  ansible.builtin.fail:
+    msg: "the chirpstack role is not written yet (TASKS.md, T9)"

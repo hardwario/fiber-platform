@@ -2,12 +2,14 @@
 //!
 //! The commands are written down in `docs/cli.md`.
 
+mod apply;
 pub mod catalog;
 mod edit;
 pub mod file;
 pub mod results;
 mod seed;
 
+pub use apply::{apply, foreground as apply_foreground};
 pub use seed::seed;
 
 use std::io::Write;
@@ -389,7 +391,10 @@ pub fn change(paths: &Paths, ids: &[String], on: bool) -> Result<ExitCode> {
     for (_, line) in &changes {
         println!("{line}");
     }
-    println!("Changed {}.", path.display());
+    println!(
+        "Changed {}. Bring the FIBER to it with: sudo fiber platform apply",
+        path.display()
+    );
     Ok(ExitCode::SUCCESS)
 }
 

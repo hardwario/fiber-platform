@@ -68,6 +68,27 @@ check-install: release
         -v "{{justfile_directory()}}/provision/tests/install-test.sh:/install-test.sh:ro" \
         fiber-platform-test-rpios bash /install-test.sh
 
+# In a Debian trixie container (Docker), with the tools Debian has; on a copy, as ansible-lint
+# writes its cache next to what it checks.
+# Run yamllint and ansible-lint (with only-builtins) on the playbook and the roles.
+lint-ansible:
+    docker build -q -t fiber-platform-lint -f provision/tests/Containerfile.lint provision/tests
+    docker run --rm -v "{{justfile_directory()}}/provision:/provision:ro" fiber-platform-lint sh -c \
+        'cp -r /provision /tmp/provision && cd /tmp/provision/ansible && yamllint -s -c ../tests/yamllint.yml . && ansible-lint -c ../tests/ansible-lint.yml'
+
+# Needs Docker on an arm64 machine and the internet (the roles install from Debian). The container
+# runs systemd, privileged, so that services start in it as on a FIBER.
+# Run the converge test: install, apply, apply again, without network, with a role made to fail.
+check-converge: release
+    docker build --platform linux/arm64 -q -t fiber-platform-test-systemd -f provision/tests/Containerfile.systemd provision/tests
+    docker rm -f fiber-platform-converge > /dev/null 2>&1 || true
+    docker run -d --name fiber-platform-converge --platform linux/arm64 --privileged --cgroupns=host \
+        -v /sys/fs/cgroup:/sys/fs/cgroup:rw --tmpfs /run --tmpfs /run/lock \
+        -v "{{justfile_directory()}}/dist:/dist:ro" \
+        -v "{{justfile_directory()}}/provision/tests/converge-test.sh:/converge-test.sh:ro" \
+        fiber-platform-test-systemd > /dev/null
+    docker exec fiber-platform-converge bash /converge-test.sh; status=$?; docker rm -f fiber-platform-converge > /dev/null; exit $status
+
 # Needs Docker on an arm64 machine (an Apple silicon Mac, or CI's arm64 runner). The container
 # has no network, no broker, no hardware and no settings. Not part of `check`.
 # Run the static program's commands in a bare Debian container.

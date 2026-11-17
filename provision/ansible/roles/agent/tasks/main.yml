@@ -1,0 +1,4 @@
+---
+- name: The agent role is not written yet
+  ansible.builtin.fail:
+    msg: "the agent role is not written yet (TASKS.md, T18)"

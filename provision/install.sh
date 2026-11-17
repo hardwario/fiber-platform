@@ -209,7 +209,11 @@ switch() {
 
 install_ansible() {
     step "4 of 6: Ansible"
-    if command -v ansible-playbook > /dev/null && dpkg-query -W -f='${Status}' python3-debian 2> /dev/null | grep -q 'ok installed'; then
+    local package missing=0
+    for package in ansible-core python3-apt python3-debian; do
+        dpkg-query -W -f='${Status}' "$package" 2> /dev/null | grep -q 'ok installed' || missing=1
+    done
+    if [ "$missing" -eq 0 ]; then
         say "It is installed already: $(ansible-playbook --version | head -n 1)"
         return
     fi
@@ -217,7 +221,8 @@ install_ansible() {
     dpkg --configure -a
     apt-get -o DPkg::Lock::Timeout=600 update
     # Without --no-install-recommends apt also installs the `ansible` bundle of collections (205 MB).
-    apt-get -o DPkg::Lock::Timeout=600 install -y --no-install-recommends ansible-core python3-debian
+    # python3-apt is what Ansible's apt modules use, python3-debian what its deb822 module uses.
+    apt-get -o DPkg::Lock::Timeout=600 install -y --no-install-recommends ansible-core python3-apt python3-debian
 }
 
 choose() {
@@ -250,21 +255,19 @@ apply() {
     fi
     local status=0
     "$FIBER" "${FIBER_ARGS[@]}" platform apply || status=$?
+    # The fiber program has said how it went; what is left is the restart.
     case "$status" in
-        0) say "Done." ;;
+        0) ;;
         10)
             if [ "${FIBER_NO_REBOOT:-}" = 1 ]; then
-                say "Done; the FIBER needs a restart (FIBER_NO_REBOOT=1, so it is not restarted now)."
+                say "FIBER_NO_REBOOT=1, so the FIBER is not restarted now."
             else
-                say "Done; restarting the FIBER."
+                say "Restarting the FIBER."
                 systemctl reboot
             fi
             exit 10
             ;;
-        20)
-            say "Partly done; the platform tries again by itself. See: fiber platform status"
-            exit 20
-            ;;
+        20) exit 20 ;;
         *) fail "the apply failed (exit status $status); the lines above say why" ;;
     esac
 }

@@ -1,0 +1,7 @@
+---
+# Bring Mosquitto up: install, then bootstrap (the shape of every role, docs/provisioning.md).
+- name: Install
+  ansible.builtin.import_tasks: install.yml
+
+- name: Bootstrap
+  ansible.builtin.import_tasks: bootstrap.yml
