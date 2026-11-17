@@ -20,8 +20,14 @@ impl Paths {
         }
     }
 
-    fn under(&self, path: &str) -> PathBuf {
+    /// Any path of the system, below the root.
+    pub fn under(&self, path: &str) -> PathBuf {
         self.root.join(path.trim_start_matches('/'))
+    }
+
+    /// The real system, not a directory for the tests.
+    pub fn is_real(&self) -> bool {
+        self.root == std::path::Path::new("/")
     }
 
     /// The declared state: which components are wanted, and the settings.

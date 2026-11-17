@@ -1,0 +1,51 @@
+---
+# The FIBER's block in config.txt, its 1-Wire overlay, i2c-dev and the groups
+# (docs/provisioning.md, "The base role's config.txt block"). The boot partition is FAT: no
+# owner and no mode are set on it.
+- name: A copy of config.txt as it was before the platform first changed it
+  ansible.builtin.copy:
+    src: "{{ fiber.paths.boot }}/config.txt"
+    dest: "{{ fiber.paths.boot }}/config.txt.fiber-original"
+    remote_src: true
+    force: false  # noqa: risky-file-permissions (FAT)
+
+- name: The FIBER block in config.txt
+  ansible.builtin.blockinfile:
+    path: "{{ fiber.paths.boot }}/config.txt"
+    marker: "# {mark} FIBER PLATFORM"
+    block: "{{ lookup('ansible.builtin.file', playbook_dir + '/../boot/config-fiber.txt') }}"
+  register: base_config
+
+- name: The 1-Wire overlay
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../boot/fiber-ds2482.dtbo"
+    dest: "{{ fiber.paths.boot }}/overlays/fiber-ds2482.dtbo"  # noqa: risky-file-permissions (FAT)
+  register: base_overlay
+
+- name: The boot partition written through
+  ansible.builtin.command: sync
+  changed_when: false
+  when: base_config.changed or base_overlay.changed
+
+- name: A restart, for the new config.txt to take effect
+  ansible.builtin.copy:
+    content: "the base role changed config.txt or the 1-Wire overlay\n"
+    dest: "{{ fiber.paths.run }}/restart-needed"
+    mode: "0644"
+  when: base_config.changed or base_overlay.changed
+
+- name: The i2c-dev module loaded at every start
+  ansible.builtin.copy:
+    content: |
+      # Written by the FIBER platform (the base role): /dev/i2c-* for the board's own chips.
+      i2c-dev
+    dest: /etc/modules-load.d/fiber.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: The groups of the board's devices
+  ansible.builtin.group:
+    name: "{{ item }}"
+    system: true
+  loop: [gpio, i2c, spi]

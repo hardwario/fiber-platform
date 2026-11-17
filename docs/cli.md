@@ -1,8 +1,8 @@
 # The `fiber` command line
 
 `fiber` is the one program of the FIBER platform. This page describes its commands. What exists
-so far: `fiber version` and the `fiber platform` commands that read and change the choice of
-components, take the seed, and apply the choice. `apply` and the rest come with their tasks (`TASKS.md`, T6 and on).
+so far: `fiber version`, `fiber doctor`, and the `fiber platform` commands that read and change
+the choice of components, take the seed, and apply the choice. `apply` and the rest come with their tasks (`TASKS.md`, T6 and on).
 
 **Status:** tested on a computer, and in a bare Debian arm64 container in CI (no broker, no
 hardware, no settings). Not run on a FIBER yet.
@@ -33,6 +33,39 @@ $ fiber version
 
 `fiber version --all` adds what the build is made of: the TOWER revision its radio is compatible
 with, and the schema tag of the TOWER radio messages.
+
+## `fiber doctor`
+
+Checks that the board's hardware is there as Linux should see it, and says what to do where it
+is not. It needs no agent and changes nothing.
+
+```
+$ fiber doctor
+ok    config.txt has the FIBER block
+FAIL  config.txt, line 52: `dtparam=spi=on` turns on SPI0, which takes GPIO7 to 11: the south bridge's reset and serial link, and the card's lines
+      remove line 52 from config.txt, then restart
+ok    /dev/ttyAMA3 (the north bridge's serial link)
+ok    /dev/ttyAMA4 (the south bridge's serial link)
+ok    /dev/spidev6.0 (the LCD)
+ok    /dev/rtc0 (the clock)
+ok    the DS2482 1-Wire master at 0x18 on I2C bus 10 has its driver
+ok    the PCF85063A clock at 0x51 on I2C bus 10 has its driver
+ok    the LIS2DH12 accelerometer at 0x19 on I2C bus 10 answers
+ok    8 1-Wire bus masters, one for each port
+1 of 10 not as it should be.
+```
+
+What it looks at:
+
+- **`config.txt`:** the lines that break this board (`dtparam=spi=on`, `dtoverlay=w1-gpio`,
+  `ctsrts`, a `dtoverlay=pwm` without its pin), and whether the FIBER block is there.
+- **The devices the block makes:** both serial links, the LCD's SPI device, the clock.
+- **The I2C bus:** the 1-Wire master and the clock taken by their drivers, and the accelerometer
+  answering (with `i2cget`, from `i2c-tools`; that needs root).
+- **The eight 1-Wire bus masters,** one for each port.
+
+Exit status 0 when everything is as it should be, 1 when not. Tested against prepared files,
+and in a container for the `config.txt` part; not run on a FIBER yet.
 
 ## `fiber platform`
 

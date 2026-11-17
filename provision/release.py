@@ -17,6 +17,7 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -58,8 +59,21 @@ def check_binary(data):
         fail("the binary is not an arm64 Linux program; build it with `just build-fiber`")
 
 
+def compile_overlay(source):
+    """A device tree overlay, compiled as the firmware loads it (`dtc -@`)."""
+    if not shutil.which("dtc"):
+        fail("dtc is missing (Debian: device-tree-compiler; macOS: brew install dtc)")
+    result = subprocess.run(
+        ["dtc", "-@", "-q", "-I", "dts", "-O", "dtb", "-o", "-", str(source)], capture_output=True, check=False
+    )
+    if result.returncode != 0:
+        fail(f"dtc could not compile {source}:\n{result.stderr.decode()}")
+    return result.stdout
+
+
 def collect(binary):
-    """Every file of the archive but the manifest: {path in the archive: (bytes, mode)}."""
+    """Every file of the archive but the manifest: {path in the archive: (bytes, mode)}. Each
+    overlay source `*.dts` goes in compiled as `*.dtbo` too."""
     files = {}
     data = binary.read_bytes()
     check_binary(data)
@@ -70,6 +84,8 @@ def collect(binary):
             continue
         mode = 0o755 if os.access(path, os.X_OK) else 0o644
         files[f"provision/{rel.as_posix()}"] = (path.read_bytes(), mode)
+        if path.suffix == ".dts":
+            files[f"provision/{rel.with_suffix('.dtbo').as_posix()}"] = (compile_overlay(path), 0o644)
     return files
 
 

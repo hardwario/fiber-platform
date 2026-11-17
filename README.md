@@ -110,8 +110,8 @@ just release                           # a release in dist/: the archive and the
 just check                             # everything CI checks
 ```
 
-`just check` also needs `cargo-audit` (`cargo install --locked cargo-audit`), `shellcheck` and the
-internet. It touches no hardware. `just check-container`, `just check-install`, `just
+`just check` also needs `cargo-audit` (`cargo install --locked cargo-audit`), `shellcheck`, `dtc`
+and the internet. It touches no hardware. `just check-container`, `just check-install`, `just
 check-converge` and `just lint-ansible` run the program, the installer, an apply and the linters
 in containers; they need Docker on an arm64 machine, such as a Mac with Apple silicon.
 

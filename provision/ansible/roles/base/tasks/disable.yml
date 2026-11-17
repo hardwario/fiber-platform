@@ -1,5 +1,39 @@
 ---
-# Nothing of it can have been installed yet, so there is nothing to turn off.
-- name: The base role is not written yet; nothing to turn off
-  ansible.builtin.debug:
-    msg: "the base role is not written yet (TASKS.md, T7)"
+# Turned off: the block, the overlay and the module file go; the copy of the original config.txt
+# and the groups stay.
+- name: Whether there is a config.txt
+  ansible.builtin.stat:
+    path: "{{ fiber.paths.boot }}/config.txt"
+  register: base_config_txt
+
+# Without a config.txt there is no block to take out.
+- name: The FIBER block out of config.txt
+  ansible.builtin.blockinfile:
+    path: "{{ fiber.paths.boot }}/config.txt"
+    marker: "# {mark} FIBER PLATFORM"
+    state: absent
+  register: base_config
+  when: base_config_txt.stat.exists
+
+- name: The 1-Wire overlay removed
+  ansible.builtin.file:
+    path: "{{ fiber.paths.boot }}/overlays/fiber-ds2482.dtbo"
+    state: absent
+  register: base_overlay
+
+- name: The boot partition written through
+  ansible.builtin.command: sync
+  changed_when: false
+  when: base_config.changed or base_overlay.changed
+
+- name: A restart, for config.txt without the block to take effect
+  ansible.builtin.copy:
+    content: "the base role took the block out of config.txt\n"
+    dest: "{{ fiber.paths.run }}/restart-needed"
+    mode: "0644"
+  when: base_config.changed or base_overlay.changed
+
+- name: The i2c-dev module no longer loaded by the platform
+  ansible.builtin.file:
+    path: /etc/modules-load.d/fiber.conf
+    state: absent

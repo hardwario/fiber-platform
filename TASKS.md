@@ -37,38 +37,38 @@ is done, long before the rest of M5.
 
 ### T7. The `base` role and `fiber doctor` (M1)
 
-State (2026-11-17): started, while T6 waits for its CI run. Settled at the start: the stock
-`config.txt` for the fixture test is `pi-gen`'s at the tag of the pinned image
-(`2026-10-06-raspios-trixie-arm64`, `stage1/00-boot-files/files/config.txt`), not one taken out
-of the image itself; the role writes the block with `blockinfile` and its markers; `release.py`
-compiles the overlay with `dtc -@` into the archive; `fiber doctor`'s device paths and I2C
-addresses go into a new `agent/src/board.rs` (T17 adds the rest of the board to it). Next: the
-block and the overlay.
+State (2026-11-17): everything that needs no board is done and passes on the maintainer's computer:
+the fixture test on a real FAT filesystem in the converge test, `fiber doctor`, the board module
+and its check against the block. Next: the push and CI; then the task waits for a FIBER (T2) for
+its last step. Settled: the stock `config.txt` is `pi-gen`'s at the tag of the pinned image
+(`provision/tests/fixtures/`), not one taken out of the image; the role uses `blockinfile`;
+`release.py` compiles the overlay, so `just check` and CI need `dtc`; turning `base` off with no
+`config.txt` is not an error.
 
 What makes the board's hardware work under plain Raspberry Pi OS. After `base` alone the clock,
 both serial links, the 1-Wire ports and the display's bus are there for anyone who knows Linux.
 
-- [ ] `provision/boot/config-fiber.txt`: the block as `docs/provisioning.md` has it, under
+- [x] `provision/boot/config-fiber.txt`: the block as `docs/provisioning.md` has it, under
       `[cm4]`, comments on their own lines. Its GPIO numbers are checked against
       `agent/src/board.rs` by a test, so that the two places cannot drift apart
-- [ ] `provision/boot/fiber-ds2482.dts`: the DS2482 on the `i2c_csi_dsi` bus (`i2c0if` and
+- [x] `provision/boot/fiber-ds2482.dts`: the DS2482 on the `i2c_csi_dsi` bus (`i2c0if` and
       `i2c0mux` enabled, then `ds2482@18` with `compatible = "maxim,ds2482"`, as the kernel's
       `i2c-rtc` overlay does it), compiled with `dtc -@` by `provision/release.py`, shipped in
       the archive
-- [ ] The role writes the block between `# BEGIN FIBER PLATFORM` and `# END FIBER PLATFORM`
+- [x] The role writes the block between `# BEGIN FIBER PLATFORM` and `# END FIBER PLATFORM`
       only when it differs, keeps a copy of the file as it was before the first change, and
       syncs. It copies the overlay to `/boot/firmware/overlays/` without owner or mode (the
       partition is FAT). It writes `/etc/modules-load.d/fiber.conf` with `i2c-dev`, and makes
       the groups. A changed `config.txt` or overlay ends the apply with "restart needed".
       Turning `base` off takes the block, the overlay and the module file away again
-- [ ] `settings.hardware.minipcie` (`none`, `lte`, `rak5146`): nothing drives GPIO10 and 11 at
+- [x] `settings.hardware.minipcie` (`none`, `lte`, `rak5146`): nothing drives GPIO10 and 11 at
       start; the agent later sets them for the card that is fitted
-- [ ] `fiber doctor`: fails on a line that breaks this board (`dtparam=spi=on`,
+- [x] `fiber doctor`: fails on a line that breaks this board (`dtparam=spi=on`,
       `dtoverlay=w1-gpio`, `ctsrts`, a bare `dtoverlay=pwm`), and checks what should be there
       (the block, `/dev/ttyAMA3`, `/dev/ttyAMA4`, `/dev/spidev6.0`, `/dev/rtc0`, 0x18 and 0x51
       taken by their drivers and 0x19 answering on bus 10, eight 1-Wire masters). Each finding
       says what to do. Tested against a temporary root
-- [ ] The fixture test, in the converge test: the stock `config.txt` becomes the expected file,
+- [x] The fixture test, in the converge test: the stock `config.txt` becomes the expected file,
       byte for byte; a second run changes nothing; a file edited by hand gets the block back
 - [ ] On a FIBER: the list under "Done when"; that the stock file already has `otg_mode=1`
       under `[cm4]`; that the clock is set from the RTC at start without `fake-hwclock`; that a
@@ -862,6 +862,56 @@ The file that holds the choice, and the first commands that read and change it. 
 
 - Done when: the commands run in a bare container, with no broker, no hardware and no settings.
 
+### T5. The release archive and the installer (M1)
+
+Done 2026-11-17, commit `4430086`. Checked: the CI run of `4430086` (44186517138) is green: the
+four installer tests in a container like Raspberry Pi OS, on the arm64 runner (an install piped
+into `bash` with a seed; a second run that changes nothing; a hard stop while unpacking, then a
+clean run; a wrong checksum refused; also an unstamped installer and a user who is not root are
+refused); the archive built twice is the same; `shellcheck`. Not checked: the installer's apply
+step (it needs `fiber platform apply`; now a step of T6), and nothing has run on a FIBER.
+
+How the platform gets onto a FIBER, and how two releases live side by side (D2).
+
+- [x] `fiber platform seed <file>`: the seed's components and settings become
+      `/etc/fiber/platform.yaml` (only when there is none), its login goes to
+      `/etc/fiber/secrets/login.json` (root only, set once); checked like `platform.yaml`
+- [x] The archive `fiber-platform-<version>-linux-arm64.tar.gz`, built the same byte for byte
+      every time (sorted, fixed dates, owned by root): `bin/fiber`, `provision/` (what exists of
+      it), and `manifest.json` (version, commit, the sha256 of every file, the Ansible version it
+      works with). `provision/release.py`, `just release`
+- [x] `provision/install.sh`, stamped at release time with its version and the archive's sha256.
+      It checks that it runs as root on an arm64 Raspberry Pi OS trixie; downloads the archive
+      and checks the sha256; unpacks into `/opt/fiber/releases/<version>.partial`, checks every
+      file against the manifest, syncs, renames, and writes `.complete` last
+- [x] The switch: `current` moves by renaming a temporary link, `previous` points at the release
+      before, `/usr/local/bin/fiber` points into `current`. Two releases are kept
+- [x] Ansible: `apt-get install --no-install-recommends ansible-core python3-debian`, with a
+      lock timeout of ten minutes and `dpkg --configure -a` first
+- [x] The seed: `/boot/firmware/fiber-seed.yaml` goes through `fiber platform seed`, and the copy
+      on the boot partition is overwritten and then deleted. Without a seed, `--components
+      a,b,c` turns those components on
+- [x] It then starts the apply (T6), unless `FIBER_NO_APPLY=1`. `FIBER_NO_REBOOT=1` is
+      honoured. Exit status 0: done; 10: done, restart needed; 20: partly done, the platform
+      tries again by itself; anything else: failed. Written; tested in T6, which makes the apply
+- [x] Settings for the tests: where the release comes from (`FIBER_RELEASE_URL`), a root
+      directory to install into (`FIBER_ROOT`)
+- [x] `shellcheck` on every shell script in `just check`
+- [x] Tests in a container like Raspberry Pi OS (Debian trixie arm64 with what the image has):
+      install from a local server; run it again (nothing changes); stop it hard in the middle of
+      unpacking and run it again; a wrong checksum is refused. `just check-install`, and a CI job
+- [x] `docs/provisioning.md`: the seed, the installer's settings and exit statuses; `docs/cli.md`:
+      `fiber platform seed`
+
+Watch out: `ansible-core` recommends the `ansible` bundle, 205 MB, which apt installs unless
+told not to. The stock image has no `python3-debian`, which the module for package sources
+needs. The checksum in a script fetched with `curl` proves the download is whole, not who made
+it: the documentation has to say so. A script piped into `bash` is read as it runs: a command in
+it that reads the standard input eats the rest of the script.
+
+- Needs: T4.
+- Done when: the four container tests pass.
+
 ### T6. `fiber platform apply` (M1)
 
 Done 2026-11-17, commit `9f9dc19`. Checked: the CI run of `9f9dc19` (44190793281) is green: the
@@ -926,56 +976,6 @@ Every `command` task has `creates` or a real `changed_when`, or the second run i
 
 - Needs: T5.
 - Done when: the three converge tests pass in CI.
-
-### T5. The release archive and the installer (M1)
-
-Done 2026-11-17, commit `4430086`. Checked: the CI run of `4430086` (44186517138) is green: the
-four installer tests in a container like Raspberry Pi OS, on the arm64 runner (an install piped
-into `bash` with a seed; a second run that changes nothing; a hard stop while unpacking, then a
-clean run; a wrong checksum refused; also an unstamped installer and a user who is not root are
-refused); the archive built twice is the same; `shellcheck`. Not checked: the installer's apply
-step (it needs `fiber platform apply`; now a step of T6), and nothing has run on a FIBER.
-
-How the platform gets onto a FIBER, and how two releases live side by side (D2).
-
-- [x] `fiber platform seed <file>`: the seed's components and settings become
-      `/etc/fiber/platform.yaml` (only when there is none), its login goes to
-      `/etc/fiber/secrets/login.json` (root only, set once); checked like `platform.yaml`
-- [x] The archive `fiber-platform-<version>-linux-arm64.tar.gz`, built the same byte for byte
-      every time (sorted, fixed dates, owned by root): `bin/fiber`, `provision/` (what exists of
-      it), and `manifest.json` (version, commit, the sha256 of every file, the Ansible version it
-      works with). `provision/release.py`, `just release`
-- [x] `provision/install.sh`, stamped at release time with its version and the archive's sha256.
-      It checks that it runs as root on an arm64 Raspberry Pi OS trixie; downloads the archive
-      and checks the sha256; unpacks into `/opt/fiber/releases/<version>.partial`, checks every
-      file against the manifest, syncs, renames, and writes `.complete` last
-- [x] The switch: `current` moves by renaming a temporary link, `previous` points at the release
-      before, `/usr/local/bin/fiber` points into `current`. Two releases are kept
-- [x] Ansible: `apt-get install --no-install-recommends ansible-core python3-debian`, with a
-      lock timeout of ten minutes and `dpkg --configure -a` first
-- [x] The seed: `/boot/firmware/fiber-seed.yaml` goes through `fiber platform seed`, and the copy
-      on the boot partition is overwritten and then deleted. Without a seed, `--components
-      a,b,c` turns those components on
-- [x] It then starts the apply (T6), unless `FIBER_NO_APPLY=1`. `FIBER_NO_REBOOT=1` is
-      honoured. Exit status 0: done; 10: done, restart needed; 20: partly done, the platform
-      tries again by itself; anything else: failed. Written; tested in T6, which makes the apply
-- [x] Settings for the tests: where the release comes from (`FIBER_RELEASE_URL`), a root
-      directory to install into (`FIBER_ROOT`)
-- [x] `shellcheck` on every shell script in `just check`
-- [x] Tests in a container like Raspberry Pi OS (Debian trixie arm64 with what the image has):
-      install from a local server; run it again (nothing changes); stop it hard in the middle of
-      unpacking and run it again; a wrong checksum is refused. `just check-install`, and a CI job
-- [x] `docs/provisioning.md`: the seed, the installer's settings and exit statuses; `docs/cli.md`:
-      `fiber platform seed`
-
-Watch out: `ansible-core` recommends the `ansible` bundle, 205 MB, which apt installs unless
-told not to. The stock image has no `python3-debian`, which the module for package sources
-needs. The checksum in a script fetched with `curl` proves the download is whole, not who made
-it: the documentation has to say so. A script piped into `bash` is read as it runs: a command in
-it that reads the standard input eats the rest of the script.
-
-- Needs: T4.
-- Done when: the four container tests pass.
 
 ## Decisions ahead
 

@@ -132,7 +132,8 @@ just fmt       # rustfmt
 `just check` is fmt, clippy with `-D warnings`, the tests, the `thumbv7em` build of the `no_std`
 crates, rustdoc, the static arm64 build of `fiber`, the release archive built twice and compared,
 `shellcheck`, the bench scripts' self-test, the long-dash check and `cargo audit`. It needs
-`cargo-audit`, `python3`, `shellcheck` and the internet. Run it before you call a step done.
+`cargo-audit`, `python3`, `shellcheck`, `dtc` and the internet. Run it before you call a step
+done.
 
 `just check-container`, `just check-install` and `just check-converge` run the program, the
 installer and an apply in containers; `just lint-ansible` lints the playbook and the roles in one.

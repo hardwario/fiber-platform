@@ -85,9 +85,9 @@ check-converge: release
     docker run -d --name fiber-platform-converge --platform linux/arm64 --privileged --cgroupns=host \
         -v /sys/fs/cgroup:/sys/fs/cgroup:rw --tmpfs /run --tmpfs /run/lock \
         -v "{{justfile_directory()}}/dist:/dist:ro" \
-        -v "{{justfile_directory()}}/provision/tests/converge-test.sh:/converge-test.sh:ro" \
+        -v "{{justfile_directory()}}/provision/tests:/tests:ro" \
         fiber-platform-test-systemd > /dev/null
-    docker exec fiber-platform-converge bash /converge-test.sh; status=$?; docker rm -f fiber-platform-converge > /dev/null; exit $status
+    docker exec fiber-platform-converge bash /tests/converge-test.sh; status=$?; docker rm -f fiber-platform-converge > /dev/null; exit $status
 
 # Needs Docker on an arm64 machine (an Apple silicon Mac, or CI's arm64 runner). The container
 # has no network, no broker, no hardware and no settings. Not part of `check`.

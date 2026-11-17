@@ -9,6 +9,8 @@
 //! `fiber version` is a contract with FIBER Setup, whose first-start script records its output:
 //! one line, the bare version. The commands are written down in `docs/cli.md`.
 
+mod board;
+mod doctor;
 mod paths;
 mod platform;
 mod release;
@@ -46,6 +48,9 @@ enum Command {
         #[arg(long)]
         all: bool,
     },
+    /// Check that the board's hardware is there as Linux should see it, and say what to do
+    /// where it is not.
+    Doctor,
     /// The components of the FIBER platform, and the file that chooses them.
     Platform {
         #[command(subcommand)]
@@ -92,6 +97,7 @@ fn main() -> ExitCode {
             print!("{}", version_text(all));
             Ok(ExitCode::SUCCESS)
         }
+        Command::Doctor => doctor::doctor(&paths),
         Command::Platform { command } => match command {
             PlatformCommand::List => platform::list(&paths),
             PlatformCommand::Status => platform::status(&paths),

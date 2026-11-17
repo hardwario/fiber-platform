@@ -1,4 +1,5 @@
 ---
-- name: The base role is not written yet
-  ansible.builtin.fail:
-    msg: "the base role is not written yet (TASKS.md, T7)"
+# Bring the board up as plain Linux sees it. Nothing here needs a running service, so `main` is
+# `install` alone, and it all works in a chroot.
+- name: Install
+  ansible.builtin.import_tasks: install.yml

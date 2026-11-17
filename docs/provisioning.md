@@ -184,7 +184,8 @@ file on the boot partition, moved to `/etc/fiber/secrets`, and removed from the 
 
 ## The `base` role's `config.txt` block
 
-Overlay names and pins were checked against the Raspberry Pi kernel tree (`rpi-6.18.y`).
+Overlay names and pins were checked against the Raspberry Pi kernel tree (`rpi-6.18.y`). The
+block is `provision/boot/config-fiber.txt`, with a comment above each line; without the comments:
 
 ```
 # BEGIN FIBER PLATFORM
@@ -206,7 +207,9 @@ gpio=23-25=ip,pu
 ```
 
 - `fiber-ds2482.dtbo` is the only overlay of our own (no stock overlay describes a DS2482): the
-  chip's node on the `i2c_csi_dsi` bus, compiled in CI, copied to `/boot/firmware/overlays/`.
+  chip's node on the `i2c_csi_dsi` bus, enabled as the kernel's `i2c-rtc` overlay enables that
+  bus (`provision/boot/fiber-ds2482.dts`). `provision/release.py` compiles it with `dtc -@` into
+  the archive; the role copies it to `/boot/firmware/overlays/`.
 - The reset lines (GPIO7, 22) are inputs with pull-ups, so each microcontroller can still pull its
   own reset; the agent later requests them as open-drain outputs. The BOOT0 lines (GPIO26, 27) are
   held low. GPIO17 high keeps the buzzer silent.
@@ -215,8 +218,24 @@ gpio=23-25=ip,pu
 - A bare `dtoverlay=pwm` would take GPIO18, the LCD's chip select: the pin must be named.
 - **Never** `dtparam=spi=on`, `dtoverlay=w1-gpio` or `ctsrts` on this board
   ([`hardware.md`](hardware.md)). `fiber doctor` fails when it finds one of them.
-- The boot partition is FAT: files are copied without owner or mode, `config.txt` is rewritten
-  only when it differs, with a backup, and synced.
+- **The GPIO numbers of the block are checked** against the agent's board module by a test, so
+  the two places cannot drift apart.
+
+What the role does:
+
+- **The block goes at the end of `config.txt`,** between its two marks, and only when it differs;
+  a block edited by hand is put back as it was, and the rest of the file is left alone. Before
+  the first change it keeps a copy of the file, `config.txt.fiber-original`.
+- **The boot partition is FAT:** files are written without owner or mode, and synced.
+- **A changed `config.txt` or overlay ends the apply with "restart needed"** (exit status 10).
+- It writes `/etc/modules-load.d/fiber.conf` (`i2c-dev`) and makes the groups `gpio`, `i2c` and
+  `spi`.
+- **Turned off,** it takes the block, the overlay and the module file away again (a restart is
+  needed then too), and keeps the copy and the groups.
+
+The converge test runs it on a real FAT filesystem: the stock `config.txt` of the image FIBER
+Setup pins becomes the expected file byte for byte (`provision/tests/fixtures/`), a second
+apply changes nothing, and a file edited by hand gets its block back. Not run on a FIBER yet.
 
 ## The release archive and the installer
 

@@ -1,9 +1,9 @@
 # The installer's container (Containerfile) with systemd running in it, for the converge test
 # (`just check-converge`): the apply runs as its service there, and the roles start services.
-# iproute2 takes the network away in one of the tests.
+# iproute2 takes the network away in one of the tests; dosfstools makes a FAT boot partition.
 FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl dbus iproute2 python3 systemd systemd-sysv \
+    && apt-get install -y --no-install-recommends ca-certificates curl dbus dosfstools iproute2 python3 systemd systemd-sysv \
     && rm -rf /var/lib/apt/lists/* \
     && echo "Raspberry Pi reference (a test container of the FIBER platform)" > /etc/rpi-issue
 STOPSIGNAL SIGRTMIN+3

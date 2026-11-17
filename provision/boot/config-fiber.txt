@@ -1,0 +1,27 @@
+# Written by the FIBER platform (the base role) between its two marks; it puts it back when it
+# differs. The pins: docs/hardware.md. Never add dtparam=spi=on, dtoverlay=w1-gpio or ctsrts on
+# this board (`fiber doctor` says why).
+[cm4]
+# USB host mode, as the stock file has it.
+otg_mode=1
+dtparam=i2c_arm=on
+# The clock (PCF85063A) and the 1-Wire master (DS2482-800) on the I2C bus of the camera and
+# display connectors, /dev/i2c-10.
+dtoverlay=i2c-rtc,pcf85063a,i2c_csi_dsi
+dtoverlay=fiber-ds2482
+# The north bridge on uart3 (/dev/ttyAMA3), the south bridge on uart4 (/dev/ttyAMA4).
+dtoverlay=uart3
+dtoverlay=uart4
+# The LCD: /dev/spidev6.0, chip select on GPIO18.
+dtoverlay=spi6-1cs
+# The backlight on PWM channel 1, GPIO13. A bare pwm overlay would take GPIO18.
+dtoverlay=pwm,pin=13,func=4
+# The buzzer is silent while GPIO17 is high.
+gpio=17=op,dh
+# The resets of the two microcontrollers: inputs with pull-ups, so each can pull its own.
+gpio=7,22=ip,pu
+# BOOT0 of both microcontrollers held low: they start their firmware.
+gpio=26,27=ip,pd
+# The buttons.
+gpio=23-25=ip,pu
+[all]

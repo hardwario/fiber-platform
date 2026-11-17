@@ -269,6 +269,7 @@ impl Ansible<'_> {
             "settings": self.settings,
             "release": self.release.version,
             "paths": {
+                "boot": path(self.paths.boot_dir()),
                 "secrets": path(self.paths.secrets_dir()),
                 "state": path(self.paths.platform_state_dir()),
                 "run": path(self.paths.platform_run_dir()),

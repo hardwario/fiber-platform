@@ -8,6 +8,9 @@
 #   4. a role made to fail: the others end ok, the apply ends "partly", the service tries again
 #      and then ends ok; the installer ends with 20 for it
 #   5. a restart needed: the installer ends with 10 (with FIBER_NO_REBOOT=1)
+#   6. the base role on a FAT boot partition: the stock config.txt becomes the expected file,
+#      a second apply changes nothing, a file edited by hand gets its block back, fiber doctor
+#      names a bad line, and turning the base off takes the block away
 set -euo pipefail
 
 say() { printf '\n### %s\n' "$*"; }
@@ -100,6 +103,48 @@ say "5. A restart needed: the installer ends with 10"
 touch /run/fiber/platform/restart-needed
 expect 10 env FIBER_NO_REBOOT=1 bash /dist/install.sh
 rm /run/fiber/platform/restart-needed
+
+say "6. The base role, on a FAT boot partition: the stock config.txt gets the block"
+truncate -s 64M /tmp/boot.img
+mkfs.vfat -n bootfs /tmp/boot.img > /dev/null
+mount -o loop /tmp/boot.img /boot/firmware
+mkdir /boot/firmware/overlays
+cp /tests/fixtures/config.txt.stock /boot/firmware/config.txt
+fiber platform enable base
+expect 10 fiber platform apply
+cmp /boot/firmware/config.txt /tests/fixtures/config.txt.expected || fail "config.txt is not the expected file"
+cmp /boot/firmware/config.txt.fiber-original /tests/fixtures/config.txt.stock || fail "the copy of the original is not the stock file"
+[ -s /boot/firmware/overlays/fiber-ds2482.dtbo ] || fail "the overlay is not in /boot/firmware/overlays"
+grep -qx i2c-dev /etc/modules-load.d/fiber.conf || fail "i2c-dev is not loaded at the start"
+getent group gpio i2c spi > /dev/null || fail "the groups are missing"
+rm /run/fiber/platform/restart-needed
+
+say "6b. Apply again: nothing changes, no restart needed"
+fiber platform apply | tee /tmp/apply.out
+grep -q '^base: up, nothing changed$' /tmp/apply.out || fail "the second apply changed the base"
+
+say "6c. A config.txt edited by hand gets its block back; fiber doctor names the bad line"
+sed -i '/^dtoverlay=uart4$/d' /boot/firmware/config.txt
+echo 'dtparam=spi=on' >> /boot/firmware/config.txt
+expect 10 fiber platform apply
+cat /tests/fixtures/config.txt.expected > /tmp/expected
+echo 'dtparam=spi=on' >> /tmp/expected
+cmp /boot/firmware/config.txt /tmp/expected || fail "the block did not come back as it was"
+rm /run/fiber/platform/restart-needed
+expect 1 fiber doctor > /tmp/doctor.out
+# shellcheck disable=SC2016 # the backticks are in the text, not a command
+grep -q '^FAIL  config.txt, line [0-9]*: `dtparam=spi=on` turns on SPI0' /tmp/doctor.out || fail "fiber doctor did not name the line: $(cat /tmp/doctor.out)"
+grep -q '^ok    config.txt has the FIBER block$' /tmp/doctor.out || fail "fiber doctor did not see the block"
+
+say "6d. Turning the base off takes the block away"
+fiber platform disable base
+expect 10 fiber platform apply
+cat /tests/fixtures/config.txt.stock > /tmp/expected
+echo 'dtparam=spi=on' >> /tmp/expected
+cmp /boot/firmware/config.txt /tmp/expected || fail "the block is still in config.txt"
+[ ! -e /boot/firmware/overlays/fiber-ds2482.dtbo ] || fail "the overlay is still there"
+rm /run/fiber/platform/restart-needed
+umount /boot/firmware
 
 say "Turning Mosquitto off stops it, and keeps its settings"
 fiber platform disable mosquitto
