@@ -56,12 +56,24 @@ impl Drop for Root {
 }
 
 fn run(program: &Path, root: &Path, args: &str) -> (i32, String, String) {
-    let output = Command::new(program)
-        .arg("--root")
-        .arg(root)
-        .args(args.split_whitespace())
-        .output()
-        .unwrap();
+    let mut attempts = 0;
+    let output = loop {
+        match Command::new(program)
+            .arg("--root")
+            .arg(root)
+            .args(args.split_whitespace())
+            .output()
+        {
+            // A program the test has just copied can be "busy" on Linux for a moment: a process
+            // that another test thread forks meanwhile holds the copy open until it starts its
+            // own program (seen in CI, 2026-11-17).
+            Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy && attempts < 100 => {
+                attempts += 1;
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            other => break other.unwrap(),
+        }
+    };
     (
         output.status.code().unwrap(),
         String::from_utf8(output.stdout).unwrap(),

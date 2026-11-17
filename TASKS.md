@@ -37,17 +37,17 @@ is done, long before the rest of M5.
 
 ### T4. The platform file and its commands (M1)
 
-State (2026-11-17): everything is written and `just check` passes, but the "Done when" is not
-checked yet: the container run is missing. The commands are tested (41 unit tests, 11 that run
-the program against a temporary root); `just build-fiber` makes the static arm64 program (checked
-with `file`: "statically linked"); `docs/cli.md` is written. `just check-container` and the CI
-job `container` (on `ubuntu-24.04-arm`) are written but have not run: Docker Desktop on the
-maintainer's computer does not start (its disk image `Docker.raw` is owned by root, so it cannot
-be opened), and CI runs only after a push. Next: run `just check-container` (after
-`sudo chown $USER ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw`), or push
-and see the CI job. Settled on the way: `serde-saphyr` for the YAML; `components.yaml` compiled
-into the program; `enable` and `disable` change only the lines under `components:`; `--root`
-(hidden) for the tests; `status` reads `/var/lib/fiber/platform/results.json` (T6 writes it).
+State (2026-11-17): the CI run of `2fe8334` (44182158761) ran every command in a bare Debian
+arm64 container (job `container`: passed), which is the "Done when". Its `host` job failed in one
+test: `status_names_the_release_the_program_is_in` copies the program and starts it at once, and
+on Linux a process forked meanwhile by another test thread can hold the copy open ("Text file
+busy"). The test now tries again while the file is busy. Next: push that, and see `host` pass,
+with the static build step that it skipped. Settled on the way: `serde-saphyr` for the YAML;
+`components.yaml` compiled into the program; `enable` and `disable` change only the lines under
+`components:`; `--root` (hidden) for the tests; `status` reads
+`/var/lib/fiber/platform/results.json` (T6 writes it). Locally, Docker Desktop does not start
+(its disk image `Docker.raw` is owned by root); `sudo chown $USER` on it would let
+`just check-container` run here.
 
 The file that holds the choice, and the first commands that read and change it. No Ansible yet.
 
@@ -85,7 +85,8 @@ The file that holds the choice, and the first commands that read and change it. 
 - [x] `docs/cli.md`: the `fiber platform` commands and their exit statuses
 - [x] Tests: reading, checking and resolving the file; the line editor; every command against a
       temporary root
-- [ ] The static build runs every command in a bare Debian arm64 container
+- [x] The static build runs every command in a bare Debian arm64 container (CI, run
+      44182158761, job `container`)
 
 - Done when: the commands run in a bare container, with no broker, no hardware and no settings.
 
