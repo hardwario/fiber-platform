@@ -1,0 +1,19 @@
+// Node-RED's settings on this FIBER. Written by the FIBER platform (the node-red role) once,
+// before Node-RED first started; the platform never writes it again, so it is yours to change.
+// The login is the one typed into FIBER Setup; to change the password, put a new bcrypt hash
+// here (node-red admin hash-pw), then: sudo systemctl restart nodered
+module.exports = {
+    flowFile: "flows.json",
+    uiPort: 1880,
+    adminAuth: {
+        type: "credentials",
+        users: [{
+            username: {{ node_red_user | to_json }},
+            password: {{ node_red_hash.stdout | to_json }},
+            permissions: "*",
+        }],
+    },
+    logging: {
+        console: { level: "info", metrics: false, audit: false },
+    },
+};

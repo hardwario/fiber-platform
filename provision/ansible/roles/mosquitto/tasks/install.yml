@@ -7,10 +7,8 @@
   vars:
     common_packages: [mosquitto, mosquitto-clients]
 
-# The network listener with a login comes with T8.
-- name: The listener for the network is not written yet
-  ansible.builtin.fail:
-    msg: "mqtt.lan: true is not written yet (TASKS.md, T8); set it to false"
+- name: The login for the network listener
+  ansible.builtin.import_tasks: lan.yml
   when: fiber.settings.mqtt.lan
 
 - name: Our settings, in one drop-in file

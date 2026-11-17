@@ -1,0 +1,22 @@
+# Written by the FIBER platform (the node-red role).
+[Unit]
+Description=Node-RED
+Documentation=https://nodered.org/docs/
+Wants=network-online.target
+After=network-online.target mosquitto.service
+
+[Service]
+Type=simple
+User=nodered
+Group=nodered
+WorkingDirectory=/var/lib/node-red
+# Node's memory capped at 256 MB: the FIBER may have 1 GB in all.
+Environment=NODE_OPTIONS=--max-old-space-size=256
+ExecStart=/usr/bin/node-red --userDir /var/lib/node-red
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGINT
+SyslogIdentifier=nodered
+
+[Install]
+WantedBy=multi-user.target

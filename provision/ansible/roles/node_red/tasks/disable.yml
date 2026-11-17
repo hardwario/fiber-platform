@@ -1,5 +1,13 @@
 ---
-# Nothing of it can have been installed yet, so there is nothing to turn off.
-- name: The node_red role is not written yet; nothing to turn off
-  ansible.builtin.debug:
-    msg: "the node_red role is not written yet (TASKS.md, T8)"
+# Turned off: stopped and not started with the FIBER. Node-RED, its settings and its flows stay.
+- name: Whether the service nodered is there
+  ansible.builtin.stat:
+    path: /etc/systemd/system/nodered.service
+  register: node_red_unit
+
+- name: Node-RED stopped and turned off
+  ansible.builtin.systemd_service:
+    name: nodered
+    state: stopped
+    enabled: false
+  when: node_red_unit.stat.exists

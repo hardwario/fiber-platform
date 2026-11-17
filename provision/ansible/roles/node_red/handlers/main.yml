@@ -1,0 +1,6 @@
+---
+- name: Restart Node-RED
+  ansible.builtin.systemd_service:
+    name: nodered
+    state: restarted
+    daemon_reload: true

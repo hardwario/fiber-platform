@@ -3,3 +3,8 @@
 fiber_versions:
   # The ansible-core the roles are written for: Debian trixie's.
   ansible_core: "2.19"
+  # Node.js from NodeSource (node_24.x): Debian's Node.js 20 is too old for Node-RED 5, which asks
+  # for 22.9 or newer.
+  nodejs_major: 24
+  # Node-RED from npm; checked 2026-11-17 (the newest then).
+  node_red: "5.0.10"

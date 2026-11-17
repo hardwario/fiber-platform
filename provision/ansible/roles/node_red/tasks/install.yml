@@ -1,0 +1,117 @@
+---
+# Node.js from NodeSource, Node-RED from npm, its user, its service, its settings with the login,
+# and a flow to start from. Nothing here needs Node-RED running.
+- name: NodeSource's key (fingerprint 6F71F525282841EEDAF851B42F59B5F99B1BE0B4)
+  ansible.builtin.copy:
+    src: nodesource.asc
+    dest: /etc/apt/keyrings/fiber-nodesource.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: NodeSource's package source for Node.js {{ fiber_versions.nodejs_major }}
+  ansible.builtin.deb822_repository:
+    name: fiber-nodesource
+    types: deb
+    uris: "https://deb.nodesource.com/node_{{ fiber_versions.nodejs_major }}.x"
+    suites: nodistro
+    components: main
+    signed_by: /etc/apt/keyrings/fiber-nodesource.asc
+
+- name: Node.js from NodeSource, never from Debian
+  ansible.builtin.copy:
+    content: |
+      # Written by the FIBER platform (the node-red role): Debian's Node.js is too old for
+      # Node-RED, so nodejs comes from NodeSource only.
+      Package: nodejs
+      Pin: origin deb.nodesource.com
+      Pin-Priority: 1001
+    dest: /etc/apt/preferences.d/fiber-nodesource
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Node.js
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: packages
+  vars:
+    common_packages: [nodejs]
+
+- name: Whether Node-RED is installed
+  ansible.builtin.stat:
+    path: /usr/lib/node_modules/node-red/package.json
+  register: node_red_package
+
+- name: Which version of Node-RED is installed
+  ansible.builtin.slurp:
+    src: /usr/lib/node_modules/node-red/package.json
+  register: node_red_package_json
+  when: node_red_package.stat.exists
+
+- name: Node-RED from npm, version {{ fiber_versions.node_red }}
+  ansible.builtin.command:
+    argv:
+      - npm
+      - install
+      - --global
+      - --omit=dev
+      - --no-audit
+      - --no-fund
+      - "node-red@{{ fiber_versions.node_red }}"
+  when: >-
+    not node_red_package.stat.exists
+    or (node_red_package_json.content | b64decode | from_json).version != fiber_versions.node_red
+  changed_when: true
+  notify: Restart Node-RED
+
+- name: The groups of the board's devices
+  ansible.builtin.group:
+    name: "{{ item }}"
+    system: true
+  loop: [gpio, i2c, spi]
+
+- name: The user nodered, in the groups of the serial ports, GPIO, I2C and SPI
+  ansible.builtin.user:
+    name: nodered
+    system: true
+    home: /var/lib/node-red
+    create_home: false
+    shell: /usr/sbin/nologin
+    groups: [dialout, gpio, i2c, spi]
+    append: true
+
+- name: Its directory
+  ansible.builtin.file:
+    path: /var/lib/node-red
+    state: directory
+    owner: nodered
+    group: nodered
+    mode: "0750"
+
+- name: The login, in Node-RED's settings
+  ansible.builtin.import_tasks: login.yml
+
+- name: A flow to start from, when there is none
+  ansible.builtin.copy:
+    src: flows.json
+    dest: /var/lib/node-red/flows.json
+    owner: nodered
+    group: nodered
+    mode: "0640"
+    force: false
+
+- name: The service nodered
+  ansible.builtin.template:
+    src: nodered.service.j2
+    dest: /etc/systemd/system/nodered.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Node-RED
+
+- name: Node-RED starts with the FIBER
+  ansible.builtin.systemd_service:
+    name: nodered
+    enabled: true
+    daemon_reload: true

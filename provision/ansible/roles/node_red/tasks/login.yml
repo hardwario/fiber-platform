@@ -1,0 +1,54 @@
+---
+# Node-RED's settings.js is written once, before its first start, with the login typed into
+# FIBER Setup as a bcrypt hash. Then it is the owner's: the platform never writes it again, so
+# their changes and a changed password stay.
+- name: Whether Node-RED has its settings
+  ansible.builtin.stat:
+    path: /var/lib/node-red/settings.js
+  register: node_red_settings
+
+- name: The settings, with the login
+  when: not node_red_settings.stat.exists
+  block:
+    - name: Whether there is the login from FIBER Setup
+      ansible.builtin.stat:
+        path: "{{ fiber.paths.secrets }}/login.json"
+      register: node_red_login_file
+
+    - name: Node-RED needs a login
+      ansible.builtin.fail:
+        msg: >-
+          there is no login in {{ fiber.paths.secrets }}/login.json (it comes with FIBER Setup's
+          seed), and Node-RED must not start without one
+      when: not node_red_login_file.stat.exists
+
+    - name: The login
+      ansible.builtin.slurp:
+        src: "{{ fiber.paths.secrets }}/login.json"
+      register: node_red_login
+
+    - name: The password as a bcrypt hash, made by the bcrypt that Node-RED brings
+      ansible.builtin.command:
+        argv:
+          - node
+          - -e
+          - >-
+            const b = require(require.resolve('bcryptjs', {paths: ['/usr/lib/node_modules/node-red']}));
+            process.stdout.write(b.hashSync(process.env.FIBER_PASSWORD, 8));
+      environment:
+        FIBER_PASSWORD: "{{ (node_red_login.content | b64decode | from_json).password }}"
+      register: node_red_hash
+      changed_when: false
+      no_log: true
+
+    - name: Node-RED's settings, written once
+      ansible.builtin.template:
+        src: settings.js.j2
+        dest: /var/lib/node-red/settings.js
+        owner: nodered
+        group: nodered
+        mode: "0640"
+        force: false
+      vars:
+        node_red_user: "{{ (node_red_login.content | b64decode | from_json).user }}"
+      notify: Restart Node-RED

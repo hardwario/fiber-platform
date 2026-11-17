@@ -1,0 +1,49 @@
+---
+# mqtt.lan: the password file of the listener for the network, made once from the login typed
+# into FIBER Setup. The file itself is the stamp: it is never written again, so a password the
+# owner changes with mosquitto_passwd stays changed.
+- name: Whether there is the password file
+  ansible.builtin.stat:
+    path: /etc/mosquitto/fiber-passwd
+  register: mosquitto_passwd_file
+
+- name: The password file, from the login
+  when: not mosquitto_passwd_file.stat.exists
+  block:
+    - name: Whether there is the login from FIBER Setup
+      ansible.builtin.stat:
+        path: "{{ fiber.paths.secrets }}/login.json"
+      register: mosquitto_login_file
+
+    - name: The listener for the network needs a login
+      ansible.builtin.fail:
+        msg: >-
+          mqtt.lan is true, and there is no login in {{ fiber.paths.secrets }}/login.json (it comes
+          with FIBER Setup's seed). Make the password file by hand:
+          sudo mosquitto_passwd -c /etc/mosquitto/fiber-passwd <user>
+      when: not mosquitto_login_file.stat.exists
+
+    - name: The login
+      ansible.builtin.slurp:
+        src: "{{ fiber.paths.secrets }}/login.json"
+      register: mosquitto_login
+
+    - name: The password file, made once
+      ansible.builtin.command:
+        argv:
+          - mosquitto_passwd
+          - -b
+          - -c
+          - /etc/mosquitto/fiber-passwd
+          - "{{ (mosquitto_login.content | b64decode | from_json).user }}"
+          - "{{ (mosquitto_login.content | b64decode | from_json).password }}"
+        creates: /etc/mosquitto/fiber-passwd
+      no_log: true
+      notify: Restart Mosquitto
+
+- name: The password file, readable by Mosquitto alone
+  ansible.builtin.file:
+    path: /etc/mosquitto/fiber-passwd
+    owner: mosquitto
+    group: mosquitto
+    mode: "0600"

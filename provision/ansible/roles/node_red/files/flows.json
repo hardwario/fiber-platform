@@ -1,0 +1,58 @@
+[
+    {
+        "id": "fiber-tab",
+        "type": "tab",
+        "label": "FIBER",
+        "disabled": false,
+        "info": "Everything the FIBER says on MQTT (fiber/#) shows up in the debug panel on the right."
+    },
+    {
+        "id": "fiber-broker",
+        "type": "mqtt-broker",
+        "name": "The FIBER's broker",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true
+    },
+    {
+        "id": "fiber-in",
+        "type": "mqtt in",
+        "z": "fiber-tab",
+        "name": "fiber/#",
+        "topic": "fiber/#",
+        "qos": "1",
+        "datatype": "auto-detect",
+        "broker": "fiber-broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 120,
+        "y": 80,
+        "wires": [
+            [
+                "fiber-debug"
+            ]
+        ]
+    },
+    {
+        "id": "fiber-debug",
+        "type": "debug",
+        "z": "fiber-tab",
+        "name": "What the FIBER says",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 360,
+        "y": 80,
+        "wires": []
+    }
+]

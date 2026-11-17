@@ -2,5 +2,20 @@
 # /etc/fiber/platform.yaml and run: sudo fiber platform apply
 # Mosquitto's own /etc/mosquitto/mosquitto.conf stays as Debian has it.
 #
+{% if fiber.settings.mqtt.lan %}
+# mqtt.lan is true: port 1883 on loopback without a login, as always, and port 1884 for the
+# network with the login of /etc/mosquitto/fiber-passwd. That file is made once, from the login
+# typed into FIBER Setup; to change the password:
+#   sudo mosquitto_passwd /etc/mosquitto/fiber-passwd <user>
+per_listener_settings true
+
+listener 1883 127.0.0.1
+allow_anonymous true
+
+listener 1884
+allow_anonymous false
+password_file /etc/mosquitto/fiber-passwd
+{% else %}
 # mqtt.lan is false: no listener is set here, so Mosquitto serves port 1883 on loopback only,
 # without a login.
+{% endif %}

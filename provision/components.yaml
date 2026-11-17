@@ -48,7 +48,8 @@ components:
     about: A LoRaWAN network server, and the gateway when a RAK5146 card is in the mini-PCIe slot.
     roles: [chirpstack]
     requires: [mosquitto]
-    # The unit name of `chirpstack-sqlite` is not verified yet (docs/provisioning.md).
-    services: [chirpstack, chirpstack-mqtt-forwarder, redis-server, fiber-concentratord]
+    # chirpstack-sqlite's unit is chirpstack-sqlite.service (read from its package 4.20.0,
+    # 2026-11-17).
+    services: [chirpstack-sqlite, chirpstack-mqtt-forwarder, redis-server, fiber-concentratord]
     ports:
       - { port: 8080, listen: network }

@@ -11,6 +11,9 @@
 #   6. the base role on a FAT boot partition: the stock config.txt becomes the expected file,
 #      a second apply changes nothing, a file edited by hand gets its block back, fiber doctor
 #      names a bad line, and turning the base off takes the block away
+#   7. Mosquitto's listener for the network with the seed's login; a changed password stays
+#   8. Node-RED behind the seed's login, with the flow to start from; a second apply changes
+#      nothing; only the expected ports listen
 set -euo pipefail
 
 say() { printf '\n### %s\n' "$*"; }
@@ -78,9 +81,13 @@ grep -q '^mosquitto: up, nothing changed$' /tmp/apply.out || fail "the second ap
 grep -q '^common: up, nothing changed$' /tmp/apply.out || fail "the second apply changed something in common"
 
 say "3. Apply with the network taken away"
+# The link going down takes the default route with it; it is put back afterwards.
+default_route=$(ip route show default | head -n 1)
 ip link set eth0 down
 expect 0 fiber platform apply
 ip link set eth0 up
+# shellcheck disable=SC2086 # the route is words for ip
+ip route replace $default_route
 
 say "4. A role made to fail: the others end ok, and the service tries again"
 echo mosquitto > /run/fiber/platform/fail-on-purpose
@@ -146,11 +153,53 @@ cmp /boot/firmware/config.txt /tmp/expected || fail "the block is still in confi
 rm /run/fiber/platform/restart-needed
 umount /boot/firmware
 
-say "Turning Mosquitto off stops it, and keeps its settings"
-fiber platform disable mosquitto
+say "7. Mosquitto's listener for the network, with the login from the seed"
+sed -i 's/^    lan: false/    lan: true /' /etc/fiber/platform.yaml
+expect 0 fiber platform apply
+listening() { ss -ltnH | awk '{print $4}'; }
+listening | grep -qE '^(0\.0\.0\.0|\*|\[::\]):1884$' || fail "Mosquitto does not listen on 1884 for the network: $(listening)"
+listening | grep -qx '127.0.0.1:1883' || fail "Mosquitto does not listen on 127.0.0.1:1883"
+! listening | grep -qE '^(0\.0\.0\.0|\*|\[::\]):1883$' || fail "port 1883 is open to the network"
+[ "$(stat -c '%U %a' /etc/mosquitto/fiber-passwd)" = "mosquitto 600" ] || fail "the password file is not Mosquitto's alone"
+! mosquitto_pub -h 127.0.0.1 -p 1884 -t fiber/test -m x 2> /dev/null || fail "port 1884 takes a message without a login"
+mosquitto_pub -h 127.0.0.1 -p 1884 -u pi -P "a secret" -t fiber/test -m x || fail "port 1884 refuses the login from the seed"
+
+say "7b. A password the owner changes stays changed"
+mosquitto_passwd -b /etc/mosquitto/fiber-passwd pi "another secret"
+systemctl restart mosquitto
+expect 0 fiber platform apply
+mosquitto_pub -h 127.0.0.1 -p 1884 -u pi -P "another secret" -t fiber/test -m x || fail "the changed password was set back"
+! mosquitto_pub -h 127.0.0.1 -p 1884 -u pi -P "a secret" -t fiber/test -m x 2> /dev/null || fail "the old password works again"
+
+say "8. Node-RED: its editor asks for the login, and behind it is the flow to start from"
+fiber platform enable node-red
+expect 0 fiber platform apply
+systemctl is-active --quiet nodered || fail "Node-RED does not run"
+wait_for 60 curl -fs -o /dev/null http://127.0.0.1:1880/auth/login || fail "Node-RED does not answer on port 1880"
+curl -fs http://127.0.0.1:1880/auth/login | grep -q '"type":"credentials"' || fail "Node-RED's editor does not ask for a login"
+[ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:1880/flows)" = 401 ] || fail "the flows can be read without the login"
+token=$(curl -fs -d client_id=node-red-admin -d grant_type=password -d scope='*' -d username=pi \
+    --data-urlencode 'password=a secret' http://127.0.0.1:1880/auth/token |
+    python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])') || fail "Node-RED refuses the login from the seed"
+curl -fs -H "Authorization: Bearer $token" http://127.0.0.1:1880/flows | grep -q '"fiber-in"' || fail "the flow to start from is not there"
+[ "$(stat -c '%U %a' /var/lib/node-red/settings.js)" = "nodered 640" ] || fail "settings.js is readable by others"
+
+say "8b. Apply again: nothing changes"
+fiber platform apply | tee /tmp/apply.out
+grep -q '^node-red: up, nothing changed$' /tmp/apply.out || fail "the second apply changed Node-RED"
+grep -q '^mosquitto: up, nothing changed$' /tmp/apply.out || fail "the second apply changed Mosquitto"
+
+say "8c. Only the expected ports listen: 1880 (Node-RED), 1883 (loopback), 1884 (with a login)"
+ports=$(listening | sed 's/.*://' | sort -un | grep -vx 8000 | tr '\n' ' ')
+[ "$ports" = "1880 1883 1884 " ] || fail "these ports listen: $ports"
+
+say "Turning Node-RED and Mosquitto off stops them, and keeps their settings"
+fiber platform disable node-red mosquitto
 expect 0 fiber platform apply
 ! systemctl is-active --quiet mosquitto || fail "Mosquitto still runs"
 ! systemctl is-enabled --quiet mosquitto || fail "Mosquitto still starts with the FIBER"
-[ -f /etc/mosquitto/conf.d/fiber.conf ] || fail "its settings are gone"
+! systemctl is-active --quiet nodered || fail "Node-RED still runs"
+[ -f /etc/mosquitto/conf.d/fiber.conf ] || fail "Mosquitto's settings are gone"
+[ -f /var/lib/node-red/settings.js ] || fail "Node-RED's settings are gone"
 
 say "Every converge test passed"

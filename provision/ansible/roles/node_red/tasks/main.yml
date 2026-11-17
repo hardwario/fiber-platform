@@ -1,4 +1,7 @@
 ---
-- name: The node_red role is not written yet
-  ansible.builtin.fail:
-    msg: "the node_red role is not written yet (TASKS.md, T8)"
+# Bring Node-RED up: install, then bootstrap.
+- name: Install
+  ansible.builtin.import_tasks: install.yml
+
+- name: Bootstrap
+  ansible.builtin.import_tasks: bootstrap.yml

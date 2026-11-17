@@ -37,10 +37,10 @@ is done, long before the rest of M5.
 
 ### T7. The `base` role and `fiber doctor` (M1)
 
-State (2026-11-17): everything that needs no board is done and passes on the maintainer's computer:
-the fixture test on a real FAT filesystem in the converge test, `fiber doctor`, the board module
-and its check against the block. Next: the push and CI; then the task waits for a FIBER (T2) for
-its last step. Settled: the stock `config.txt` is `pi-gen`'s at the tag of the pinned image
+State (2026-11-17): waiting for a FIBER (T2) for its last step. Everything that needs no board is
+done, commit `81f5cf4`, and its CI run (44192840178) is green: the fixture test on a real FAT
+filesystem in the converge test, `fiber doctor`, the board module and its check against the
+block. Settled: the stock `config.txt` is `pi-gen`'s at the tag of the pinned image
 (`provision/tests/fixtures/`), not one taken out of the image; the role uses `blockinfile`;
 `release.py` compiles the overlay, so `just check` and CI need `dtc`; turning `base` off with no
 `config.txt` is not an error.
@@ -85,6 +85,57 @@ which probe the same I2C bus as the board's own chips.
 - Done when: the fixture test passes in CI; on a FIBER `i2cdetect -y 10` shows 18 and 51 in use,
   both serial ports and `/dev/spidev6.0` exist, eight 1-Wire masters exist, and the time
   survives a power cycle.
+
+### T8. The `mosquitto` and `node-red` roles (M1)
+
+State (2026-11-17): both roles are written and pass the converge test on the maintainer's computer
+(the network listener with the seed's login; a password the owner changes stays; Node-RED behind
+the login, with the flow to start from; a second apply with nothing changed; only ports 1880,
+1883 on loopback and 1884 listening). Next: the push and CI; then the task waits for a FIBER and
+for D20. Settled: the password file is `/etc/mosquitto/fiber-passwd`, made once by
+`mosquitto_passwd` (the file is its own stamp); Node-RED's `settings.js` is written once, when
+there is none, with the login's bcrypt hash made by the `bcryptjs` Node-RED brings; the
+NodeSource key is vendored in the role (fingerprint checked 2026-11-17). Found on the way: the
+converge test's network test took the default route away with the link; it puts it back now.
+
+The broker everything else talks through, and the first thing a user sees working.
+
+Mosquitto:
+
+- [x] Debian's `mosquitto` and `mosquitto-clients`. The package's `mosquitto.conf` stays as it
+      is; ours is one file, `/etc/mosquitto/conf.d/fiber.conf` (done in T6, as its example role)
+- [x] `mqtt.lan: false`: no listener is written. The broker then serves port 1883 on loopback
+      only, without a login, which is what is wanted (T6; the converge test checks it)
+- [x] `mqtt.lan: true`: `per_listener_settings true` first; port 1883 on loopback without a
+      login; port 1884 for the network with a login, its password file owned by `mosquitto` and
+      readable by nobody else. The password is made with `mosquitto_passwd`, once, behind a
+      stamp file (its output differs every time)
+- [x] Turning it off: the service stopped and disabled, the settings and data kept (T6)
+
+Node-RED:
+
+- [x] Node.js 24 from NodeSource (source, key and its fingerprint in `docs/provisioning.md`),
+      with an apt preference that keeps `nodejs` on NodeSource
+- [x] `npm install -g --omit=dev node-red@<pinned>`, run only when that version is not there
+- [x] A system user `nodered` in the groups for the serial ports, GPIO, I2C and SPI; its
+      directory `/var/lib/node-red`; our own `nodered.service`, with Node's memory capped at
+      256 MB
+- [x] The login (`adminAuth`, a bcrypt hash made with the bcrypt that Node-RED brings) written
+      before the first start
+- [x] The starter flow, copied only when there is none: a broker node on `localhost:1883` and a
+      debug node on `fiber/#`
+- [ ] The dashboard nodes, if D20 says so (waiting for D20)
+- [ ] In CI: after a converge only the expected ports listen; the editor asks for the login; a
+      second apply changes nothing
+
+Watch out: the installer script the old FIBER documentation names is gone (its address returns
+404), and its successor installs again on every run. Debian's own Node.js 20 is too old for
+Node-RED 5. What npm pulls in below Node-RED is not pinned, and the install takes minutes on
+eMMC.
+
+- Needs: T6.
+- Done when: `mosquitto_sub -t '#'` works on the FIBER; with the LAN listener only port 1884
+  answers from outside and asks for the password; Node-RED's editor asks for the login.
 
 ## Tasks ahead
 
@@ -136,47 +187,6 @@ STM32C0 keeps BOOT0 low until the next power-on, so do not mix a debug probe int
 Done when: a FIBER written with every box ticked reaches `state=ok` by itself, also on a network
 that blocks NTP; a second `apply` changes nothing; no service ever answers with a default
 password; update and rollback work.
-
-#### T8. The `mosquitto` and `node-red` roles
-
-The broker everything else talks through, and the first thing a user sees working.
-
-Mosquitto:
-
-- [x] Debian's `mosquitto` and `mosquitto-clients`. The package's `mosquitto.conf` stays as it
-      is; ours is one file, `/etc/mosquitto/conf.d/fiber.conf` (done in T6, as its example role)
-- [x] `mqtt.lan: false`: no listener is written. The broker then serves port 1883 on loopback
-      only, without a login, which is what is wanted (T6; the converge test checks it)
-- [ ] `mqtt.lan: true`: `per_listener_settings true` first; port 1883 on loopback without a
-      login; port 1884 for the network with a login, its password file owned by `mosquitto` and
-      readable by nobody else. The password is made with `mosquitto_passwd`, once, behind a
-      stamp file (its output differs every time)
-- [x] Turning it off: the service stopped and disabled, the settings and data kept (T6)
-
-Node-RED:
-
-- [ ] Node.js 24 from NodeSource (source, key and its fingerprint in `docs/provisioning.md`),
-      with an apt preference that keeps `nodejs` on NodeSource
-- [ ] `npm install -g --omit=dev node-red@<pinned>`, run only when that version is not there
-- [ ] A system user `nodered` in the groups for the serial ports, GPIO, I2C and SPI; its
-      directory `/var/lib/node-red`; our own `nodered.service`, with Node's memory capped at
-      256 MB
-- [ ] The login (`adminAuth`, a bcrypt hash made with the bcrypt that Node-RED brings) written
-      before the first start
-- [ ] The starter flow, copied only when there is none: a broker node on `localhost:1883` and a
-      debug node on `fiber/#`
-- [ ] The dashboard nodes, if D20 says so
-- [ ] In CI: after a converge only the expected ports listen; the editor asks for the login; a
-      second apply changes nothing
-
-Watch out: the installer script the old FIBER documentation names is gone (its address returns
-404), and its successor installs again on every run. Debian's own Node.js 20 is too old for
-Node-RED 5. What npm pulls in below Node-RED is not pinned, and the install takes minutes on
-eMMC.
-
-- Needs: T6.
-- Done when: `mosquitto_sub -t '#'` works on the FIBER; with the LAN listener only port 1884
-  answers from outside and asks for the password; Node-RED's editor asks for the login.
 
 #### T9. The `chirpstack` role
 
