@@ -6,10 +6,12 @@ mod apply;
 pub mod catalog;
 mod edit;
 pub mod file;
+mod lifecycle;
 pub mod results;
 mod seed;
 
 pub use apply::{apply, foreground as apply_foreground};
+pub use lifecycle::{rollback, uninstall, update};
 pub use seed::seed;
 
 use std::io::Write;

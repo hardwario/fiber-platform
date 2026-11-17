@@ -30,6 +30,16 @@ impl Paths {
         self.root == std::path::Path::new("/")
     }
 
+    /// The releases, `current` and `previous`.
+    pub fn opt_dir(&self) -> PathBuf {
+        self.under("/opt/fiber")
+    }
+
+    /// The link to `current`'s program, on the PATH.
+    pub fn bin_link(&self) -> PathBuf {
+        self.under("/usr/local/bin/fiber")
+    }
+
     /// The declared state: which components are wanted, and the settings.
     pub fn platform_file(&self) -> PathBuf {
         self.under("/etc/fiber/platform.yaml")

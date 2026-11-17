@@ -523,6 +523,42 @@ fn apply_once(paths: &Paths, request: &str) -> Result<u8> {
     })
 }
 
+/// Turns every component off, in the reverse order of `components.yaml`, whatever the file says
+/// (for `fiber platform uninstall`). Prints each step; returns whether all of them ended `ok`.
+pub fn turn_all_off(paths: &Paths, release: &Release) -> Result<bool> {
+    let catalog = Catalog::built_in()?;
+    let settings = Platform::read(&paths.platform_file(), &catalog)
+        .map(|p| p.settings)
+        .unwrap_or_default();
+    let steps: Vec<Step> = catalog
+        .components()
+        .iter()
+        .rev()
+        .map(|c| Step {
+            component: c.id.clone(),
+            roles: c.roles.clone(),
+            wanted: Wanted::Off,
+        })
+        .collect();
+    std::fs::create_dir_all(paths.platform_run_dir())?;
+    let log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(paths.platform_log())
+        .ok();
+    let mut runner = Ansible {
+        paths,
+        release,
+        settings,
+        log,
+        fail_on_purpose: Vec::new(),
+    };
+    let results = run_steps(&catalog, &steps, &mut runner, |_, result| {
+        println!("{}", result.line())
+    });
+    Ok(results.iter().all(|r| r.result == Outcome::Ok))
+}
+
 /// `fiber platform apply --foreground`: the apply itself, in this process. One at a time; a
 /// request that comes in while it runs makes it run again.
 pub fn foreground(paths: &Paths) -> Result<ExitCode> {

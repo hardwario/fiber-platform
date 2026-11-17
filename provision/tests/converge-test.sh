@@ -17,6 +17,9 @@
 #   9. ChirpStack: at no moment does its API answer to admin/admin; the seed's login works; Redis
 #      on loopback; the API key kept; the concentrator daemon and its udev rule there; a second
 #      apply changes nothing
+#  10. the footprint: every path the platform added is a package's, its own, or listed
+#  11. an update to a test release, a rollback, and an update to the current release
+#  12. an uninstall leaves only what packages own, and data
 set -euo pipefail
 
 say() { printf '\n### %s\n' "$*"; }
@@ -45,11 +48,20 @@ wait_for() {
     done
 }
 
+# Every path on the system but those that change on their own, sorted (the footprint test).
+snapshot() {
+    find / -xdev \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /tmp -o -path /var/tmp \
+        -o -path /var/cache -o -path /var/lib/apt/lists -o -path /var/log -o -path /dist -o -path /tests \
+        -o -path /srv -o -path /root -o -path /boot/firmware \) -prune -o -print | sort
+}
+
 VERSION=$(sed -n 's/^VERSION="\(.*\)"$/\1/p' /dist/install.sh)
 export FIBER_RELEASE_URL=http://127.0.0.1:8000
 (cd /dist && exec python3 -m http.server 8000 --bind 127.0.0.1 > /dev/null 2>&1) &
 wait_for 10 curl -fs -o /dev/null http://127.0.0.1:8000/install.sh || fail "the web server did not start"
 wait_for 60 systemctl is-system-running --quiet --wait || true
+# In /root, which the snapshot leaves out: systemd mounts a new /tmp while it starts.
+snapshot > /root/before.txt
 
 say "1. Install and apply, with a seed"
 mkdir -p /boot/firmware
@@ -230,6 +242,33 @@ say "9b. Apply again: nothing changes"
 fiber platform apply | tee /tmp/apply.out
 grep -q '^chirpstack: up, nothing changed$' /tmp/apply.out || fail "the second apply changed ChirpStack"
 
+say "10. The footprint: every path the platform added is a package's, its own, or listed"
+mount -o loop /tmp/boot.img /boot/firmware
+fiber platform enable base
+expect 10 fiber platform apply
+rm /run/fiber/platform/restart-needed
+snapshot > /root/after.txt
+python3 /tests/footprint-check.py /root/before.txt /root/after.txt /opt/fiber/current/provision/footprint.yaml ${FOOTPRINT_REPORT:+--report} ||
+    fail "the platform wrote paths that the footprint does not list"
+fiber platform disable base
+expect 10 fiber platform apply
+rm /run/fiber/platform/restart-needed
+umount /boot/firmware
+
+say "11. An update to a test release, and a rollback"
+export FIBER_RELEASES_URL=http://127.0.0.1:8000/test/releases
+FIBER_NO_REBOOT=1 fiber platform update | tee /tmp/update.out
+[ "$(readlink /opt/fiber/current)" = "releases/$VERSION-update-test" ] || fail "the update did not make the test release current"
+[ "$(readlink /opt/fiber/previous)" = "releases/$VERSION" ] || fail "the release before is not previous"
+grep -q "^Updating from release $VERSION to $VERSION-update-test" /tmp/update.out || fail "the update did not say what it does"
+fiber platform status | grep -q "^Release  $VERSION-update-test, " || fail "status does not show the test release"
+FIBER_NO_REBOOT=1 fiber platform rollback | tee /tmp/rollback.out
+[ "$(readlink /opt/fiber/current)" = "releases/$VERSION" ] || fail "the rollback did not go back"
+[ "$(readlink /opt/fiber/previous)" = "releases/$VERSION-update-test" ] || fail "the rollback did not keep the other release"
+grep -q '^Done' /tmp/rollback.out || fail "the rollback did not apply"
+fiber platform update --to "$VERSION" | grep -q "is the current one already" || fail "an update to the current release did something"
+unset FIBER_RELEASES_URL
+
 say "Turning ChirpStack, Node-RED and Mosquitto off stops them, and keeps their settings"
 fiber platform disable chirpstack node-red mosquitto
 expect 0 fiber platform apply
@@ -241,5 +280,16 @@ expect 0 fiber platform apply
 ! systemctl is-active --quiet nodered || fail "Node-RED still runs"
 [ -f /etc/mosquitto/conf.d/fiber.conf ] || fail "Mosquitto's settings are gone"
 [ -f /var/lib/node-red/settings.js ] || fail "Node-RED's settings are gone"
+
+say "12. An uninstall leaves only what packages own, and data"
+expect 1 fiber platform uninstall
+fiber platform uninstall --yes | tee /tmp/uninstall.out
+for gone in /opt/fiber /etc/fiber /var/lib/fiber /usr/local/bin/fiber /etc/systemd/system/fiber-platform-apply.service; do
+    [ ! -e "$gone" ] || fail "$gone is still there"
+done
+grep -q '^  sudo apt purge ' /tmp/uninstall.out || fail "the uninstall did not print how to purge the packages"
+snapshot > /root/uninstalled.txt
+python3 /tests/footprint-check.py /root/before.txt /root/uninstalled.txt /footprint.yaml --uninstalled ||
+    fail "the uninstall left paths behind"
 
 say "Every converge test passed"

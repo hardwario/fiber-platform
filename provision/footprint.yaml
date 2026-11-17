@@ -1,0 +1,52 @@
+# Every path the FIBER platform writes outside its own places (/opt/fiber, /etc/fiber,
+# /var/lib/fiber), for `fiber platform uninstall` and the footprint test (docs/provisioning.md,
+# "The footprint rule"). A file written anywhere else is named fiber-* or is a drop-in. The
+# converge test fails on a path the platform writes that is not here.
+#
+# For each path:
+#   path : the file or directory (a directory covers what is in it)
+#   by   : the component, or `platform` for the installer and the apply
+#   kind : file (the default) or directory: removed by an uninstall;
+#          data: kept by an uninstall, and named in what it prints;
+#          changed: a package's own file the platform rewrote; kept, and named
+schema: 1
+paths:
+  # The installer and the apply.
+  - {path: /usr/local/bin/fiber, by: platform}
+  - {path: /etc/systemd/system/fiber-platform-apply.service, by: platform}
+  - {path: /etc/systemd/system/multi-user.target.wants/fiber-platform-apply.service, by: platform}
+  - {path: /etc/avahi/services/fiber-platform.service, by: platform}
+  - {path: /var/log/fiber, by: platform, kind: directory}
+  - {path: /boot/firmware/fiber-platform-status.json, by: platform}
+  - {path: /boot/firmware/fiber-platform.log, by: platform}
+
+  # base. The block in config.txt is taken out by the role's `disable`.
+  - {path: /boot/firmware/overlays/fiber-ds2482.dtbo, by: base}
+  - {path: /boot/firmware/config.txt.fiber-original, by: base, kind: data}
+  - {path: /etc/modules-load.d/fiber.conf, by: base}
+
+  # mosquitto
+  - {path: /etc/mosquitto/conf.d/fiber.conf, by: mosquitto}
+  - {path: /etc/mosquitto/fiber-passwd, by: mosquitto}
+
+  # node-red. Node-RED itself is npm's, in /usr/lib/node_modules, not a Debian package's; its
+  # unit is named as Node-RED's own installer names it.
+  - {path: /etc/apt/keyrings/fiber-nodesource.asc, by: node-red}
+  - {path: /etc/apt/sources.list.d/fiber-nodesource.sources, by: node-red}
+  - {path: /etc/apt/preferences.d/fiber-nodesource, by: node-red}
+  - {path: /usr/lib/node_modules/node-red, by: node-red, kind: directory}
+  - {path: /usr/bin/node-red, by: node-red}
+  - {path: /usr/bin/node-red-pi, by: node-red}
+  - {path: /etc/systemd/system/nodered.service, by: node-red}
+  - {path: /etc/systemd/system/multi-user.target.wants/nodered.service, by: node-red}
+  - {path: /var/lib/node-red, by: node-red, kind: data}
+
+  # chirpstack
+  - {path: /etc/apt/keyrings/fiber-chirpstack.asc, by: chirpstack}
+  - {path: /etc/apt/sources.list.d/fiber-chirpstack.sources, by: chirpstack}
+  - {path: /etc/systemd/system/chirpstack-mqtt-forwarder.service.d, by: chirpstack, kind: directory}
+  - {path: /etc/systemd/system/fiber-concentratord.service, by: chirpstack}
+  - {path: /etc/udev/rules.d/99-fiber-rak5146.rules, by: chirpstack}
+  - {path: /etc/chirpstack/chirpstack.toml, by: chirpstack, kind: changed}
+  - {path: /etc/chirpstack-mqtt-forwarder/chirpstack-mqtt-forwarder.toml, by: chirpstack, kind: changed}
+  - {path: /var/lib/chirpstack, by: chirpstack, kind: data}

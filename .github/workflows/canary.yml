@@ -1,0 +1,46 @@
+# The weekly canary: converge every component against the live package sources (Debian,
+# NodeSource, npm, ChirpStack), as a new FIBER would today, and check the package sources' keys
+# that the roles carry. A source that breaks shows up here before it shows up on a FIBER.
+#
+# A failed run is shown on the Actions page and mailed to whoever last changed this schedule.
+# Opening an issue for it needs a job with write rights, which no workflow here has yet:
+# TASKS.md, D22.
+
+name: Canary
+
+on:
+  schedule:
+    - cron: '17 4 * * 1' # Mondays, 04:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # MUST equal `channel` in rust-toolchain.toml (ci.yml's `audit` job enforces it).
+  RUST_TOOLCHAIN: "1.99.1"
+
+jobs:
+  converge:
+    name: Converge every component against the live sources
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust (rust-toolchain.toml pin) + aarch64 musl
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master @ 2026-10-16
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: aarch64-unknown-linux-musl
+      - name: Install dtc
+        run: sudo apt-get install -y --no-install-recommends device-tree-compiler
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: 1.59.0
+      - name: The keys the roles carry are valid for 60 more days
+        run: just check-keys
+      - name: just check-converge
+        run: just check-converge

@@ -61,8 +61,14 @@ settings:
 
 **The footprint rule** stands in for a package manager's file list: every file written outside
 `/opt/fiber`, `/etc/fiber` and `/var/lib/fiber` is named `fiber-*` or sits in a drop-in directory,
-and is listed in `provision/footprint.yaml`. A CI test compares the filesystem before and after a
-converge and fails on anything that neither a Debian package nor the footprint accounts for.
+and is listed in `provision/footprint.yaml`, with the component that writes it and its kind:
+removed by an uninstall, or kept as data, or a package's own file the platform rewrote. The
+converge test compares the filesystem before the install and after a converge with every
+component, and fails on any new path that neither a Debian package (its file list, or what its
+scripts make) nor the platform's own places nor the footprint accounts for. After an uninstall
+it checks that only packages' paths and data are left. Two exceptions are written in the
+footprint as they are: Node-RED, installed by npm into `/usr/lib/node_modules`, and the
+`nodered.service` unit, named as Node-RED's own installer names it.
 
 ## Commands
 
@@ -73,7 +79,13 @@ version] | rollback | uninstall`. The ones that exist are described in [`cli.md`
 - `disable` stops and disables the services and keeps the data. Nothing is purged.
 - `update` fetches the target release's `install.sh`, verifies it and runs it: there is one
   installer. The new release is unpacked beside the old one and `current` moves only on success.
+  It finds the releases where GitHub serves their files (`releases/latest/download/`,
+  `releases/download/v<version>/`); `FIBER_RELEASES_URL` points elsewhere, for the tests.
 - `rollback` restores our binary, roles and units. It does not downgrade third-party packages.
+- `uninstall` turns every component off and removes the platform's files; data stays.
+- All three are tested in the converge test: an update to a test release
+  (`release.py --version`; the program in it still says its own version), a rollback, an update
+  to the current release (nothing happens), and an uninstall. Not run on a FIBER yet.
 
 ### How an apply runs
 

@@ -2,7 +2,8 @@
 
 `fiber` is the one program of the FIBER platform. This page describes its commands. What exists
 so far: `fiber version`, `fiber doctor`, and the `fiber platform` commands that read and change
-the choice of components, take the seed, and apply the choice. `apply` and the rest come with their tasks (`TASKS.md`, T6 and on).
+the choice of components, take the seed, apply the choice, and update, roll back and uninstall
+the platform. `apply` and the rest come with their tasks (`TASKS.md`, T6 and on).
 
 **Status:** tested on a computer, and in a bare Debian arm64 container in CI (no broker, no
 hardware, no settings). Not run on a FIBER yet.
@@ -178,6 +179,38 @@ Done.
 
 `--foreground` does the work in this process instead of the service; the service runs that, and
 so can a system without systemd.
+
+### `fiber platform update [--to <version>]`
+
+Installs a newer release with its own installer: there is one installer. Without `--to` it takes
+the newest release. It fetches the release's `install.sh` and `SHA256SUMS`, checks the one
+against the other, and runs the installer, which unpacks the release beside the current one,
+moves `current` to it and applies. It needs root.
+
+```
+$ sudo fiber platform update
+Updating from release 1.2.0 to 1.3.0, with its installer.
+...
+```
+
+The check proves that the installer is whole, not who made it: both come from the same place,
+GitHub's release page, over HTTPS. Its exit status is the installer's (0, 10, 20,
+[`provisioning.md`](provisioning.md)). A release that is current already is left alone.
+
+### `fiber platform rollback`
+
+Goes back to the release before (`previous`), and applies. It brings back our program, our roles
+and our units; it does not put packages from other sources or data back, and says so. The two
+releases change places, so a second rollback goes forward again. Exit status: the apply's.
+
+### `fiber platform uninstall --yes`
+
+Takes the FIBER platform off the system: every component is turned off (each role's `disable`),
+then every file of the footprint ([`provisioning.md`](provisioning.md)), `/etc/fiber` with the
+login, `/var/lib/fiber`, `/var/log/fiber`, `/usr/local/bin/fiber` and `/opt/fiber` are removed.
+The services' data stays; the command lists it, and prints, without running them, the commands
+that would take the packages from other sources and their data off too. Without `--yes` it only
+says what it would do.
 
 ### `fiber platform seed <file>`
 

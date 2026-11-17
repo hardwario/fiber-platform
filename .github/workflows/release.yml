@@ -1,0 +1,124 @@
+# Release the FIBER platform on a `vX.Y.Z` tag: the archive, the stamped installer and SHA256SUMS,
+# built from the tagged commit and tried in containers (docs/release.md).
+#
+# Dry run: start the workflow by hand on main (Actions > Release > Run workflow). It builds and
+# tries everything and uploads the files as a workflow artifact, skips the tag gate, and publishes
+# nothing. A tag cannot be moved, so a build that fails after tagging uses up its version: run it
+# by hand first after any change to the build.
+#
+# Publishing (a release on GitHub, uploaded to a draft first, with a provenance attestation) needs
+# a job with write rights, which no workflow here has yet: TASKS.md, D22.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # MUST equal `channel` in rust-toolchain.toml (ci.yml's `audit` job enforces it).
+  RUST_TOOLCHAIN: "1.99.1"
+
+jobs:
+  # The gate: only a tag that names the version of agent/Cargo.toml, on a commit of main whose CI
+  # went green, may release.
+  verify:
+    name: Verify the tag (version, on main, CI green)
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # read the CI runs of the tagged commit
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # origin/main, for the ancestry check
+          persist-credentials: false
+      - name: The tag is the version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' agent/Cargo.toml | head -n 1)"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::the tag v$tag is not the version in agent/Cargo.toml ($version)"
+            exit 1
+          fi
+      - name: The tagged commit is on main
+        run: |
+          sha="$(git rev-parse "${GITHUB_REF}^{commit}")"
+          if ! git merge-base --is-ancestor "$sha" refs/remotes/origin/main; then
+            echo "::error::$GITHUB_REF_NAME ($sha) is not on main; release only what landed on main"
+            exit 1
+          fi
+      # CI may still run when the tag comes right after the push to main: wait up to 60 minutes.
+      - name: CI went green on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha="$(git rev-parse "${GITHUB_REF}^{commit}")"
+          while :; do
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${sha}&per_page=100")"
+            ok="$(jq '[.workflow_runs[] | select(.conclusion == "success")] | length' <<< "$runs")"
+            pending="$(jq '[.workflow_runs[] | select(.status != "completed")] | length' <<< "$runs")"
+            total="$(jq '.workflow_runs | length' <<< "$runs")"
+            if [ "$ok" -gt 0 ]; then echo "CI went green on $sha"; break; fi
+            if [ "$total" -gt 0 ] && [ "$pending" -eq 0 ]; then
+              echo "::error::CI on $sha ended without success"
+              exit 1
+            fi
+            if [ "$total" -eq 0 ] && [ "$SECONDS" -gt 600 ]; then
+              echo "::error::no CI run for $sha; tag a commit that CI ran on"
+              exit 1
+            fi
+            if [ "$SECONDS" -gt 3600 ]; then echo "::error::waited 60 minutes for CI on $sha"; exit 1; fi
+            sleep 30
+          done
+
+  # The build, on arm64, where the release is also tried: the static program in a bare container,
+  # the installer in a container like Raspberry Pi OS.
+  build:
+    name: Build and try the release
+    needs: verify
+    if: always() && (needs.verify.result == 'success' || needs.verify.result == 'skipped')
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust (rust-toolchain.toml pin) + aarch64 musl
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master @ 2026-10-16
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: aarch64-unknown-linux-musl
+      - name: Install dtc
+        run: sudo apt-get install -y --no-install-recommends device-tree-compiler
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: 1.59.0
+      # No build cache: a release is built from nothing.
+      - name: just release
+        run: just release
+      - name: The same archive a second time
+        run: just check-release
+      - name: just check-container
+        run: just check-container
+      - name: just check-install
+        run: just check-install
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fiber-platform-release
+          path: |
+            dist/fiber-platform-*-linux-arm64.tar.gz
+            dist/install.sh
+            dist/SHA256SUMS
+          if-no-files-found: error

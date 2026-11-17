@@ -166,9 +166,13 @@ def main():
     parser.add_argument("--binary", type=pathlib.Path, required=True, help="the static arm64 `fiber`")
     parser.add_argument("--out", type=pathlib.Path, default=ROOT / "dist")
     parser.add_argument("--self-test", action="store_true", help="build twice and compare, keep nothing")
+    parser.add_argument(
+        "--version",
+        help="another version number, for a test release (the program in it still says its own)",
+    )
     args = parser.parse_args()
 
-    release_version = version()
+    release_version = args.version or version()
     commit = git("rev-parse", "HEAD")
     if git("status", "--porcelain"):
         commit += "-dirty"

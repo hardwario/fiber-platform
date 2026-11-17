@@ -49,10 +49,30 @@ build-fiber:
 release: build-fiber
     python3 provision/release.py --binary target/aarch64-unknown-linux-musl/release/fiber --out dist
 
+# For the update test: dist/test/releases/ as GitHub serves a release's files (download/v<version>/
+# and latest/download/), with this release and a test release `<version>-update-test`, the latest.
+# Build two releases for the update test.
+test-releases: build-fiber
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version=$(sed -n 's/^version = "\(.*\)"$/\1/p' agent/Cargo.toml | head -n 1)
+    rm -rf dist/test
+    for v in "$version" "$version-update-test"; do
+        python3 provision/release.py --binary target/aarch64-unknown-linux-musl/release/fiber \
+            --out "dist/test/releases/download/v$v" --version "$v" > /dev/null
+    done
+    mkdir -p dist/test/releases/latest
+    cp -r "dist/test/releases/download/v$version-update-test" dist/test/releases/latest/download
+
 # Builds the release twice and compares the bytes; keeps nothing.
 # Check that the release archive is the same in every build.
 check-release: build-fiber
     python3 provision/release.py --binary target/aarch64-unknown-linux-musl/release/fiber --self-test
+
+# Needs gpg. The weekly canary runs it (.github/workflows/canary.yml).
+# Check that the package sources' keys the roles carry can sign for 60 more days.
+check-keys:
+    python3 provision/tests/keys-check.py
 
 # Every shell script of the repository.
 # Run shellcheck on the shell scripts.
@@ -79,13 +99,14 @@ lint-ansible:
 # Needs Docker on an arm64 machine and the internet (the roles install from Debian). The container
 # runs systemd, privileged, so that services start in it as on a FIBER.
 # Run the converge test: install, apply, apply again, without network, with a role made to fail.
-check-converge: release
+check-converge: release test-releases
     docker build --platform linux/arm64 -q -t fiber-platform-test-systemd -f provision/tests/Containerfile.systemd provision/tests
     docker rm -f fiber-platform-converge > /dev/null 2>&1 || true
     docker run -d --name fiber-platform-converge --platform linux/arm64 --privileged --cgroupns=host \
         -v /sys/fs/cgroup:/sys/fs/cgroup:rw --tmpfs /run --tmpfs /run/lock \
         -v "{{justfile_directory()}}/dist:/dist:ro" \
         -v "{{justfile_directory()}}/provision/tests:/tests:ro" \
+        -v "{{justfile_directory()}}/provision/footprint.yaml:/footprint.yaml:ro" \
         fiber-platform-test-systemd > /dev/null
     docker exec fiber-platform-converge bash /tests/converge-test.sh; status=$?; docker rm -f fiber-platform-converge > /dev/null; exit $status
 

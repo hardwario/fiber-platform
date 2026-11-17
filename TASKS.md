@@ -139,10 +139,10 @@ eMMC.
 
 ### T9. The `chirpstack` role (M1)
 
-State (2026-11-18): the role passes the converge test on the maintainer's computer: the API never
-answers to admin/admin during the apply, the seed's login works, Redis listens on loopback only,
-the API key is kept, the concentrator daemon and its udev rule are there, a second apply changes
-nothing. Next: the push and CI; then the task waits for a FIBER with a card (and T2). Tried
+State (2026-11-18): waiting for a FIBER with a card (and T2). Everything else is done, commit
+`26a78d0`, and its CI run (44197050069) is green: the API never answers to admin/admin during the
+apply, the seed's login works, Redis listens on loopback only, the API key is kept, the
+concentrator daemon and its udev rule are there, a second apply changes nothing. Tried
 first in a container with ChirpStack 4.20.0's own arm64 binary: `set-password --password-file`
 and `create-api-key` work before the first start, as the user `chirpstack`; `--stdin` wants a
 terminal. Settled: ChirpStack's user stays `admin` (its command line can only set the password
@@ -172,7 +172,7 @@ gateway.
       daemon is always installed with the component, never "when a card is there": the card can
       appear long after the start
 - [x] The MQTT forwarder on the local broker, with the same topic prefix as the region
-- [ ] In CI: at no moment does a socket answer with admin/admin; a second apply changes nothing
+- [x] In CI: at no moment does a socket answer with admin/admin; a second apply changes nothing
 - [ ] On a FIBER with the card: the gateway shows uplinks in ChirpStack
 
 Watch out: the package would otherwise start at once on `0.0.0.0:8080` with admin/admin. Its
@@ -182,6 +182,68 @@ The card is fed from the battery rail and goes away when the battery is low.
 
 - Needs: T6, T8; T2 (the level on mini-PCIe pin 22) for the part with a card.
 - Done when: the CI checks pass, and a FIBER with a card shows uplinks.
+
+### T10. Update, rollback, uninstall (M1)
+
+State (2026-11-18): built, and the converge test passes on the maintainer's computer with all of
+it: the footprint accounts for every one of the 20575 new paths of a converge with every
+component; an update to a test release, a rollback and an update to the current release work;
+after an uninstall only what packages own, and data, is left. Next: the push and CI. Settled:
+`update` fetches with `curl` (no HTTP client in the program); releases are found where GitHub
+serves their files, `FIBER_RELEASES_URL` points elsewhere for the tests; a test release with
+another version number comes from `release.py --version`; the footprint check knows what
+packages' scripts and services make (their `rc?.d` links, alias links, their own data). Found on
+the way: Debian trixie mounts a new `/tmp` while systemd starts, so the test keeps its snapshots
+in `/root`; the test image has `/etc/udev/rules.d`, as Raspberry Pi OS has.
+
+What a package manager would do for us, done by hand and tested.
+
+- [x] `provision/footprint.yaml`: every file the platform writes outside `/opt/fiber`,
+      `/etc/fiber` and `/var/lib/fiber`, with the component that writes it, data marked as data
+- [x] The footprint test, in the converge test: the filesystem before the install and after a
+      converge with every component; anything new that neither a Debian package owns nor the
+      footprint lists fails the test
+- [x] `fiber platform update [--to version]`: finds the release, fetches its `install.sh`,
+      checks it against the release's checksums and runs it. There is one installer
+- [x] `fiber platform rollback`: `current` goes back to `previous`, then an apply. It brings
+      back our program, roles and units; it does not put third-party packages or data back, and
+      says so
+- [x] `fiber platform uninstall`: every component off, each role's `disable` run, the footprint
+      and `/opt/fiber` removed; the commands that would purge the third-party packages and their
+      data are printed, not run. It asks for `--yes`
+- [x] `docs/cli.md` and `docs/provisioning.md`
+- [x] In the converge test: an update to a test release and back; after an uninstall only files
+      that a Debian package owns, and data, are left
+
+- Needs: T6.
+- Done when: an update to a test release and back works in the container; after an uninstall
+  only files that a Debian package owns, and data, are left.
+
+### T11. Releases and the weekly canary (M1)
+
+State (2026-11-18): the read-only parts are written: `release.yml` (the gate, the build, the
+second build compared, the program and the installer tried in containers, the files kept as an
+artifact; a run by hand is the dry run), `canary.yml` (every component converged against the
+live sources, and the keys checked: `just check-keys`) and `docs/release.md`. Publishing a
+release and opening an issue need write rights, which `AGENTS.md` forbids: waiting for D22. Next:
+the push, then a dry run and a canary run, started by hand.
+
+- [ ] `.github/workflows/release.yml`: on a tag `vX.Y.Z` that matches the version, on a commit
+      of `main` with green CI. It builds the static `fiber`, the archive, the stamped
+      `install.sh`, `SHA256SUMS` and a provenance attestation, tries the archive in a container,
+      and publishes a release that cannot be changed afterwards (everything is uploaded to a
+      draft first). Written without the publishing and the attestation (waiting for D22)
+- [ ] The same workflow run by hand builds everything and publishes nothing
+- [ ] `.github/workflows/canary.yml`, weekly: converge every component against the live package
+      sources, open an issue when one breaks (waiting for D22), and warn when a key we carry is
+      about to expire
+- [x] `docs/release.md`: the steps of a release
+
+Watch out: a tag cannot be moved, so a release whose build fails uses up its version. Run the
+workflow by hand first after any change to the build.
+
+- Needs: T5, T6.
+- Done when: a dry run of a release passes, and the canary has run once.
 
 ## Tasks ahead
 
@@ -233,45 +295,6 @@ STM32C0 keeps BOOT0 low until the next power-on, so do not mix a debug probe int
 Done when: a FIBER written with every box ticked reaches `state=ok` by itself, also on a network
 that blocks NTP; a second `apply` changes nothing; no service ever answers with a default
 password; update and rollback work.
-
-#### T10. Update, rollback, uninstall
-
-What a package manager would do for us, done by hand and tested.
-
-- [ ] `provision/footprint.yaml`: every file the platform writes outside `/opt/fiber`,
-      `/etc/fiber` and `/var/lib/fiber`
-- [ ] The footprint test in CI: the filesystem before and after a converge; anything new that
-      neither a Debian package owns nor the footprint lists fails the test
-- [ ] `fiber platform update [--to version]`: finds the release, fetches its `install.sh`,
-      checks it against the release's checksums and runs it. There is one installer
-- [ ] `fiber platform rollback`: `current` goes back to `previous`, then an apply. It brings
-      back our program, roles and units; it does not put third-party packages or data back, and
-      says so
-- [ ] `fiber platform uninstall`: every component off, each role's `disable` run, the footprint
-      and `/opt/fiber` removed; the commands that would purge the third-party packages and their
-      data are printed, not run
-
-- Needs: T6.
-- Done when: an update to a test release and back works in the container; after an uninstall
-  only files that a Debian package owns, and data, are left.
-
-#### T11. Releases and the weekly canary
-
-- [ ] `.github/workflows/release.yml`: on a tag `vX.Y.Z` that matches the version, on a commit
-      of `main` with green CI. It builds the static `fiber`, the archive, the stamped
-      `install.sh`, `SHA256SUMS` and a provenance attestation, tries the archive in a container,
-      and publishes a release that cannot be changed afterwards (everything is uploaded to a
-      draft first)
-- [ ] The same workflow run by hand builds everything and publishes nothing
-- [ ] `.github/workflows/canary.yml`, weekly: converge every component against the live package
-      sources, open an issue when one breaks, and warn when a key we carry is about to expire
-- [ ] `docs/release.md`: the steps of a release
-
-Watch out: a tag cannot be moved, so a release whose build fails uses up its version. Run the
-workflow by hand first after any change to the build.
-
-- Needs: T5, T6.
-- Done when: a dry run of a release passes, and the canary has run once.
 
 #### T12. FIBER Setup: the component picker
 
@@ -1051,6 +1074,21 @@ only the one file.
 
 Recommendation: (a), and close pull request #1. Blocks nothing. Until it is answered, the pull
 request stays open and red.
+
+### D22. May the release and the canary workflows write?
+
+`AGENTS.md` says that the workflows may only read the repository, and that no workflow gets more
+rights. T11 needs two things that write: publishing a release (`contents: write`, and
+`id-token: write` with `attestations: write` for the provenance attestation), and the canary
+opening an issue when a package source breaks (`issues: write`).
+
+- (a) As TOWER does it: one job of `release.yml` that gets those rights, runs only on a tag that
+  passed the gate (the version, on `main`, CI green), and uploads to a draft first; and one job
+  of `canary.yml` with `issues: write`. `AGENTS.md` names these two jobs as the exceptions.
+- (b) No workflow writes. A person publishes a release by hand from the dry run's artifact
+  (`gh release create`), and reads the canary's failures on the Actions page.
+
+Recommendation: (a). Blocks the last step of T11. Everything else of T11 is written read-only.
 
 ## Decisions done
 

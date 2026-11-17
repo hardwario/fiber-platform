@@ -9,6 +9,7 @@ says only what the directory is and how to build it.
 | [`architecture.md`](architecture.md) | The pieces, the repository layout, the agent, both firmwares, the two radio stacks |
 | [`provisioning.md`](provisioning.md) | Components, the state file, the release archive, the `config.txt` block, package sources |
 | [`cli.md`](cli.md) | The `fiber` command line: its commands and their exit statuses |
+| [`release.md`](release.md) | How a release is made, and the weekly canary |
 | [`bench-checks.md`](bench-checks.md) | What must be confirmed on a real FIBER first, how, and the results |
 
 To come, each written before the code it describes: `mqtt-api.md` (the agent's MQTT interface),

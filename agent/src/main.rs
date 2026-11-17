@@ -81,6 +81,20 @@ enum PlatformCommand {
         #[arg(long)]
         foreground: bool,
     },
+    /// Install a newer release (the newest, or the one named) with its own installer.
+    Update {
+        /// The release to install, as in 1.2.0.
+        #[arg(long, value_name = "VERSION")]
+        to: Option<String>,
+    },
+    /// Go back to the release before, and apply it.
+    Rollback,
+    /// Take the FIBER platform off this system. The services' data stays.
+    Uninstall {
+        /// Yes, really.
+        #[arg(long)]
+        yes: bool,
+    },
     /// Take the choice and the login from a seed file written by FIBER Setup. Writes
     /// /etc/fiber/platform.yaml and the login only where they are not there yet.
     Seed {
@@ -106,6 +120,9 @@ fn main() -> ExitCode {
             PlatformCommand::Seed { file } => platform::seed(&paths, &file),
             PlatformCommand::Apply { foreground: true } => platform::apply_foreground(&paths),
             PlatformCommand::Apply { foreground: false } => platform::apply(&paths),
+            PlatformCommand::Update { to } => platform::update(&paths, to.as_deref()),
+            PlatformCommand::Rollback => platform::rollback(&paths),
+            PlatformCommand::Uninstall { yes } => platform::uninstall(&paths, yes),
         },
     };
     match result {
