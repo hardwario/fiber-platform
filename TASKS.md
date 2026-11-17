@@ -183,57 +183,20 @@ The card is fed from the battery rail and goes away when the battery is low.
 - Needs: T6, T8; T2 (the level on mini-PCIe pin 22) for the part with a card.
 - Done when: the CI checks pass, and a FIBER with a card shows uplinks.
 
-### T10. Update, rollback, uninstall (M1)
-
-State (2026-11-18): built, and the converge test passes on the maintainer's computer with all of
-it: the footprint accounts for every one of the 20575 new paths of a converge with every
-component; an update to a test release, a rollback and an update to the current release work;
-after an uninstall only what packages own, and data, is left. Next: the push and CI. Settled:
-`update` fetches with `curl` (no HTTP client in the program); releases are found where GitHub
-serves their files, `FIBER_RELEASES_URL` points elsewhere for the tests; a test release with
-another version number comes from `release.py --version`; the footprint check knows what
-packages' scripts and services make (their `rc?.d` links, alias links, their own data). Found on
-the way: Debian trixie mounts a new `/tmp` while systemd starts, so the test keeps its snapshots
-in `/root`; the test image has `/etc/udev/rules.d`, as Raspberry Pi OS has.
-
-What a package manager would do for us, done by hand and tested.
-
-- [x] `provision/footprint.yaml`: every file the platform writes outside `/opt/fiber`,
-      `/etc/fiber` and `/var/lib/fiber`, with the component that writes it, data marked as data
-- [x] The footprint test, in the converge test: the filesystem before the install and after a
-      converge with every component; anything new that neither a Debian package owns nor the
-      footprint lists fails the test
-- [x] `fiber platform update [--to version]`: finds the release, fetches its `install.sh`,
-      checks it against the release's checksums and runs it. There is one installer
-- [x] `fiber platform rollback`: `current` goes back to `previous`, then an apply. It brings
-      back our program, roles and units; it does not put third-party packages or data back, and
-      says so
-- [x] `fiber platform uninstall`: every component off, each role's `disable` run, the footprint
-      and `/opt/fiber` removed; the commands that would purge the third-party packages and their
-      data are printed, not run. It asks for `--yes`
-- [x] `docs/cli.md` and `docs/provisioning.md`
-- [x] In the converge test: an update to a test release and back; after an uninstall only files
-      that a Debian package owns, and data, are left
-
-- Needs: T6.
-- Done when: an update to a test release and back works in the container; after an uninstall
-  only files that a Debian package owns, and data, are left.
-
 ### T11. Releases and the weekly canary (M1)
 
-State (2026-11-18): the read-only parts are written: `release.yml` (the gate, the build, the
-second build compared, the program and the installer tried in containers, the files kept as an
-artifact; a run by hand is the dry run), `canary.yml` (every component converged against the
-live sources, and the keys checked: `just check-keys`) and `docs/release.md`. Publishing a
-release and opening an issue need write rights, which `AGENTS.md` forbids: waiting for D22. Next:
-the push, then a dry run and a canary run, started by hand.
+State (2026-11-18): waiting for D22 for the publishing, the attestation and the canary's issue; the
+"Done when" is met. A dry run of `release.yml` passed (44200461354): the release built, built a
+second time and compared, the program and the installer tried in containers, the files kept as
+an artifact. The canary ran once and passed (44200466387): every component converged against the
+live sources, and the keys checked (`just check-keys`). `docs/release.md` is written.
 
 - [ ] `.github/workflows/release.yml`: on a tag `vX.Y.Z` that matches the version, on a commit
       of `main` with green CI. It builds the static `fiber`, the archive, the stamped
       `install.sh`, `SHA256SUMS` and a provenance attestation, tries the archive in a container,
       and publishes a release that cannot be changed afterwards (everything is uploaded to a
       draft first). Written without the publishing and the attestation (waiting for D22)
-- [ ] The same workflow run by hand builds everything and publishes nothing
+- [x] The same workflow run by hand builds everything and publishes nothing
 - [ ] `.github/workflows/canary.yml`, weekly: converge every component against the live package
       sources, open an issue when one breaks (waiting for D22), and warn when a key we carry is
       about to expire
@@ -295,6 +258,50 @@ The one contract between the agent and the firmware, built by both from the same
 
 - Needs: T13.
 - Done when: the tests pass and both microcontroller targets build.
+
+### T15. `fiber-flasher` (M2)
+
+State (2026-11-18): waiting for a FIBER (T2) for its last step. `crates/flasher` is built and its
+11 tests pass against the simulated chip: the image written and started; another chip, readout
+protection and a bad image refused before anything is erased; three attempts with BOOT0 held
+longer; a write cut short by a power cut leaves the chip waiting in its bootloader, and the next
+write puts it right; a reset after a first write lands in the bootloader again (why it leaves
+through `Go`); a byte that reads back wrong stops it before the vector table; the port lock.
+Settled: the crate is the engine, behind two traits (the serial port and the two lines); the
+adapters to the real serial port and GPIO lines come with the agent (T17), which owns them.
+
+Writing a microcontroller's firmware from the CM4, in a way that cannot leave it dead.
+
+- [x] The chips: product id `0x453` (STM32C031, 16 pages of 2 KB) and `0x497` (STM32WL55, 128
+      pages of 2 KB). Any other id is refused before anything is erased
+- [x] The reset lines behind a trait: NRST is pulled low or let go, never driven high; BOOT0 is
+      driven. Entering the bootloader is tried a few times, holding BOOT0 longer each time
+- [x] The serial port: 115200 baud with even parity for the bootloader, and back to no parity
+      for the firmware
+- [x] The commands: Get, Get ID, Read Memory, Write Memory (at most 256 bytes, in multiples of
+      8), Extended Erase by a list of pages, Go. No mass erase
+- [x] The image is checked before anything is erased: its size, where its stack starts, where
+      its reset vector points
+- [x] The block with the vector table is written last, after everything else was read back and
+      compared. A flash that is cut short then leaves a chip that waits in its bootloader, not
+      one that starts half a program
+- [x] It leaves through `Go`, not through a reset: after a first flash the chip still believes
+      its memory is empty and a reset lands in the bootloader again
+- [x] The option bytes are read and reported (`nBOOT_SEL`, `nSWBOOT0`, readout protection), and
+      a chip with readout protection is refused. The flasher never writes them
+- [x] Progress is reported to the caller, nothing is printed; an error type of its own
+- [x] A simulated bootloader for the tests that models the two lines, the "empty" flag, and the
+      refusals a real one gives
+- [x] A lock, so that a command run by hand keeps off a serial port the agent is using
+- [ ] On a FIBER: both chips' identity is read; a test image is written to the south bridge and
+      verified; the same with the power cut in the middle, then recovered
+
+Watch out: a write of the STM32C0's option bytes that is cut short can leave the chip with
+readout protection on and its bootloader out of reach, which only SWD can undo. That is why only
+the south bridge firmware changes them, once (T16).
+
+- Needs: T2 (the bootloaders answer).
+- Done when: the three steps on a FIBER pass.
 
 ## Tasks ahead
 
@@ -394,41 +401,6 @@ password also opens services on the network.
 
 Done when: a unit with the earlier south bridge firmware is flashed by the agent on its own; a
 power cut in the middle of flashing recovers; stopping the agent shows the fallback LED pattern.
-
-#### T15. `fiber-flasher`
-
-Writing a microcontroller's firmware from the CM4, in a way that cannot leave it dead.
-
-- [ ] The chips: product id `0x453` (STM32C031, 16 pages of 2 KB) and `0x497` (STM32WL55, 128
-      pages of 2 KB). Any other id is refused before anything is erased
-- [ ] The reset lines behind a trait: NRST is pulled low or let go, never driven high; BOOT0 is
-      driven. Entering the bootloader is tried a few times, holding BOOT0 longer each time
-- [ ] The serial port: 115200 baud with even parity for the bootloader, and back to no parity
-      for the firmware
-- [ ] The commands: Get, Get ID, Read Memory, Write Memory (at most 256 bytes, in multiples of
-      8), Extended Erase by a list of pages, Go. No mass erase
-- [ ] The image is checked before anything is erased: its size, where its stack starts, where
-      its reset vector points
-- [ ] The block with the vector table is written last, after everything else was read back and
-      compared. A flash that is cut short then leaves a chip that waits in its bootloader, not
-      one that starts half a program
-- [ ] It leaves through `Go`, not through a reset: after a first flash the chip still believes
-      its memory is empty and a reset lands in the bootloader again
-- [ ] The option bytes are read and reported (`nBOOT_SEL`, `nSWBOOT0`, readout protection), and
-      a chip with readout protection is refused. The flasher never writes them
-- [ ] Progress is reported to the caller, nothing is printed; an error type of its own
-- [ ] A simulated bootloader for the tests that models the two lines, the "empty" flag, and the
-      refusals a real one gives
-- [ ] A lock, so that a command run by hand keeps off a serial port the agent is using
-- [ ] On a FIBER: both chips' identity is read; a test image is written to the south bridge and
-      verified; the same with the power cut in the middle, then recovered
-
-Watch out: a write of the STM32C0's option bytes that is cut short can leave the chip with
-readout protection on and its bootloader out of reach, which only SWD can undo. That is why only
-the south bridge firmware changes them, once (T16).
-
-- Needs: T2 (the bootloaders answer).
-- Done when: the three steps on a FIBER pass.
 
 #### T16. The south bridge firmware
 
@@ -1036,6 +1008,41 @@ Every `command` task has `creates` or a real `changed_when`, or the second run i
 
 - Needs: T5.
 - Done when: the three converge tests pass in CI.
+
+### T10. Update, rollback, uninstall (M1)
+
+Done 2026-11-18, commits `a054cde` and `256b9e4`. Checked: the CI run of `256b9e4` (44200429368) is
+green with the converge test: the footprint accounts for every new path of a converge with every
+component; an update to a test release, a rollback and an update to the current release; after
+an uninstall only what packages own, and data, is left. The weekly canary ran it against the live
+sources too (44200466387). Settled on the way: `update` fetches with `curl`; releases are found
+where GitHub serves their files, `FIBER_RELEASES_URL` for the tests; a test release comes from
+`release.py --version`; the footprint check knows what packages' scripts and services make. Found
+on the way: Debian trixie mounts a new `/tmp` while systemd starts; the installer test copied the
+update test's releases too, which it no longer does. Not run on a FIBER yet.
+
+What a package manager would do for us, done by hand and tested.
+
+- [x] `provision/footprint.yaml`: every file the platform writes outside `/opt/fiber`,
+      `/etc/fiber` and `/var/lib/fiber`, with the component that writes it, data marked as data
+- [x] The footprint test, in the converge test: the filesystem before the install and after a
+      converge with every component; anything new that neither a Debian package owns nor the
+      footprint lists fails the test
+- [x] `fiber platform update [--to version]`: finds the release, fetches its `install.sh`,
+      checks it against the release's checksums and runs it. There is one installer
+- [x] `fiber platform rollback`: `current` goes back to `previous`, then an apply. It brings
+      back our program, roles and units; it does not put third-party packages or data back, and
+      says so
+- [x] `fiber platform uninstall`: every component off, each role's `disable` run, the footprint
+      and `/opt/fiber` removed; the commands that would purge the third-party packages and their
+      data are printed, not run. It asks for `--yes`
+- [x] `docs/cli.md` and `docs/provisioning.md`
+- [x] In the converge test: an update to a test release and back; after an uninstall only files
+      that a Debian package owns, and data, are left
+
+- Needs: T6.
+- Done when: an update to a test release and back works in the container; after an uninstall
+  only files that a Debian package owns, and data, are left.
 
 ## Decisions ahead
 

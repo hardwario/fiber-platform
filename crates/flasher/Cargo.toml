@@ -1,0 +1,11 @@
+[package]
+name = "fiber-flasher"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Writes the firmware of the FIBER's two STM32s through their ROM UART bootloader (ST AN3155), so that a write cut short leaves a chip waiting in its bootloader, never half a program. With a simulated chip for the tests."
+
+[lints]
+workspace = true

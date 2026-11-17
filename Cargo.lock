@@ -285,6 +285,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "fiber-flasher"
+version = "0.1.0"
+
+[[package]]
 name = "fiber-protocol"
 version = "0.1.0"
 dependencies = [
