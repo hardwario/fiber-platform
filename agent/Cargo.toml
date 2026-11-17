@@ -1,0 +1,26 @@
+[package]
+name = "fiber-agent"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The HARDWARIO FIBER on-device software in one binary, `fiber`: the platform tool that applies the chosen components, the agent that presents the board over MQTT, and the command line to query and command it."
+
+[[bin]]
+name = "fiber"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+clap.workspace = true
+# The radio application schema of TOWER nodes (their messages, property tables and schema tag),
+# at the pinned TOWER revision: the agent decodes what the north bridge forwards untouched.
+tower-protocol.workspace = true
+
+[dev-dependencies]
+# The 1-bit framebuffer, fonts and menus the front panel will draw with (milestone M4). Only a
+# test uses it so far: it pins the frame type of the 128 x 64 LCD.
+tower-hmi.workspace = true

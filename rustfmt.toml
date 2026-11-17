@@ -1,0 +1,4 @@
+# House style for the whole repository (rustfmt finds this file by walking up from each source
+# file, so the firmware workspaces use it too). The same 110 columns as the TOWER monorepo, whose
+# crates this one builds on. Stable options only: the toolchain is a pinned stable release.
+max_width = 110

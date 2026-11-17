@@ -1,0 +1,103 @@
+# CI for the HARDWARIO FIBER platform.
+#
+# One Cargo workspace so far: the HOST workspace at the root (crates/*, agent). The two firmware
+# workspaces (firmware/south, firmware/north) get jobs of their own when they exist. There is no
+# hardware in CI.
+#
+# `just check` runs the same gates locally.
+#
+# Supply chain: every action is pinned to a full commit SHA (the comment names the release;
+# Dependabot keeps them current), the workflow token is read-only, checkouts don't persist it,
+# every cargo invocation is `--locked` to the committed Cargo.lock, and RustSec advisories are
+# checked (`audit`).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Cancel superseded runs of a pull request. Every commit pushed to main gets its own group, so
+# its run always finishes: a release needs a successful CI run on the exact commit it tags.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # MUST equal `channel` in rust-toolchain.toml (the `audit` job enforces it), so CI builds with
+  # exactly the toolchain a local checkout uses. Bump both together.
+  RUST_TOOLCHAIN: "1.99.1"
+
+jobs:
+  # 1. The host workspace: the shared crates and the `fiber` binary.
+  host:
+    name: host workspace (fmt, clippy, test, no_std build, rustdoc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust (rust-toolchain.toml pin) + thumbv7em
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master @ 2026-10-16
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: thumbv6m-none-eabi, thumbv7em-none-eabi
+          components: rustfmt, clippy, llvm-tools
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: 1.59.0
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+      - name: clippy (-D warnings)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: test
+        run: cargo test --workspace --locked
+      # The pinned TOWER kernels and our own no_std crates must build for the north bridge
+      # (STM32WL55, Cortex-M4 without FPU) on their own.
+      - name: no_std build of the shared crates (thumbv7em)
+        run: cargo build --locked --target thumbv7em-none-eabi -p fiber-tower-air
+      - name: rustdoc (-D warnings)
+        run: cargo doc --locked --no-deps --workspace
+        env:
+          RUSTDOCFLAGS: -D warnings
+      # The bench scripts' protocol code, against a fake ROM bootloader on a pseudo-terminal.
+      - name: bench scripts self-test (no hardware)
+        run: just check-hil
+      # AGENTS.md, "Writing style".
+      - name: no long dashes
+        run: just no-dashes
+
+  # 2. RustSec advisories for the lockfile, and the toolchain pin. Vulnerabilities fail the job;
+  #    informational warnings (unmaintained / unsound / yanked) are printed but do not.
+  audit:
+    name: cargo audit (RustSec)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: CI toolchain == rust-toolchain.toml
+        run: |
+          want="$(sed -n 's/^channel *= *"\(.*\)".*/\1/p' rust-toolchain.toml)"
+          for wf in .github/workflows/*.yml; do
+            if ! grep -q "RUST_TOOLCHAIN: \"$want\"" "$wf"; then
+              echo "::error::$wf does not set RUST_TOOLCHAIN \"$want\" (rust-toolchain.toml); bump every workflow together"
+              exit 1
+            fi
+          done
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: cargo-audit@0.22.2
+      # `cargo-audit audit`, not `cargo audit`: it only reads the lockfile, so no toolchain is
+      # needed (the `cargo` proxy would otherwise resolve rust-toolchain.toml).
+      - name: cargo audit
+        run: cargo-audit audit

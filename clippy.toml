@@ -1,0 +1,4 @@
+# The workspace denies `unwrap` and `expect` (Cargo.toml, [workspace.lints.clippy]): a daemon
+# that owns the board must not die on a recoverable error. Tests may use both.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

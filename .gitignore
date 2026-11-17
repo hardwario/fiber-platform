@@ -1,0 +1,21 @@
+# Build output: the host workspace (root) and the two firmware workspaces.
+/target
+/firmware/*/target
+
+# Release archives staged by the release build.
+/fiber-platform-v*
+
+# Python tooling (bench scripts).
+__pycache__/
+*.pyc
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Claude Code agent worktrees (temporary checkouts)
+.claude/worktrees/

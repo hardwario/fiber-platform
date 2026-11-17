@@ -1,0 +1,46 @@
+# HARDWARIO FIBER platform: the HOST workspace.
+#
+# Naming rule: the directory `crates/X` holds the package `fiber-X` (short directories, prefixed
+# packages). `agent/` is `fiber-agent` (the `fiber` binary).
+#
+# `firmware/south` and `firmware/north` are deliberately NOT members: each is its own workspace,
+# built for its MCU target with the linker and size-tuned profiles of its own `.cargo/config.toml`,
+# which only apply when cargo runs inside that directory. They depend on `crates/*` by path, so the
+# firmware and the agent compile against the one `crates/protocol` source tree.
+[workspace]
+members = ["crates/*", "agent"]
+exclude = ["firmware"]
+resolver = "3"
+
+# Inherited by every member (`edition.workspace = true`, ...). `version` stays per crate.
+[workspace.package]
+edition = "2024"
+rust-version = "1.99.1"
+license = "MIT"
+repository = "https://github.com/hardwario/fiber-platform"
+
+[workspace.dependencies]
+# THE TOWER PIN. The hardware-free crates of the TOWER radio stack, at ONE revision of
+# github.com/hardwario/tower. Nothing else in this repository names a TOWER revision: the north
+# firmware's manifest must repeat exactly this `rev` (CI checks that they are equal), and the
+# `fiber` binary reports it (`fiber version --all`).
+#
+# TOWER promises no wire compatibility between revisions, so the radio of a FIBER is "compatible
+# with TOWER nodes built from this revision". Moving the pin is a task of its own, with the drift
+# report and the bench interop run of docs/architecture.md ("Two radio stacks").
+tower-net = { git = "https://github.com/hardwario/tower", rev = "cb3b25c2448ff63d493a5faddc9238f1fa5cfe87" }
+tower-radio = { git = "https://github.com/hardwario/tower", rev = "cb3b25c2448ff63d493a5faddc9238f1fa5cfe87" }
+tower-protocol = { git = "https://github.com/hardwario/tower", rev = "cb3b25c2448ff63d493a5faddc9238f1fa5cfe87" }
+tower-hmi = { git = "https://github.com/hardwario/tower", rev = "cb3b25c2448ff63d493a5faddc9238f1fa5cfe87" }
+
+# Third-party crates shared by several members.
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+
+# Opted into by every member with `[lints] workspace = true` (the same rules as FIBER Setup).
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
