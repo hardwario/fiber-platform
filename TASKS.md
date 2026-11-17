@@ -891,9 +891,8 @@ Debian arm64 container with no broker, no hardware and no settings (job `contain
 checked, because it needs a board: nothing of it has run on a FIBER. Settled on the way:
 `serde-saphyr` reads the YAML; `components.yaml` is compiled into the program; `enable` and
 `disable` change only the lines under `components:`; `--root` (hidden) is for the tests;
-`status` reads `/var/lib/fiber/platform/results.json`, which T6 writes. Locally, Docker Desktop
-does not start (its disk image `Docker.raw` is owned by root); `sudo chown $USER` on it would let
-`just check-container` run on the maintainer's computer.
+`status` reads `/var/lib/fiber/platform/results.json`, which T6 writes. `just check-container`
+passes on the maintainer's computer too (2026-11-17).
 
 The file that holds the choice, and the first commands that read and change it. No Ansible yet.
 
