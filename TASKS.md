@@ -35,70 +35,56 @@ is done, long before the rest of M5.
 
 ## Tasks in progress
 
-### T6. `fiber platform apply` (M1)
+### T7. The `base` role and `fiber doctor` (M1)
 
-State (2026-11-17): built; the converge test, the installer tests, the role lint and `just check`
-pass on the maintainer's computer. Next: the push, and CI's `arm64` job running the converge test
-too. Settled on the way: the program runs `ansible-playbook` once per step (`common`, then every
-component), and a step's result is its run's exit status; the plan had one run with a block
-and a rescue per component. The `mosquitto` role's first part (Debian's broker on loopback, and
-turning it off) is the example role; T8 adds its network listener. The other roles fail with
-"not written yet". The installer also installs `python3-apt` (Ansible's `apt` modules need it).
-`yamllint` and `ansible-lint` run in a Debian container (`just lint-ansible`), as neither is on the
-maintainer's computer, and in CI's `arm64` job rather than in `just check`. Not tested: the
-installer's exit 10 without `FIBER_NO_REBOOT=1`, which restarts the machine.
+State (2026-11-17): started, while T6 waits for its CI run. Settled at the start: the stock
+`config.txt` for the fixture test is `pi-gen`'s at the tag of the pinned image
+(`2026-10-06-raspios-trixie-arm64`, `stage1/00-boot-files/files/config.txt`), not one taken out
+of the image itself; the role writes the block with `blockinfile` and its markers; `release.py`
+compiles the overlay with `dtc -@` into the archive; `fiber doctor`'s device paths and I2C
+addresses go into a new `agent/src/board.rs` (T17 adds the rest of the board to it). Next: the
+block and the overlay.
 
-The one way the system is brought to what the file says, whoever asks for it.
+What makes the board's hardware work under plain Raspberry Pi OS. After `base` alone the clock,
+both serial links, the 1-Wire ports and the display's bus are there for anyone who knows Linux.
 
-- [x] `fiber platform apply --foreground` does the work: it reads the file, turns off what is
-      `false` (in the reverse order of `components.yaml`), then brings up what is on (in its
-      order), each with one `ansible-playbook` run on the playbook of the program's own release,
-      with what it worked out as variables (the component, its roles, on or off, the settings).
-      A component whose requirement failed in this run is skipped. One apply at a time
-- [x] `provision/ansible/ansible.cfg`: facts gathered only when asked for, one fork, temporary
-      files under `/run`, the collections path pointed at an empty directory in the release, and
-      a lock timeout of ten minutes as the default of every `apt` task
-- [x] `site.yml`: a first task checks the Ansible version and what the program handed over, then
-      the component's roles run, their `main` (install, then bootstrap) or their `disable`
-- [x] The `common` role: the directories, `/etc/fiber/secrets` (root only); the rule that a
-      password is set once and never set again, written down
-- [x] The shape every role has, shown by the `mosquitto` role's first part and written into
-      `docs/provisioning.md`: `install` (packages, files, enabling; it must work in a chroot, so
-      that T32 can build an image from it), `bootstrap` (what needs the running service: tokens,
-      passwords) and `disable`; a drop-in file where the service takes one, never an edit of the
-      package's own settings; every version pin in one file. The other roles fail with "not
-      written yet" until their tasks
-- [x] `fiber-platform-apply.service`: a oneshot that runs only while
-      `/var/lib/fiber/platform/pending` exists, tries again after a failure with growing pauses,
-      and sets `LC_ALL=C.UTF-8` and `HOME=/root`. The program writes it from its release
-- [x] `fiber platform apply` writes `pending`, starts the unit and follows it: one line per
-      component, and at the end whether a restart is needed. Exit status 0, 10 or 20 as in T5
-- [x] `/run/fiber/platform/status.json` (state, step n of m, the result of each component,
-      restart needed) and `/var/log/fiber/platform.log`; both are copied to the boot partition
-      at the end
-- [x] `/var/lib/fiber/platform/results.json`, written as each component finishes, in the form
-      `fiber platform status` already reads (`agent/src/platform/results.rs`,
-      `docs/provisioning.md`): what it was brought to, `ok`, `failed` or `skipped`, when, why
-- [x] An Avahi service file (`_fiber._tcp`) whose TXT records carry the state, the step, the
-      component and the release, so that FIBER Setup can follow the first start without a login
-- [x] `fiber platform enable` and `disable` end with the line that says to run
-      `fiber platform apply`
-- [x] The installer's last step, without `FIBER_NO_APPLY` (in the converge test): exit status 0,
-      10 with `FIBER_NO_REBOOT=1`, and 20. Without `FIBER_NO_REBOOT=1` it restarts the machine,
-      which the test does not do
-- [x] The converge test (`provision/tests/`): an arm64 Debian trixie container with systemd. It
-      applies twice (the second run reports no change), applies with the network taken away
-      (passes when nothing needs installing), and applies with a role made to fail (the others
-      end `ok`, the unit tries again)
-- [x] `yamllint` and `ansible-lint` with its `only-builtins` rule (`just lint-ansible`, in a
-      Debian container) and in CI
+- [ ] `provision/boot/config-fiber.txt`: the block as `docs/provisioning.md` has it, under
+      `[cm4]`, comments on their own lines. Its GPIO numbers are checked against
+      `agent/src/board.rs` by a test, so that the two places cannot drift apart
+- [ ] `provision/boot/fiber-ds2482.dts`: the DS2482 on the `i2c_csi_dsi` bus (`i2c0if` and
+      `i2c0mux` enabled, then `ds2482@18` with `compatible = "maxim,ds2482"`, as the kernel's
+      `i2c-rtc` overlay does it), compiled with `dtc -@` by `provision/release.py`, shipped in
+      the archive
+- [ ] The role writes the block between `# BEGIN FIBER PLATFORM` and `# END FIBER PLATFORM`
+      only when it differs, keeps a copy of the file as it was before the first change, and
+      syncs. It copies the overlay to `/boot/firmware/overlays/` without owner or mode (the
+      partition is FAT). It writes `/etc/modules-load.d/fiber.conf` with `i2c-dev`, and makes
+      the groups. A changed `config.txt` or overlay ends the apply with "restart needed".
+      Turning `base` off takes the block, the overlay and the module file away again
+- [ ] `settings.hardware.minipcie` (`none`, `lte`, `rak5146`): nothing drives GPIO10 and 11 at
+      start; the agent later sets them for the card that is fitted
+- [ ] `fiber doctor`: fails on a line that breaks this board (`dtparam=spi=on`,
+      `dtoverlay=w1-gpio`, `ctsrts`, a bare `dtoverlay=pwm`), and checks what should be there
+      (the block, `/dev/ttyAMA3`, `/dev/ttyAMA4`, `/dev/spidev6.0`, `/dev/rtc0`, 0x18 and 0x51
+      taken by their drivers and 0x19 answering on bus 10, eight 1-Wire masters). Each finding
+      says what to do. Tested against a temporary root
+- [ ] The fixture test, in the converge test: the stock `config.txt` becomes the expected file,
+      byte for byte; a second run changes nothing; a file edited by hand gets the block back
+- [ ] On a FIBER: the list under "Done when"; that the stock file already has `otg_mode=1`
+      under `[cm4]`; that the clock is set from the RTC at start without `fake-hwclock`; that a
+      kernel update leaves `fiber-ds2482.dtbo` in place
 
-Watch out: Ansible refuses to run without a UTF-8 locale, which neither systemd nor cloud-init
-gives it. Roles have no `meta` dependencies: the program resolves what a component requires.
-Every `command` task has `creates` or a real `changed_when`, or the second run is never clean.
+Watch out: `dtparam=spi=on` turns on SPI0, which takes GPIO7 to 11: the south bridge's reset,
+its serial link and the card's lines. A bare `dtoverlay=pwm` takes GPIO18, the LCD's chip
+select. The firmware applies `gpio=` lines a few seconds after power-on, not at once. The stock
+file has `dtparam=audio=on`: whether the CM4's analogue audio takes PWM channel 1 from the
+backlight is for the bench (T2), and so are `camera_auto_detect=1` and `display_auto_detect=1`,
+which probe the same I2C bus as the board's own chips.
 
-- Needs: T5.
-- Done when: the three converge tests pass in CI.
+- Needs: T6; T2 for the part on a FIBER.
+- Done when: the fixture test passes in CI; on a FIBER `i2cdetect -y 10` shows 18 and 51 in use,
+  both serial ports and `/dev/spidev6.0` exist, eight 1-Wire masters exist, and the time
+  survives a power cycle.
 
 ## Tasks ahead
 
@@ -150,42 +136,6 @@ STM32C0 keeps BOOT0 low until the next power-on, so do not mix a debug probe int
 Done when: a FIBER written with every box ticked reaches `state=ok` by itself, also on a network
 that blocks NTP; a second `apply` changes nothing; no service ever answers with a default
 password; update and rollback work.
-
-#### T7. The `base` role and `fiber doctor`
-
-What makes the board's hardware work under plain Raspberry Pi OS. After `base` alone the clock,
-both serial links, the 1-Wire ports and the display's bus are there for anyone who knows Linux.
-
-- [ ] `provision/boot/config-fiber.txt`: the block as `docs/provisioning.md` has it, between
-      `# BEGIN FIBER PLATFORM` and `# END FIBER PLATFORM`, under `[cm4]`, comments on their own
-      lines
-- [ ] `provision/boot/fiber-ds2482.dts`: the DS2482 on the `i2c_csi_dsi` bus (`i2c0if` and
-      `i2c0mux` enabled, then `ds2482@18` with `compatible = "maxim,ds2482"`), compiled with
-      `dtc -@` in CI, shipped in the archive
-- [ ] The role writes the block only when it differs, keeps a copy of the file as it was, and
-      syncs. It copies the overlay to `/boot/firmware/overlays/` without owner or mode (the
-      partition is FAT). It writes `/etc/modules-load.d/fiber.conf` with `i2c-dev`, and makes
-      the groups. A changed `config.txt` ends the apply with "restart needed"
-- [ ] `settings.hardware.minipcie` (`none`, `lte`, `rak5146`): nothing drives GPIO10 and 11 at
-      start; the agent later sets them for the card that is fitted
-- [ ] `fiber doctor`: fails on a line that breaks this board (`dtparam=spi=on`,
-      `dtoverlay=w1-gpio`, `ctsrts`), and checks what should be there (`/dev/ttyAMA3`,
-      `/dev/ttyAMA4`, `/dev/spidev6.0`, `/dev/rtc0`, 0x18 and 0x51 taken by their drivers and
-      0x19 answering on bus 10, eight 1-Wire masters). Each finding says what to do
-- [ ] The fixture test: the stock `config.txt` of the pinned image becomes the expected file,
-      byte for byte; a second run changes nothing; a file edited by hand gets the block back
-- [ ] On a FIBER: the list under "Done when"; that the stock file already has `otg_mode=1`
-      under `[cm4]`; that the clock is set from the RTC at start without `fake-hwclock`; that a
-      kernel update leaves `fiber-ds2482.dtbo` in place
-
-Watch out: `dtparam=spi=on` turns on SPI0, which takes GPIO7 to 11: the south bridge's reset,
-its serial link and the card's lines. A bare `dtoverlay=pwm` takes GPIO18, the LCD's chip
-select. The firmware applies `gpio=` lines a few seconds after power-on, not at once.
-
-- Needs: T6; T2 for the part on a FIBER.
-- Done when: the fixture test passes in CI; on a FIBER `i2cdetect -y 10` shows 18 and 51 in use,
-  both serial ports and `/dev/spidev6.0` exist, eight 1-Wire masters exist, and the time
-  survives a power cycle.
 
 #### T8. The `mosquitto` and `node-red` roles
 
@@ -911,6 +861,71 @@ The file that holds the choice, and the first commands that read and change it. 
       44182158761, job `container`)
 
 - Done when: the commands run in a bare container, with no broker, no hardware and no settings.
+
+### T6. `fiber platform apply` (M1)
+
+Done 2026-11-17, commit `9f9dc19`. Checked: the CI run of `9f9dc19` (44190793281) is green: the
+converge test in a container with systemd on the arm64 runner (install and apply through the
+installer; a second apply with nothing changed; an apply without network; a role failing on
+purpose, with the others ending ok and the service trying again until it ends ok; the installer
+ending with 20 and with 10; Mosquitto turned off), the role lint, the installer tests, and the
+unit tests of the plan, the skips and Ansible's output. Settled on the way: one `ansible-playbook`
+run per step, the result being its exit status; the `mosquitto` role's first part as the
+example role; `python3-apt` installed with Ansible; the lint in a Debian container. Not checked:
+the installer's exit 10 without `FIBER_NO_REBOOT=1` (it restarts the machine), and nothing has
+run on a FIBER.
+
+The one way the system is brought to what the file says, whoever asks for it.
+
+- [x] `fiber platform apply --foreground` does the work: it reads the file, turns off what is
+      `false` (in the reverse order of `components.yaml`), then brings up what is on (in its
+      order), each with one `ansible-playbook` run on the playbook of the program's own release,
+      with what it worked out as variables (the component, its roles, on or off, the settings).
+      A component whose requirement failed in this run is skipped. One apply at a time
+- [x] `provision/ansible/ansible.cfg`: facts gathered only when asked for, one fork, temporary
+      files under `/run`, the collections path pointed at an empty directory in the release, and
+      a lock timeout of ten minutes as the default of every `apt` task
+- [x] `site.yml`: a first task checks the Ansible version and what the program handed over, then
+      the component's roles run, their `main` (install, then bootstrap) or their `disable`
+- [x] The `common` role: the directories, `/etc/fiber/secrets` (root only); the rule that a
+      password is set once and never set again, written down
+- [x] The shape every role has, shown by the `mosquitto` role's first part and written into
+      `docs/provisioning.md`: `install` (packages, files, enabling; it must work in a chroot, so
+      that T32 can build an image from it), `bootstrap` (what needs the running service: tokens,
+      passwords) and `disable`; a drop-in file where the service takes one, never an edit of the
+      package's own settings; every version pin in one file. The other roles fail with "not
+      written yet" until their tasks
+- [x] `fiber-platform-apply.service`: a oneshot that runs only while
+      `/var/lib/fiber/platform/pending` exists, tries again after a failure with growing pauses,
+      and sets `LC_ALL=C.UTF-8` and `HOME=/root`. The program writes it from its release
+- [x] `fiber platform apply` writes `pending`, starts the unit and follows it: one line per
+      component, and at the end whether a restart is needed. Exit status 0, 10 or 20 as in T5
+- [x] `/run/fiber/platform/status.json` (state, step n of m, the result of each component,
+      restart needed) and `/var/log/fiber/platform.log`; both are copied to the boot partition
+      at the end
+- [x] `/var/lib/fiber/platform/results.json`, written as each component finishes, in the form
+      `fiber platform status` already reads (`agent/src/platform/results.rs`,
+      `docs/provisioning.md`): what it was brought to, `ok`, `failed` or `skipped`, when, why
+- [x] An Avahi service file (`_fiber._tcp`) whose TXT records carry the state, the step, the
+      component and the release, so that FIBER Setup can follow the first start without a login
+- [x] `fiber platform enable` and `disable` end with the line that says to run
+      `fiber platform apply`
+- [x] The installer's last step, without `FIBER_NO_APPLY` (in the converge test): exit status 0,
+      10 with `FIBER_NO_REBOOT=1`, and 20. Without `FIBER_NO_REBOOT=1` it restarts the machine,
+      which the test does not do
+- [x] The converge test (`provision/tests/`): an arm64 Debian trixie container with systemd. It
+      applies twice (the second run reports no change), applies with the network taken away
+      (passes when nothing needs installing), and applies with a role made to fail (the others
+      end `ok`, the unit tries again)
+- [x] `yamllint` and `ansible-lint` with its `only-builtins` rule (`just lint-ansible`, in a
+      Debian container) and in CI
+
+Watch out: Ansible refuses to run without a UTF-8 locale, which neither systemd nor cloud-init
+gives it. Roles have no `meta` dependencies: the program resolves what a component requires.
+Every `command` task has `creates` or a real `changed_when`, or the second run is never clean.
+
+- Needs: T5.
+- Done when: the three converge tests pass in CI.
 
 ### T5. The release archive and the installer (M1)
 
