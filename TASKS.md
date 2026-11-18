@@ -512,7 +512,8 @@ menu's "Restart" waits for D23: the agent has no right to restart the FIBER. `ju
 the converge test pass on the computer (commit `ab9671d`). Its CI run 44215459393 failed in the
 converge test's cleanup, not in the agent: `rm -r /run/fiber-test` raced with `socat` taking its
 links away as it ended. The next run, on `5d3fbad` with the same code (44215720443), is green.
-The test now waits for `socat` first; pushed with T34's fixes, which also touch these pages.
+The test now waits for `socat` first; pushed with T34's fixes (`2a04dff`, CI run 44219055224
+green).
 
 - [x] `docs/front-panel.md` first: the pages, what the buttons do, the menu, what covers the pages
 - [x] The pages: the name, the addresses and the time; the components and their state; the power
@@ -548,41 +549,6 @@ A new, small profile (D3), agreed with the people who make the app before any co
 - [ ] Agreed with the HARDWARIO Manager app
 
 - Done when: the app's side has said yes to the document.
-
-### T34. Review of the night's code (M2 to M4)
-
-State (2026-11-18): the fixes are written; `just check`, the roles' lint and the converge test
-pass on the computer; CI is next. An
-independent review read the code of T17 to T21 (`54cb19e..ab9671d`) for defects that show at run
-time. It found nine; all are fixed here:
-
-- [x] **The agent role took over the owner's login.** FIBER Setup suggests the login user name
-      `fiber`, and the role's user task would have given that account `nologin` and another
-      home, and the uninstall would have said `userdel fiber`. The agent's user is
-      `fiber-agent` now; the converge test makes a login `fiber` first and checks it is left
-      alone
-- [x] **The command line reused request ids** within one command (`fiber leds red`,
-      `fiber ports off 1 2`), and the agent dropped the repeats: each request has its own id
-      now; the converge test switches two ports with one command
-- [x] **A long broker outage could leave the agent without its subscription to `cmd`:**
-      rumqttc queued the publishes made while the broker was down, and a full queue kept the
-      subscription from going out. Publishes while disconnected are dropped now, as the comments
-      said they were
-- [x] **A probe unplugged while the agent was not running stayed retained:** the agent reads
-      the retained `thermometers/+` back and clears those no round finds
-- [x] **A failed backlight write was not tried again** (udev may give the PWM's files to the
-      group `gpio` only after the export): it is tried every second
-- [x] **A probe moved to a lower port was reported on its old one** for about 100 s: it counts
-      on the port where it reads
-- [x] **The apply's status named the next component with the number of the finished steps:**
-      it names the step that runs, from 1, as its doc comment says; a `running` status older
-      than 2 hours (an apply that was killed) no longer covers the display
-- [x] **Requests wait while a chip is flashed,** which `docs/mqtt-api.md` did not say: it says
-      so now
-- [x] **`firmware/north` was listed but is never sent:** the docs say it comes with T26
-- [ ] The converge test and CI pass with the fixes
-
-- Done when: the fixes are pushed and CI is green.
 
 ## Tasks ahead
 
@@ -1183,6 +1149,39 @@ What a package manager would do for us, done by hand and tested.
 - Needs: T6.
 - Done when: an update to a test release and back works in the container; after an uninstall
   only files that a Debian package owns, and data, are left.
+
+### T34. Review of the night's code (M2 to M4)
+
+Done 2026-11-18, commit `2a04dff`. Checked: `just check`, the roles' lint and the converge test
+on the computer, and its CI run (44219055224) is green. An independent review read the code of
+T17 to T21 (`54cb19e..ab9671d`) for defects that show at run time. It found nine; all are fixed:
+
+- [x] **The agent role took over the owner's login.** FIBER Setup suggests the login user name
+      `fiber`, and the role's user task would have given that account `nologin` and another
+      home, and the uninstall would have said `userdel fiber`. The agent's user is
+      `fiber-agent` now; the converge test makes a login `fiber` first and checks it is left
+      alone
+- [x] **The command line reused request ids** within one command (`fiber leds red`,
+      `fiber ports off 1 2`), and the agent dropped the repeats: each request has its own id
+      now; the converge test switches two ports with one command
+- [x] **A long broker outage could leave the agent without its subscription to `cmd`:**
+      rumqttc queued the publishes made while the broker was down, and a full queue kept the
+      subscription from going out. Publishes while disconnected are dropped now, as the comments
+      said they were
+- [x] **A probe unplugged while the agent was not running stayed retained:** the agent reads
+      the retained `thermometers/+` back and clears those no round finds
+- [x] **A failed backlight write was not tried again** (udev may give the PWM's files to the
+      group `gpio` only after the export): it is tried every second
+- [x] **A probe moved to a lower port was reported on its old one** for about 100 s: it counts
+      on the port where it reads
+- [x] **The apply's status named the next component with the number of the finished steps:**
+      it names the step that runs, from 1, as its doc comment says; a `running` status older
+      than 2 hours (an apply that was killed) no longer covers the display
+- [x] **Requests wait while a chip is flashed,** which `docs/mqtt-api.md` did not say: it says
+      so now
+- [x] **`firmware/north` was listed but is never sent:** the docs say it comes with T26
+- [x] The converge test and CI pass with the fixes
+
 
 ## Decisions ahead
 
