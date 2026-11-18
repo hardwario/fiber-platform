@@ -66,6 +66,7 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
         std::thread::Builder::new()
             .name("thermometers".into())
             .spawn(move || read_forever(Kernel::new(devices), rounds))?;
+        front_panel(&mut agent, paths)?;
         // Held while the agent runs, so that a command run by hand keeps off the port.
         let _lock = match fiber_flasher::PortLock::take(&paths.lock_dir(), board::SOUTH_BRIDGE_UART) {
             Ok(lock) => Some(lock),
@@ -110,6 +111,46 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
             }
         }
     })
+}
+
+/// The front panel's buttons, buzzer and backlight. Each one that is not there is said once, and
+/// the rest goes on without it.
+fn front_panel<B: super::run::Bus>(agent: &mut Agent<B>, paths: &Paths) -> Result<()> {
+    let (backlight, duties) = tokio::sync::mpsc::unbounded_channel();
+    agent.backlight = Some(backlight);
+    tokio::spawn(super::backlight::drive(
+        super::backlight::Pwm::new(
+            paths.under(board::BACKLIGHT_PWM_CHIP),
+            board::BACKLIGHT_PWM_CHANNEL,
+        ),
+        duties,
+    ));
+    #[cfg(target_os = "linux")]
+    {
+        match super::hardware::GpioBuzzer::new() {
+            Ok(line) => {
+                let (buzzer, patterns) = tokio::sync::mpsc::unbounded_channel();
+                agent.buzzer = Some(buzzer);
+                tokio::spawn(super::buzzer::play(line, patterns));
+            }
+            Err(e) => eprintln!("the buzzer: {e}"),
+        }
+        match super::hardware::GpioButtons::new() {
+            Ok(lines) => {
+                let (gestures, received) = tokio::sync::mpsc::channel(16);
+                agent.gestures = Some(received);
+                std::thread::Builder::new()
+                    .name("buttons".into())
+                    .spawn(move || {
+                        if let Err(e) = super::buttons::watch(lines, gestures) {
+                            eprintln!("the buttons: {e}");
+                        }
+                    })?;
+            }
+            Err(e) => eprintln!("the buttons: {e}"),
+        }
+    }
+    Ok(())
 }
 
 /// Prints `message` when it is not the one printed last.

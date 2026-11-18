@@ -99,6 +99,11 @@ pub const W1_DEVICES: &str = "/sys/bus/w1/devices";
 /// The family code of a DS18B20, the start of its name in sysfs.
 pub const DS18B20_FAMILY: &str = "28-";
 
+/// The backlight's PWM: channel 1 of the CM4's PWM block that `dtoverlay=pwm,pin=13,func=4`
+/// turns on. Not seen on a FIBER yet.
+pub const BACKLIGHT_PWM_CHIP: &str = "/sys/class/pwm/pwmchip0";
+pub const BACKLIGHT_PWM_CHANNEL: u32 = 1;
+
 #[cfg(test)]
 mod tests {
     use super::*;

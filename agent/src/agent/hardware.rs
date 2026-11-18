@@ -130,6 +130,92 @@ impl Lines for GpioLines {
     }
 }
 
+/// The three buttons: inputs with the pull-ups, pressed = low, with the kernel's debounce.
+#[cfg(target_os = "linux")]
+pub struct GpioButtons(gpiocdev::Request);
+
+#[cfg(target_os = "linux")]
+impl GpioButtons {
+    const LINES: [(u32, u8); 3] = [
+        (board::gpio::BUTTON_UP, super::buttons::UP),
+        (board::gpio::BUTTON_ENTER, super::buttons::ENTER),
+        (board::gpio::BUTTON_DOWN, super::buttons::DOWN),
+    ];
+
+    pub fn new() -> io::Result<GpioButtons> {
+        use gpiocdev::line::{Bias, EdgeDetection};
+        let offsets: Vec<u32> = Self::LINES.iter().map(|(line, _)| *line).collect();
+        gpiocdev::Request::builder()
+            .on_chip(board::GPIO_CHIP)
+            .with_consumer("fiber-buttons")
+            .with_lines(&offsets)
+            .as_input()
+            .as_active_low()
+            .with_bias(Bias::PullUp)
+            .with_edge_detection(EdgeDetection::BothEdges)
+            .with_debounce_period(Duration::from_millis(5))
+            .request()
+            .map(GpioButtons)
+            .map_err(|e| io::Error::other(format!("GPIO: {e}")))
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl super::buttons::Lines for GpioButtons {
+    fn wait(&mut self, timeout: Duration) -> io::Result<()> {
+        let err = |e: gpiocdev::Error| io::Error::other(format!("GPIO: {e}"));
+        if self.0.wait_edge_event(timeout).map_err(err)? {
+            // The edges only wake the thread; the values are read afterwards.
+            while self.0.has_edge_event().map_err(err)? {
+                self.0.read_edge_event().map_err(err)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn read(&mut self) -> io::Result<u8> {
+        use gpiocdev::line::{Value, Values};
+        let mut values = Values::default();
+        self.0
+            .values(&mut values)
+            .map_err(|e| io::Error::other(format!("GPIO: {e}")))?;
+        Ok(Self::LINES
+            .iter()
+            .filter(|(line, _)| values.get(*line) == Some(Value::Active))
+            .fold(0, |mask, (_, bit)| mask | bit))
+    }
+}
+
+/// The buzzer's line: it sounds while GPIO17 is low.
+#[cfg(target_os = "linux")]
+pub struct GpioBuzzer(gpiocdev::Request);
+
+#[cfg(target_os = "linux")]
+impl GpioBuzzer {
+    pub fn new() -> io::Result<GpioBuzzer> {
+        use gpiocdev::line::Value;
+        gpiocdev::Request::builder()
+            .on_chip(board::GPIO_CHIP)
+            .with_consumer("fiber-buzzer")
+            .with_line(board::gpio::BUZZER)
+            .as_active_low()
+            .as_output(Value::Inactive)
+            .request()
+            .map(GpioBuzzer)
+            .map_err(|e| io::Error::other(format!("GPIO: {e}")))
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl super::buzzer::Line for GpioBuzzer {
+    fn sound(&mut self, on: bool) {
+        use gpiocdev::line::Value;
+        let value = if on { Value::Active } else { Value::Inactive };
+        // A failed write leaves the buzzer as it was; the next one tries again.
+        let _ = self.0.set_value(board::gpio::BUZZER, value);
+    }
+}
+
 /// A chip as the command line names it, with its serial port and its two lines.
 #[derive(Clone, Copy, Debug)]
 pub struct Target {

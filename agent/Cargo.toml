@@ -30,13 +30,13 @@ serde-saphyr.workspace = true
 # The radio application schema of TOWER nodes (their messages, property tables and schema tag),
 # at the pinned TOWER revision: the agent decodes what the north bridge forwards untouched.
 tower-protocol.workspace = true
+# The front panel: the 1-bit framebuffer and fonts the LCD's picture is drawn with, and the
+# buttons' gestures (click, hold, repeat), at the pinned TOWER revision.
+tower-hmi.workspace = true
 
 [dev-dependencies]
 # A paused clock for the tests of the agent's loop.
 tokio = { workspace = true, features = ["test-util"] }
-# The 1-bit framebuffer, fonts and menus the front panel will draw with (milestone M4). Only a
-# test uses it so far: it pins the frame type of the 128 x 64 LCD.
-tower-hmi.workspace = true
 
 # The GPIO lines (BOOT0 and NRST of the two microcontrollers), through the kernel's character
 # device: Linux only. Elsewhere the agent builds for its tests, without lines.

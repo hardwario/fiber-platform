@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 
 use serde_json::{Value, json};
 
+use super::buzzer::Pattern;
 use super::leds::{self, Colour, Led, Setting};
 use super::state::State;
 
@@ -106,6 +107,8 @@ pub enum Handled {
     Cycle { id: String, mask: u8, seconds: u64 },
     /// A chip to flash; answered when it is done.
     Flash { id: String, chip: Chip },
+    /// A pattern for the buzzer; answered when it is handed on.
+    Beep { id: String, pattern: Pattern },
 }
 
 /// A chip, as `firmware.flash` names it.
@@ -211,6 +214,48 @@ pub fn handle(state: &mut State, request: &Request) -> Handled {
                 "the north bridge's firmware is not written yet",
             )),
             _ => invalid(id, "chip is \"south\" or \"north\""),
+        },
+        "buzzer.beep" => {
+            let pattern = match params.get("pattern") {
+                None | Some(Value::Null) => Some(Pattern::Beep),
+                Some(name) => name.as_str().and_then(Pattern::parse),
+            };
+            match pattern {
+                Some(pattern) => Handled::Beep {
+                    id: id.to_owned(),
+                    pattern,
+                },
+                None => invalid(id, "pattern is beep, double, long or alarm"),
+            }
+        }
+        "display.message" => {
+            let seconds = match params.get("seconds") {
+                None | Some(Value::Null) => None,
+                Some(s) => match s.as_u64() {
+                    Some(s @ 1..=86_400) => Some(s),
+                    _ => return invalid(id, "seconds is 1 to 86400"),
+                },
+            };
+            match params.get("text") {
+                None | Some(Value::Null) => {
+                    state.display.message = None;
+                    state.display.message_until = None;
+                }
+                Some(Value::String(text)) => {
+                    state.display.message = Some(text.clone());
+                    state.display.message_until =
+                        seconds.map(|s| tokio::time::Instant::now() + std::time::Duration::from_secs(s));
+                }
+                Some(_) => return invalid(id, "text is a string, or null"),
+            }
+            Handled::Answer(Answer::ok(id, None))
+        }
+        "display.backlight" => match params.get("level").and_then(Value::as_u64) {
+            Some(level @ 0..=100) => {
+                state.display.backlight = level as u8;
+                Handled::Answer(Answer::ok(id, None))
+            }
+            _ => invalid(id, "level is 0 to 100"),
         },
         _ => Handled::Answer(Answer::error(id, "unknown op")),
     }
@@ -397,6 +442,46 @@ mod tests {
         assert_eq!(
             error(handle(&mut s, &request("reboot", Value::Null))),
             "unknown op"
+        );
+    }
+
+    #[test]
+    fn the_front_panel() {
+        let mut state = state();
+        assert!(matches!(
+            handle(&mut state, &request("buzzer.beep", json!({"pattern": "long"}))),
+            Handled::Beep {
+                pattern: Pattern::Long,
+                ..
+            }
+        ));
+        assert!(
+            error(handle(
+                &mut state,
+                &request("buzzer.beep", json!({"pattern": "siren"}))
+            ))
+            .starts_with("invalid argument")
+        );
+        handle(&mut state, &request("display.message", json!({"text": "a\nb"})));
+        assert_eq!(state.display.message.as_deref(), Some("a\nb"));
+        assert_eq!(state.display.message_until, None);
+        handle(&mut state, &request("display.message", json!({"text": null})));
+        assert_eq!(state.display.message, None);
+        assert!(
+            error(handle(
+                &mut state,
+                &request("display.message", json!({"text": "a", "seconds": 0}))
+            ))
+            .starts_with("invalid argument")
+        );
+        handle(&mut state, &request("display.backlight", json!({"level": 30})));
+        assert_eq!(state.display.backlight, 30);
+        assert!(
+            error(handle(
+                &mut state,
+                &request("display.backlight", json!({"level": 101}))
+            ))
+            .starts_with("invalid argument")
         );
     }
 }

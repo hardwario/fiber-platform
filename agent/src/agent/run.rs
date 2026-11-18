@@ -14,7 +14,10 @@ use serde_json::Value;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
+use tower_hmi::input::ButtonEvent;
 
+use super::buttons;
+use super::buzzer::Pattern;
 use super::firmware::{self, Seen, Tries};
 use super::link::{Event, Reader, Writer};
 use super::notify::Notify;
@@ -95,6 +98,13 @@ pub struct Agent<B: Bus> {
     pub rounds: Option<mpsc::Receiver<Round>>,
     /// Each probe's last topic: its reading, and when it was sent.
     thermometers_sent: std::collections::BTreeMap<String, (Option<i32>, u8, Instant)>,
+    /// The buttons' gestures, from the thread that watches them; none without the lines.
+    pub gestures: Option<mpsc::Receiver<ButtonEvent>>,
+    /// The buzzer's patterns; none without its line.
+    pub buzzer: Option<mpsc::UnboundedSender<Pattern>>,
+    /// The backlight's duty cycle, 0 to 100 %; none without it.
+    pub backlight: Option<mpsc::UnboundedSender<u8>>,
+    backlight_sent: Option<u8>,
 }
 
 /// A payload without its `ts`, to compare.
@@ -125,6 +135,10 @@ impl<B: Bus> Agent<B> {
             notify: Notify::default(),
             rounds: None,
             thermometers_sent: Default::default(),
+            gestures: None,
+            buzzer: None,
+            backlight: None,
+            backlight_sent: None,
         }
     }
 
@@ -234,6 +248,31 @@ impl<B: Bus> Agent<B> {
             self.retained("power", power, true).await;
         }
         self.publish_thermometers(force).await;
+        self.retained("display", topics::display(&self.state.display, ts), force)
+            .await;
+    }
+
+    /// The backlight's duty cycle, sent when it changed.
+    fn light(&mut self) {
+        let duty = self.state.display.duty(Instant::now());
+        if self.backlight_sent != Some(duty)
+            && let Some(backlight) = &self.backlight
+            && backlight.send(duty).is_ok()
+        {
+            self.backlight_sent = Some(duty);
+        }
+    }
+
+    /// A gesture of the buttons: on MQTT, and the backlight lit.
+    async fn gesture(&mut self, event: ButtonEvent) {
+        self.state.display.last_press = Instant::now();
+        self.light();
+        if let Some(gesture) = buttons::gesture(event.kind) {
+            let payload = topics::button_event(event.buttons, gesture, now());
+            self.bus
+                .publish(format!("{PREFIX}buttons/event"), payload.to_string(), false)
+                .await;
+        }
     }
 
     /// A round of the thermometers: the probes that are gone get an empty retained message.
@@ -297,6 +336,8 @@ impl<B: Bus> Agent<B> {
     /// and nothing is sent to it, and the rest goes on: the watchdog, the cycles, MQTT.
     async fn tick<W: AsyncWrite + Unpin>(&mut self, writer: Option<&mut Writer<W>>) -> io::Result<()> {
         self.notify.send("WATCHDOG=1");
+        self.state.display.expire(Instant::now());
+        self.light();
         let now = Instant::now();
         let due: Vec<_> = self
             .cycles
@@ -369,6 +410,13 @@ impl<B: Bus> Agent<B> {
             Handled::Cycle { id, mask, seconds } => {
                 self.cycles
                     .push((Instant::now() + Duration::from_secs(seconds), mask, id));
+            }
+            Handled::Beep { id, pattern } => {
+                let answer = match &self.buzzer {
+                    Some(buzzer) if buzzer.send(pattern).is_ok() => Answer::ok(&id, None),
+                    _ => Answer::error(&id, "the buzzer is not there"),
+                };
+                self.answer(answer).await;
             }
             Handled::Flash { id, .. } => match self.state.south.carried {
                 None => {
@@ -451,9 +499,19 @@ where
                 None => std::future::pending().await,
             }
         };
+        let gesture = async {
+            match &mut agent.gestures {
+                Some(gestures) => match gestures.recv().await {
+                    Some(gesture) => gesture,
+                    None => std::future::pending().await,
+                },
+                None => std::future::pending().await,
+            }
+        };
         tokio::select! {
             _ = tick.tick() => agent.tick(link.as_mut().map(|(_, writer)| writer)).await?,
             round = round => agent.round(round).await,
+            gesture = gesture => agent.gesture(gesture).await,
             event = from_chip => agent.link(event?).await,
             event = agent.bus.next() => match event {
                 BusEvent::Connected => agent.publish_state(true).await,
@@ -719,6 +777,63 @@ mod tests {
             last(&published, "fiber/ports/2").unwrap()["thermometers"],
             serde_json::json!([])
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_front_panel() {
+        use crate::agent::buttons::ENTER;
+        use tower_hmi::input::Kind;
+        let published = Rc::new(RefCell::new(Vec::new()));
+        let (mut agent, bus) = agent_with(Some(CRC), &published);
+
+        // Without the buzzer's line: the request says so.
+        bus.send(BusEvent::Request(br#"{"id":"b0","op":"buzzer.beep"}"#.to_vec()))
+            .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        assert_eq!(
+            last(&published, "fiber/rsp/b0").unwrap()["error"],
+            "the buzzer is not there"
+        );
+
+        let (gestures, rx) = mpsc::channel(4);
+        agent.gestures = Some(rx);
+        let (buzzer, mut beeps) = mpsc::unbounded_channel();
+        agent.buzzer = Some(buzzer);
+        let (backlight, mut duty) = mpsc::unbounded_channel();
+        agent.backlight = Some(backlight);
+        bus.send(BusEvent::Request(
+            br#"{"id":"b1","op":"buzzer.beep","params":{"pattern":"double"}}"#.to_vec(),
+        ))
+        .unwrap();
+        bus.send(BusEvent::Request(
+            br#"{"id":"m1","op":"display.message","params":{"text":"hello","seconds":5}}"#.to_vec(),
+        ))
+        .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(2)).await;
+        assert_eq!(last(&published, "fiber/rsp/b1").unwrap()["ok"], true);
+        assert_eq!(beeps.try_recv().unwrap(), Pattern::Double);
+        assert_eq!(duty.try_recv().unwrap(), 80);
+        assert!(duty.try_recv().is_err());
+        assert_eq!(last(&published, "fiber/display").unwrap()["message"], "hello");
+
+        // The message goes after its 5 s; a minute without a press dims the backlight.
+        run_without_link(&mut agent, Duration::from_secs(60)).await;
+        assert_eq!(last(&published, "fiber/display").unwrap()["message"], Value::Null);
+        assert_eq!(duty.try_recv().unwrap(), 16);
+
+        // A click: on MQTT, and the backlight is lit again.
+        gestures
+            .send(ButtonEvent {
+                buttons: ENTER,
+                kind: Kind::Click,
+            })
+            .await
+            .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        let event = last(&published, "fiber/buttons/event").unwrap();
+        assert_eq!(event["buttons"], serde_json::json!(["enter"]));
+        assert_eq!(event["gesture"], "click");
+        assert_eq!(duty.try_recv().unwrap(), 80);
     }
 
     #[tokio::test(start_paused = true)]

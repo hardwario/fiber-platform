@@ -101,6 +101,21 @@ enum Command {
         #[command(subcommand)]
         command: Option<ThermometersCommand>,
     },
+    /// The display: its backlight, and a message on it.
+    Display {
+        #[command(subcommand)]
+        command: Option<DisplayCommand>,
+    },
+    /// The buzzer.
+    Buzzer {
+        #[command(subcommand)]
+        command: BuzzerCommand,
+    },
+    /// The three buttons beside the display.
+    Buttons {
+        #[command(subcommand)]
+        command: ButtonsCommand,
+    },
     /// The firmware of the two microcontrollers: show it, or write it again.
     Firmware {
         #[command(subcommand)]
@@ -114,6 +129,39 @@ enum Command {
         #[command(subcommand)]
         command: PlatformCommand,
     },
+}
+
+#[derive(Subcommand)]
+enum DisplayCommand {
+    /// Puts a message on the display, over the pages; \n starts a new line.
+    Message {
+        text: String,
+        /// How long it stays, 1 to 86400 s; until it is cleared without it.
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..=86_400))]
+        seconds: Option<u64>,
+    },
+    /// Takes the message away.
+    Clear,
+    /// Sets the backlight's brightness, 0 to 100 %.
+    Backlight {
+        #[arg(value_parser = clap::value_parser!(u8).range(0..=100))]
+        level: u8,
+    },
+}
+
+#[derive(Subcommand)]
+enum BuzzerCommand {
+    /// Sounds the buzzer once, in one of its patterns.
+    Beep {
+        #[arg(value_parser = ["beep", "double", "long", "alarm"])]
+        pattern: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum ButtonsCommand {
+    /// A line for each gesture, until Ctrl+C.
+    Watch,
 }
 
 #[derive(Subcommand)]
@@ -196,6 +244,20 @@ fn main() -> ExitCode {
         Command::SouthSimulator { port } => agent::south_simulator(&port),
         Command::Status => broker().and_then(|b| client::status(&b)),
         Command::Power { follow } => broker().and_then(|b| client::power(&b, follow)),
+        Command::Display { command } => broker().and_then(|b| {
+            let action = command.map(|command| match command {
+                DisplayCommand::Message { text, seconds } => client::DisplayAction::Message { text, seconds },
+                DisplayCommand::Clear => client::DisplayAction::Clear,
+                DisplayCommand::Backlight { level } => client::DisplayAction::Backlight(level),
+            });
+            client::display(&b, action)
+        }),
+        Command::Buzzer {
+            command: BuzzerCommand::Beep { pattern },
+        } => broker().and_then(|b| client::beep(&b, pattern.as_deref())),
+        Command::Buttons {
+            command: ButtonsCommand::Watch,
+        } => broker().and_then(|b| client::buttons_watch(&b)),
         Command::Thermometers { command } => {
             broker().and_then(|b| client::thermometers(&b, command.is_some()))
         }

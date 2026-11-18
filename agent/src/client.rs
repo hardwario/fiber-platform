@@ -439,6 +439,77 @@ pub fn leds(
     Ok(ExitCode::SUCCESS)
 }
 
+/// What `fiber display` prints.
+pub fn display_text(topics: &Retained) -> String {
+    let display = topics.get("display");
+    let backlight = display
+        .and_then(|d| d["backlight"].as_u64())
+        .map_or("not known".to_owned(), |level| format!("{level} %"));
+    let message = display
+        .and_then(|d| d["message"].as_str())
+        .map_or("none".to_owned(), |text| {
+            text.split('\n').collect::<Vec<_>>().join(" / ")
+        });
+    format!("Backlight   {backlight}\nMessage     {message}\n")
+}
+
+/// What `fiber display` does.
+pub enum DisplayAction {
+    Message { text: String, seconds: Option<u64> },
+    Clear,
+    Backlight(u8),
+}
+
+/// `fiber display [message TEXT [--seconds N] | clear | backlight LEVEL]`.
+pub fn display(broker: &Broker, action: Option<DisplayAction>) -> Result<ExitCode> {
+    let (op, params) = match action {
+        None => return show(broker, display_text),
+        // Typed in a shell, a new line comes as the two characters `\n`.
+        Some(DisplayAction::Message { text, seconds }) => (
+            "display.message",
+            json!({"text": text.replace("\\n", "\n"), "seconds": seconds}),
+        ),
+        Some(DisplayAction::Clear) => ("display.message", json!({"text": null})),
+        Some(DisplayAction::Backlight(level)) => ("display.backlight", json!({"level": level})),
+    };
+    runtime()?.block_on(request(broker, op, params, Duration::from_secs(10)))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// `fiber buzzer beep [PATTERN]`.
+pub fn beep(broker: &Broker, pattern: Option<&str>) -> Result<ExitCode> {
+    runtime()?.block_on(request(
+        broker,
+        "buzzer.beep",
+        json!({"pattern": pattern}),
+        Duration::from_secs(10),
+    ))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// `fiber buttons watch`.
+pub fn buttons_watch(broker: &Broker) -> Result<ExitCode> {
+    let code = show(broker, |_| String::new())?;
+    if code != ExitCode::SUCCESS {
+        return Ok(code);
+    }
+    runtime()?.block_on(watch(broker, &["fiber/buttons/event"], |_, payload| {
+        let event: Value = serde_json::from_slice(payload).ok()?;
+        let buttons: Vec<&str> = event["buttons"]
+            .as_array()?
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        Some(format!(
+            "{}  {}  {}",
+            clock(event["ts"].as_u64().unwrap_or(0)),
+            buttons.join("+"),
+            event["gesture"].as_str().unwrap_or("?")
+        ))
+    }))?;
+    Ok(ExitCode::SUCCESS)
+}
+
 /// `fiber firmware [status | flash CHIP]`.
 pub fn firmware(broker: &Broker, flash: Option<&str>) -> Result<ExitCode> {
     match flash {
@@ -493,6 +564,20 @@ mod tests {
             "Port 3      28-0000034a5b1c  21.44 °C\n\
              Port 3      28-0000034a77e0  21.50 °C\n\
              Port 5      28-00000b1c2d3e  no reading\n"
+        );
+    }
+
+    #[test]
+    fn what_fiber_display_prints() {
+        let mut topics = Retained::new();
+        assert_eq!(display_text(&topics), "Backlight   not known\nMessage     none\n");
+        topics.insert(
+            "display".into(),
+            json!({"backlight": 80, "message": "Back in\n5 minutes", "ts": 1}),
+        );
+        assert_eq!(
+            display_text(&topics),
+            "Backlight   80 %\nMessage     Back in / 5 minutes\n"
         );
     }
 

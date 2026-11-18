@@ -434,8 +434,9 @@ State (2026-11-18): written and tested on the computer: the docs (drafts, like T
 maintainer has not read them), `agent/src/agent/thermometers.rs` (the trait, the kernel's reader on
 a thread of its own, what counts as a reading), the topics, the port lights, `fiber thermometers
 [watch]`, `fiber power --follow`, the starter flow, `fiber doctor` counting the masters as the
-agent does. `just check` and the converge test pass; the converge test runs the service against a made-up
-1-Wire tree (a reading, no reading, gone). What is left needs a FIBER. The kernel's source was read for this (rpi-6.12.y and v6.12): nothing in sysfs
+agent does. `just check` and the converge test pass (commit `fc863c3`, CI run 44211968012 green); the
+converge test runs the service against a made-up 1-Wire tree (a reading, no reading, gone). What
+is left needs a FIBER. The kernel's source was read for this (rpi-6.12.y and v6.12): nothing in sysfs
 ties a 1-Wire bus master to the DS2482 or to its channel, so the masters are taken by their order.
 The schematic says port k is DS2482 channel k - 1, and no part reports a shorted port.
 
@@ -475,22 +476,26 @@ cannot be used: the driver puts it on one master only, the master of the first D
 
 ### T20. LCD, backlight, buttons, buzzer (M4)
 
-State (2026-11-18): started, docs first. Of this task only the display driver needs T2's answers
-(the LCD's bus); the buttons, the buzzer and the backlight are done first, and tested without a
-board. Watch out: the unit's `ProtectKernelTunables=yes` makes `/sys` read-only, and the backlight
-is written through `/sys/class/pwm`.
+State (2026-11-18): all but the display driver is written and tested on the computer: the docs
+(drafts), the buttons (`agent/src/agent/buttons.rs`, `tower-hmi`'s recognizer on a thread that
+waits for the lines' edges), the buzzer's patterns, the backlight through sysfs PWM with its
+dimming, the `display` topic, a message drawn into a `Frame<16, 64>` and compared with stored
+pictures, `fiber display`, `fiber buzzer beep`, `fiber buttons watch`. The unit no longer has
+`ProtectKernelTunables=yes`: the backlight is written through `/sys/class/pwm`. `just check`
+and the converge test pass (it asks for a message, the backlight and a beep through the service). The display driver waits for T2 (the LCD's bus);
+nothing of this has run on a FIBER.
 
-- [ ] `docs/mqtt-api.md` and `docs/cli.md` first: `buttons/event`, `display`, and the methods
+- [x] `docs/mqtt-api.md` and `docs/cli.md` first: `buttons/event`, `display`, and the methods
       `buzzer.beep`, `display.message`, `display.backlight`
 - [ ] The display driver over `/dev/spidev6.0`, with what T2 found (the mode, the speed, the
       bytes before a command and before data), reset on GPIO16
 - [ ] The picture is a `tower_hmi::Frame<16, 64>`; only the rows that changed are sent
-- [ ] The backlight on PWM channel 1, with a brightness and a time after which it dims; the unit
-      lets the agent write that one PWM
-- [ ] The buttons on GPIO23, 24 and 25 through `gpiocdev`, with the pull-ups and the kernel's
+- [x] The backlight on PWM channel 1, with a brightness and a time after which it dims; the unit
+      leaves `/sys` writable as its permissions have it
+- [x] The buttons on GPIO23, 24 and 25 through `gpiocdev`, with the pull-ups and the kernel's
       debounce; click, hold and repeat from `tower-hmi`
-- [ ] The buzzer on GPIO17 (low = sound): a beep, and a few patterns
-- [ ] Tests: the frames a drawing produces, compared with stored ones; made-up button presses
+- [x] The buzzer on GPIO17 (low = sound): a beep, and a few patterns
+- [x] Tests: the frames a drawing produces, compared with stored ones; made-up button presses
 
 - Needs: T2 (the LCD's bus), T17.
 - Done when: `fiber display`, `fiber buzzer beep` and `fiber buttons watch` work on a FIBER.

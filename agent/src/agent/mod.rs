@@ -5,8 +5,12 @@
 //! for the south bridge, the payloads of the topics ([`topics`]), and the answers to requests
 //! ([`requests`]). The I/O goes around it (T17, on the drafts of T13).
 
+pub mod backlight;
+pub mod buttons;
+pub mod buzzer;
 pub mod config;
 mod daemon;
+pub mod display;
 pub mod firmware;
 mod hardware;
 pub mod images;

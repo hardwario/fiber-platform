@@ -44,6 +44,8 @@ They are those of TOWER's gateway API, so that one client can talk to both.
 | `ports/{1..8}` | agent | yes | [ports/n](#portsn) |
 | `thermometers/{id}` | agent | yes (empty = gone) | [thermometers/id](#thermometersid) |
 | `firmware/south`, `firmware/north` | agent | yes | [firmware/chip](#firmwarechip) |
+| `buttons/event` | agent | no | [buttons/event](#buttonsevent) |
+| `display` | agent | yes | [display](#display) |
 | `cmd` | client | **never** | [a request](#requests) |
 | `rsp/{id}` | agent | no | [an answer](#requests) |
 
@@ -147,6 +149,35 @@ a DS18B20 holds after power-on, unless the reading before it was above 75 °C.
 | `reset` | Why the chip last started: `power_on`, `pin`, `watchdog`, `software`, `brown_out`, `other` |
 | `fault` | The fault it reported in its last `Hello`, as `{"code":1,"address":"0x08001f3c"}`, or `null` |
 
+### `buttons/event`
+
+The three buttons beside the display, `up`, `enter` and `down`:
+
+```json
+{"buttons":["enter"],"gesture":"click","ts":1794952515}
+```
+
+| Key | Meaning |
+|---|---|
+| `buttons` | The buttons of the gesture: one, or several pressed together |
+| `gesture` | `click` (pressed and let go within 0.5 s), `hold` (held for 0.8 s, once), `repeat` (every 0.2 s while it is still held after a `hold`) |
+
+The display's own pages (M4) also follow the buttons; a client sees the same events.
+
+### `display`
+
+```json
+{"backlight":80,"message":"Back in 5 minutes","ts":1794952515}
+```
+
+| Key | Meaning |
+|---|---|
+| `backlight` | The backlight's brightness when it is lit, 0 to 100 % |
+| `message` | The message a client put on the display (`display.message`), or `null` |
+
+The backlight dims to a fifth of its brightness 60 s after the last press of a button, and comes
+back with the next one.
+
 ## Requests
 
 **A request** is published on `cmd`, QoS 1, never retained:
@@ -231,6 +262,36 @@ Writes the image the agent carries to a chip, also when the chip runs it already
 `data`: `{"crc":"0x6f1c2a90"}`, the CRC-32 of the image now on the chip. While it runs,
 `firmware/{chip}` says `flashing`. Errors of its own: `the bootloader does not answer`, `the chip
 has readout protection`, `the image does not check out after writing`.
+
+### `buzzer.beep`
+
+Sounds the buzzer (about 2.4 kHz; it has one tone).
+
+| Param | Meaning |
+|---|---|
+| `pattern` | `"beep"` (0.1 s), `"double"` (two of them), `"long"` (0.5 s), `"alarm"` (five beeps); `"beep"` when left out |
+
+`data`: none. It answers at once; a pattern that sounds while another is asked for is cut short.
+
+### `display.message`
+
+Puts a message on the display, over the pages, until it is cleared or its time is up. It shows
+5 lines of 21 characters (Spleen 6 x 12); what does not fit is cut.
+
+| Param | Meaning |
+|---|---|
+| `text` | The message, with `\n` between lines; `null` clears it |
+| `seconds` | How long it stays: 1 to 86400; until it is cleared when left out |
+
+`data`: none.
+
+### `display.backlight`
+
+| Param | Meaning |
+|---|---|
+| `level` | The brightness when lit, 0 to 100 % |
+
+`data`: none. It is kept until the agent restarts.
 
 ## Example
 

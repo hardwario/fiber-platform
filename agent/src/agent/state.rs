@@ -2,6 +2,7 @@
 
 use fiber_protocol::south::{Desired, Hello, LED_LINES, PORTS, Status};
 
+use super::display::Display;
 use super::leds::{self, Led, Setting};
 use super::power::{self, Power, Source};
 use super::thermometers::Probes;
@@ -57,6 +58,7 @@ pub struct State {
     pub south: Chip,
     pub last_status: Option<Status>,
     pub thermometers: Probes,
+    pub display: Display,
 }
 
 impl State {
@@ -73,6 +75,7 @@ impl State {
             },
             last_status: None,
             thermometers: Probes::default(),
+            display: Display::default(),
         }
     }
 

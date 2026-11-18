@@ -257,9 +257,10 @@ The `agent` role runs `fiber agent` ([`cli.md`](cli.md)) as a service:
 - **`fiber-agent.service`,** the role's own unit. `Type=notify`: the agent tells systemd when it
   runs, and its loop feeds a watchdog of 30 s, also while the south bridge's port is missing and
   while it flashes. When the loop stops, systemd restarts it after 5 s.
-- **What the unit allows:** the system read-only but for `/var/lib/fiber/agent` (the flash tries)
-  and `/run/lock` (the lock on the south bridge's port); of the devices only the classes
-  `ttyAMA`, `gpiochip`, `i2c` and `spi`; no capabilities; IPv4, IPv6 and Unix sockets only.
+- **What the unit allows:** the system read-only but for `/var/lib/fiber/agent` (the flash tries),
+  `/run/lock` (the lock on the south bridge's port) and `/sys` as its permissions have it (the
+  backlight's PWM); of the devices only the classes `ttyAMA`, `gpiochip`, `i2c` and `spi`; no
+  capabilities; IPv4, IPv6 and Unix sockets only.
 - **`/etc/fiber/agent.toml`** is written once, with every setting at its default in a comment,
   and never again: the agent needs no settings, and the owner's changes stay.
 - **A new program is started:** after an update or a rollback the role restarts the agent when

@@ -20,9 +20,9 @@
 #      apply changes nothing
 #  10. the agent's service with the base, against the simulated south bridge and a made-up
 #      1-Wire tree: it runs as the user fiber without capabilities, holds the port, feeds its
-#      watchdog, shows a thermometer, its failing and its going, and a second apply changes
-#      nothing; then the footprint: every path the platform added is a package's, its own, or
-#      listed
+#      watchdog, shows a thermometer, its failing and its going, takes a message and a
+#      backlight, says there is no buzzer, and a second apply changes nothing; then the
+#      footprint: every path the platform added is a package's, its own, or listed
 #  11. an update to a test release, a rollback, and an update to the current release; the agent
 #      is restarted on each new program; turning it off takes fiber/status offline
 #  12. an uninstall leaves only what packages own, and data
@@ -333,6 +333,17 @@ wait_for 45 thermometer_shown "no reading" || fail "fiber thermometers: $(cat /t
 echo 'not found.' > /run/fiber-test/w1/w1_bus_master3/w1_master_slaves
 no_thermometers() { fiber thermometers > /tmp/thermometers.out 2>&1 && grep -q '^No thermometers\.$' /tmp/thermometers.out; }
 wait_for 15 no_thermometers || fail "fiber thermometers: $(cat /tmp/thermometers.out)"
+# The front panel: a message and the backlight on MQTT; no buzzer in a container.
+fiber display message 'Hello\nFIBER' --seconds 600
+fiber display backlight 30
+display_shown() {
+    fiber display > /tmp/display.out 2>&1 && grep -q '^Message     Hello / FIBER$' /tmp/display.out &&
+        grep -q '^Backlight   30 %$' /tmp/display.out
+}
+wait_for 5 display_shown || fail "fiber display: $(cat /tmp/display.out)"
+fiber display clear
+fiber buzzer beep double 2> /tmp/beep.err && fail "fiber buzzer beep worked without a buzzer"
+grep -q 'the buzzer is not there' /tmp/beep.err || fail "fiber buzzer beep: $(cat /tmp/beep.err)"
 [ "$(systemctl show -p MainPID --value fiber-agent)" = "$agent_pid" ] || fail "the agent was restarted (by its watchdog?)"
 fiber platform apply | tee /tmp/apply.out
 grep -q '^agent: up, nothing changed$' /tmp/apply.out || fail "the second apply changed the agent"

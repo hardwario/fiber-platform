@@ -131,6 +131,34 @@ $ fiber thermometers watch
 14:02:51  port 5  28-00000b1c2d3e  gone
 ```
 
+### `fiber display [message TEXT [--seconds N] | clear | backlight LEVEL]`
+
+Without an action, the backlight and the message, as `display` has them. `message` puts a message
+on the display, over the pages (`\n` starts a new line); `clear` takes it away; `backlight` sets
+the brightness, 0 to 100 %.
+
+```
+$ fiber display message "Back in\n5 minutes" --seconds 300
+$ fiber display
+Backlight   80 %
+Message     Back in / 5 minutes
+```
+
+### `fiber buzzer beep [beep | double | long | alarm]`
+
+Sounds the buzzer once, in one of its patterns (`beep` when none is named).
+
+### `fiber buttons watch`
+
+A line for each gesture of the three buttons, with the time in UTC, until Ctrl+C:
+
+```
+$ fiber buttons watch
+14:02:11  enter  click
+14:02:13  down  hold
+14:02:13  down  repeat
+```
+
 ### `fiber firmware [status | flash CHIP | chip CHIP]`
 
 - `status` (the default): both chips, as `firmware/south` and `firmware/north` have them.

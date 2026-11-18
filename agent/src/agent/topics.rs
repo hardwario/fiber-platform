@@ -2,6 +2,7 @@
 
 use serde_json::{Value, json};
 
+use super::display::Display;
 use super::leds::Setting;
 use super::state::{Chip, State};
 use super::thermometers::{Known, degrees};
@@ -64,6 +65,16 @@ pub fn port(state: &State, port: u8, ts: u64) -> Value {
         "thermometers": state.thermometers.on_port(port),
         "ts": ts,
     })
+}
+
+/// `display`.
+pub fn display(display: &Display, ts: u64) -> Value {
+    json!({"backlight": display.backlight, "message": display.message, "ts": ts})
+}
+
+/// `buttons/event`.
+pub fn button_event(buttons: u8, gesture: &str, ts: u64) -> Value {
+    json!({"buttons": super::buttons::names(buttons), "gesture": gesture, "ts": ts})
 }
 
 /// `thermometers/{id}`.

@@ -29,13 +29,13 @@ DeviceAllow=char-gpiochip rw
 DeviceAllow=char-i2c rw
 DeviceAllow=char-spi rw
 
-# No capabilities, and the rest of the system read-only.
+# No capabilities, and the rest of the system read-only. /sys stays as its permissions have it
+# (no ProtectKernelTunables=): the backlight is a PWM in /sys/class/pwm.
 CapabilityBoundingSet=
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectKernelLogs=yes
 ProtectControlGroups=yes
