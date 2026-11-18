@@ -553,22 +553,24 @@ A new, small profile (D3), agreed with the people who make the app before any co
 
 - Done when: the app's side has said yes to the document.
 
+### T35. The Rust toolchain off Dependabot's list (D21) (M0)
+
+State (2026-11-18): `.github/dependabot.yml` changed; next, the pull request is closed.
+
+The toolchain moves with the TOWER pin and nothing else (D21).
+
+- [x] `.github/dependabot.yml`: the `rust-toolchain` entry taken out, and its comment says why
+- [ ] Pull request #1 (1.99.1 to 1.100.0) closed, with a comment that names D21
+
+- Needs: nothing.
+- Done when: Dependabot no longer opens pull requests for the toolchain, and #1 is closed.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
 again and brought up to date before the first one is ticked.
 
 ### M0. Foundations and bench checks
-
-#### T35. The Rust toolchain off Dependabot's list (D21)
-
-The toolchain moves with the TOWER pin and nothing else (D21).
-
-- [ ] `.github/dependabot.yml`: the `rust-toolchain` entry taken out, and its comment says why
-- [ ] Pull request #1 (1.99.1 to 1.100.0) closed, with a comment that names D21
-
-- Needs: nothing.
-- Done when: Dependabot no longer opens pull requests for the toolchain, and #1 is closed.
 
 #### T2. Bench checks on a FIBER
 

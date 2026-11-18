@@ -6,6 +6,9 @@
 # The TOWER pin (the `rev` of the tower-* crates in Cargo.toml) is NOT Dependabot's to move:
 # TOWER promises no wire compatibility between revisions, so moving the pin is a task with a
 # drift report and a bench run (docs/architecture.md, "Two radio stacks").
+#
+# Nor is rust-toolchain.toml: the toolchain is the one the pinned TOWER crates need, and it moves
+# with the pin, in the same task, with RUST_TOOLCHAIN in every workflow (TASKS.md, D21).
 version: 2
 updates:
   # The host workspace: Cargo.lock at the root (crates/*, agent).
@@ -29,12 +32,3 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
-  # rust-toolchain.toml `channel`. The workflows pin the same version in RUST_TOOLCHAIN (env) and
-  # ci.yml's `audit` job fails while they differ, so push the matching RUST_TOOLCHAIN bump onto
-  # the PR. The channel also has to satisfy the pinned TOWER crates' `rust-version`.
-  - package-ecosystem: rust-toolchain
-    directory: /
-    schedule:
-      interval: weekly
-    cooldown:
-      default-days: 7
