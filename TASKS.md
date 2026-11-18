@@ -187,6 +187,70 @@ The card is fed from the battery rail and goes away when the battery is low.
 - Needs: T6, T8; T2 (the level on mini-PCIe pin 22) for the part with a card.
 - Done when: the CI checks pass, and a FIBER with a card shows uplinks.
 
+### T12. FIBER Setup: the component picker (M1)
+
+State (2026-11-18): the two pieces here are done (`just check` passes): the platform reads a seed
+written as FIBER Setup writes it, and its Avahi record no longer says `restart` (the file outlives
+the restart, so the flag would stay `yes` for ever). FIBER Setup's script, which is what restarts
+the FIBER, publishes a record of its own (`_fiber-setup._tcp`) while it runs, and removes it when it
+is done, after the restart. Next: FIBER Setup's core (`platform.rs` with the copy of
+`components.yaml` and the seed, `firstboot.rs`, the script). The pin of the installer waits for
+the first release (D24); until then FIBER Setup's commits stay on this computer.
+
+In `../fiber-setup`. The one place where a user makes the choice.
+
+- [ ] `Settings.install_fiber` becomes a list of components, plus the two settings the platform
+      has a choice for (`mqtt.lan`, `hardware.minipcie`): `firstboot.rs` (the struct, its checks,
+      what it writes), `types.ts`, `wizard.svelte.ts`, `api.ts`, the command line's `FlashArgs`,
+      the *Software* card in `Settings.svelte`, and every view that looks at the old switch
+      (`Image`, `Write`, `FirstStart`, `Done`). The texts in all five languages
+- [ ] The list comes from a copy of `components.yaml` at the pinned release: what a component
+      requires is ticked with it, and its download size is shown once it is measured. The
+      titles and the sentences are translated in FIBER Setup, by component id; a test fails on a
+      component without them
+- [ ] `personalise()` writes `fiber-seed.yaml` beside `fiber-install.sh`: the components, the
+      settings, and the user name and password for the services (D16). The file joins the list
+      of old files that are cleared from the boot partition. A test here reads a seed with every
+      kind of character FIBER Setup escapes, written as FIBER Setup writes it
+- [ ] `catalog.rs`: the installer by its version and sha256, as the system image is, in place
+      of an address on a `main` branch. `fiber-install.sh` fetches it and checks it; the test
+      that keeps the two in step stays. Waits for D24
+- [ ] The clock: take the date over plain HTTP before anything over HTTPS, and only ever move
+      the clock forward
+- [ ] `fiber-install.service` tries again after a failure without waiting for a restart: written
+      by cloud-init, started without blocking it, `Restart=on-failure`. Exit status 10 restarts the
+      FIBER; 20 is done for the script, as the platform goes on by itself
+- [ ] cloud-init sets the final name, `fiber-<last 8 characters of the serial number>`, always
+      with `manage_etc_hosts: true`; the line that edits `/etc/hosts` goes
+- [x] Here: the Avahi record says nothing a restart makes untrue: no `restart` in it. The
+      script publishes its own record (`_fiber-setup._tcp`: waiting for the network, the clock,
+      the download, the installation, the restart) and removes it when it is done; after a
+      restart it runs once more to say so
+- [ ] *Follow the first start* reads the progress from the platform's Avahi record (a DNS-SD
+      query sent straight to the FIBER's address, so nothing on the computer listens on port
+      5353). Tried against Avahi in a container. The last step shows a link for every chosen
+      component, and says in plain words that these services can be reached from the network
+      with the password from the settings
+- [ ] The choice "set Wi-Fi later from your phone" stays hidden until T29
+- [ ] With nothing ticked no script and no seed are written, as today
+- [ ] Its README: the FIBER software is this platform; "about 10 minutes" becomes what the
+      bench shows
+- [ ] On a FIBER: every box ticked; the same with NTP blocked; with the Ethernet cable plugged
+      in only later; with the power cut in the middle of the installation; with a RAK5146 card
+      and with the LTE modem in the slot; and on a module with 1 GB of RAM, with the time, the
+      download size and the memory in use written down. Each component's download and installed
+      size go into `size` in `provision/components.yaml`, which is empty until then
+
+Watch out: today the script tests `https://github.com` before the clock is right. On a network
+that blocks NTP, TLS then fails, the script says "no internet", and its clock fallback (also
+HTTPS) is never reached. The password field is pre-filled with `fiber`, and from now on that
+password also opens services on the network. ChirpStack's user is `admin` (T9), not the login's.
+
+- Needs: T5 to T8 (a release to point at: D24). D11: the `base` role alone writes the
+  `config.txt` block, so FIBER Setup does not.
+- Done when: a FIBER written by the new FIBER Setup comes up with the chosen components, and the
+  last step shows a link for each.
+
 ### T13. The interfaces, written first (M2)
 
 State (2026-11-18): waiting for the maintainer to read the three drafts. Written:
@@ -582,49 +646,7 @@ Done when: a FIBER written with every box ticked reaches `state=ok` by itself, a
 that blocks NTP; a second `apply` changes nothing; no service ever answers with a default
 password; update and rollback work.
 
-#### T12. FIBER Setup: the component picker
-
-In `../fiber-setup`. The one place where a user makes the choice.
-
-- [ ] `Settings.install_fiber` becomes a map of components: `firstboot.rs` (the struct, its
-      checks, what it writes), `types.ts`, `wizard.svelte.ts`, `api.ts`, the command line's
-      `FlashArgs`, the *Software* card in `Settings.svelte`, and every view that looks at the
-      old switch (`Image`, `Write`, `FirstStart`, `Done`). The texts in all five languages
-- [ ] The list comes from a copy of `components.yaml` at the pinned release: what a component
-      requires is ticked with it, and its download size is shown
-- [ ] `personalise()` writes `fiber-seed.yaml` beside `fiber-install.sh`: the components, the
-      settings, and the user name and password for the services (D16). The file joins the list
-      of old files that are cleared from the boot partition
-- [ ] `catalog.rs`: the installer by its version and sha256, as the system image is, in place
-      of an address on a `main` branch. `fiber-install.sh` fetches it and checks it; the test
-      that keeps the two in step stays
-- [ ] The clock: take the date over plain HTTP before anything over HTTPS, and only ever move
-      the clock forward
-- [ ] `fiber-install.service` tries again after a failure without waiting for a restart
-- [ ] cloud-init sets the final name, `fiber-<last 8 characters of the serial number>`, always
-      with `manage_etc_hosts: true`; the line that edits `/etc/hosts` goes
-- [ ] *Follow the first start* reads the progress from the platform's Avahi record. The last
-      step shows a link for every chosen component, and says in plain words that these services
-      can be reached from the network with the password from the settings
-- [ ] The choice "set Wi-Fi later from your phone" stays hidden until T29
-- [ ] With nothing ticked no script is written, as today
-- [ ] Its README: the FIBER software is this platform; "about 10 minutes" becomes what the
-      bench shows
-- [ ] On a FIBER: every box ticked; the same with NTP blocked; with the Ethernet cable plugged
-      in only later; with the power cut in the middle of the installation; with a RAK5146 card
-      and with the LTE modem in the slot; and on a module with 1 GB of RAM, with the time, the
-      download size and the memory in use written down. Each component's download and installed
-      size go into `size` in `provision/components.yaml`, which is empty until then
-
-Watch out: today the script tests `https://github.com` before the clock is right. On a network
-that blocks NTP, TLS then fails, the script says "no internet", and its clock fallback (also
-HTTPS) is never reached. The password field is pre-filled with `fiber`, and from now on that
-password also opens services on the network.
-
-- Needs: T5 to T8 (a release to point at). D11: the `base` role alone writes the `config.txt`
-  block, so FIBER Setup does not.
-- Done when: a FIBER written by the new FIBER Setup comes up with the chosen components, and the
-  last step shows a link for each.
+Its tasks, T4 to T12, are in progress or done.
 
 ### M2. The agent's core and the south bridge
 
@@ -1204,7 +1226,13 @@ The toolchain moves with the TOWER pin and nothing else (D21).
 
 ## Decisions ahead
 
-None open.
+- **D24. When is the first release made, for FIBER Setup to pin?** FIBER Setup names the
+  installer by its version and sha256 (D18), and nothing is tagged yet; `agent/Cargo.toml` says
+  0.1.0. Choices: (a) tag `v0.1.0` from `main` now, after a dry run of `release.yml`, and pin it in
+  FIBER Setup; the bench then installs a real release, and what it finds goes into 0.1.1 or 0.2.0;
+  (b) wait until the bench (T2) has run the platform from a release built by hand, and tag then.
+  Recommended: (a). A release cannot be changed, but a version is cheap, and FIBER Setup's work
+  on T12 cannot be pushed before it points at a release that exists (T12).
 
 ## Decisions done
 

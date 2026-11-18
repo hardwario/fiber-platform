@@ -118,8 +118,10 @@ goes on after the next start. Two never run at once. An apply that has nothing t
 no network: a role updates the package lists only when a package is missing.
 
 **The Avahi record** (`/etc/avahi/services/fiber-platform.service`, `_fiber._tcp`) carries the
-progress in its TXT records (`state`, `step`, `component`, `release`, `restart`), so that FIBER
-Setup can follow the first start without a login. It is written only where Avahi is installed.
+progress in its TXT records (`state`, `step`, `component`, `release`), so that FIBER Setup can
+follow the first start without a login. It is written only where Avahi is installed. The file
+stays after a restart and is written again only by the next apply, so it carries nothing a
+restart makes untrue, such as whether a restart is needed: whoever restarts the FIBER knows.
 
 **For the converge test,** the components named in `/run/fiber/platform/fail-on-purpose` fail on
 purpose. The file is in `/run`, so it is gone after a restart.

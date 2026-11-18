@@ -158,6 +158,31 @@ mod tests {
         );
     }
 
+    /// A seed as FIBER Setup writes it (`firstboot.rs`, `seed()`): flow maps, and the user name
+    /// and password as JSON strings, with what YAML would refuse or take for a line end written
+    /// as an escape. The same bytes are in FIBER Setup's own test, so that the two cannot drift.
+    #[test]
+    fn a_seed_as_fiber_setup_writes_it() {
+        let text = r#"# Written by FIBER Setup 1.3.0 for the FIBER platform 0.1.0. The installer reads it on the
+# first start, then overwrites it with zeros and deletes it.
+schema: 1
+components: {base: true, mosquitto: true, agent: true, node-red: true, chirpstack: true}
+settings: {mqtt: {lan: true}, hardware: {minipcie: rak5146}}
+login: {user: "fiber", password: "a\"b\\c: #d\te\u0007\u007f\u0085\u2028\ufeff\ufffe Dílna 📶"}
+"#;
+        let seed = parse(text).unwrap();
+        assert_eq!(seed.platform.components.len(), 5);
+        assert!(seed.platform.settings.mqtt.lan);
+        assert_eq!(seed.platform.settings.hardware.minipcie, MiniPcie::Rak5146);
+        assert_eq!(
+            seed.login,
+            Some(Login {
+                user: "fiber".into(),
+                password: "a\"b\\c: #d\te\u{7}\u{7f}\u{85}\u{2028}\u{feff}\u{fffe} Dílna 📶".into()
+            })
+        );
+    }
+
     #[test]
     fn checked_like_the_platform_file() {
         let e = format!(

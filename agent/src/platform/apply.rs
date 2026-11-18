@@ -355,6 +355,9 @@ fn publish(paths: &Paths, status: &Status) {
 
 /// The Avahi service of the FIBER (`_fiber._tcp`): FIBER Setup follows the first start by its
 /// TXT records, with no login. The port is SSH's, where the FIBER is reached.
+///
+/// The file stays after a restart, and nothing writes it again until the next apply, so it says
+/// nothing that a restart makes untrue: not whether a restart is needed.
 pub fn avahi_text(status: &Status) -> String {
     let state = match status.state {
         ApplyState::Running => "running",
@@ -367,7 +370,6 @@ pub fn avahi_text(status: &Status) -> String {
         format!("step={}/{}", status.step, status.steps),
         format!("component={}", status.component.as_deref().unwrap_or("")),
         format!("release={}", status.release),
-        format!("restart={}", if status.restart_needed { "yes" } else { "no" }),
     ];
     let records: String = txt
         .iter()
@@ -862,12 +864,13 @@ mod tests {
             "step=2/5",
             "component=mosquitto",
             "release=0.1.0",
-            "restart=no",
         ] {
             assert!(
                 text.contains(&format!("<txt-record>{record}</txt-record>")),
                 "{record}"
             );
         }
+        // A restart would make it untrue, and nothing writes the file at the start.
+        assert!(!text.contains("restart"));
     }
 }
