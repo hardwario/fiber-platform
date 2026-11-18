@@ -619,9 +619,9 @@ A new, small profile (D3), agreed with the people who make the app before any co
 
 ### T31. Examples (M7)
 
-State (2026-11-18): everything that runs without a FIBER is done and checked: `just check` (with
-`check-examples` and the example's lock file in `audit`) and the converge test pass on this
-computer. In step 10c, against the agent's service: `request.sh` and `request.py` put a message on
+State (2026-11-18): everything that runs without a FIBER is done and checked, commit `877ce39`, CI
+run 44262065157 green (the converge test with the examples in it, on the arm64 runner): `just check`
+(with `check-examples` and the example's lock file in `audit`) and the converge test pass. In step 10c, against the agent's service: `request.sh` and `request.py` put a message on
 the display and get "the buzzer is not there" for a beep; `thermometers.py` and the Rust example
 print the probe's reading; at 31.5 °C the alarm flow puts "Port 3: 31.5 °C / above 30 °C" on the
 display and asks for the alarm, and the Rust example asks for it too and prints the answer; a hold of
