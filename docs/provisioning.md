@@ -452,24 +452,32 @@ not there yet: a `platform.yaml` that exists is the person's, and a password is 
 A weekly canary workflow (T11) converges the whole stack against the live package sources and
 opens an issue when one of them breaks.
 
-## What changes in FIBER Setup
+## FIBER Setup's side
 
-- The one switch "install the FIBER software" becomes a component map, with requirements ticked
-  automatically and download sizes shown.
-- It writes `fiber-seed.yaml` beside `fiber-install.sh` on the boot partition. The script keeps
-  its waiting, retrying, logging and restarting; its last step fetches a **pinned** `install.sh`
-  (version and sha256 in the catalog, like the system image) instead of a script from a branch.
-- **A fault to fix:** the script tests `https://github.com` before the clock is right. On a
-  network that blocks NTP, TLS then fails and the script reports "no internet" without reaching its
-  clock fallback, which itself uses HTTPS. The date must come over plain HTTP first, and the clock
-  may only be stepped forward.
-- The retry unit gets `Restart=on-failure`, so plugging in the Ethernet cable later works without
-  a restart.
-- cloud-init sets the final `fiber-<last 8 characters of the serial number>` name with
-  `manage_etc_hosts: true`; nothing on the device renames it afterwards.
-- Progress without a login: the platform publishes an Avahi service (`_fiber._tcp`) whose TXT
-  records carry the state and the step.
-- Nothing ticked: no script is written, the FIBER gets a plain Raspberry Pi OS (as today).
+Built in FIBER Setup (T12), not run on a FIBER yet; tried in a container with Avahi.
+
+- **The choice** is a list of components from a copy of `components.yaml` at the release FIBER
+  Setup names, with what each requires ticked with it, the download sizes once they are measured,
+  `mqtt.lan` and `hardware.minipcie`. Nothing ticked: no script and no seed are written, and the
+  FIBER gets a plain Raspberry Pi OS.
+- **The seed** (`fiber-seed.yaml`, above) goes beside the first-start script `fiber-install.sh`.
+  The script has the release's version and the sha256 of its `install.sh` written into it (D18).
+- **The script runs as a service,** `fiber-install.service`, which cloud-init starts without
+  waiting for it. It tries again 30 s after a failure and at every start, until it has worked, so
+  an Ethernet cable plugged in later is enough. It checks the network over plain HTTP (the FIBER's
+  package sources), moves the clock forward to the date of that answer when NTP has not set it
+  (only ever forward), downloads `install.sh`, checks its sha256 and runs it with
+  `FIBER_NO_REBOOT=1`. On exit status 10 or 20 it restarts the FIBER, and the next start marks it
+  done.
+- **The name** is set by cloud-init, `fiber-<last 8 characters of the serial number>`, with
+  `manage_etc_hosts: true`; nothing on the device renames the FIBER afterwards.
+- **Progress without a login,** from two Avahi records: the script's own (`_fiber-setup._tcp`:
+  `state` is `network`, `clock`, `download`, `install`, `restart` or `failed`, with `error` after a
+  failure), which it removes when it is done, and the platform's (`_fiber._tcp`, above). FIBER
+  Setup asks the FIBER for them with a DNS query sent straight to its address and port 5353, which
+  Avahi answers to the sender. **Good to know:** Avahi 0.8 reads a service file again only when its
+  time has changed in whole seconds, so both writers give a new record a time at least one second
+  after the old one's; and while Avahi registers a changed record it answers nothing for a moment.
 
 ## Keeping Ansible small
 

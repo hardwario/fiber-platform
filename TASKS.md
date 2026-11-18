@@ -189,38 +189,52 @@ The card is fed from the battery rail and goes away when the battery is low.
 
 ### T12. FIBER Setup: the component picker (M1)
 
-State (2026-11-18): the two pieces here are done (`just check` passes): the platform reads a seed
-written as FIBER Setup writes it, and its Avahi record no longer says `restart` (the file outlives
-the restart, so the flag would stay `yes` for ever). FIBER Setup's script, which is what restarts
-the FIBER, publishes a record of its own (`_fiber-setup._tcp`) while it runs, and removes it when it
-is done, after the restart. Next: FIBER Setup's core (`platform.rs` with the copy of
-`components.yaml` and the seed, `firstboot.rs`, the script). The pin of the installer waits for
-the first release (D24); until then FIBER Setup's commits stay on this computer.
+State (2026-11-18): everything that needs neither the first release nor a FIBER is done, in FIBER
+Setup's commit `83d372a`, which is on this computer only: its catalog names the installer built here
+from `0257447`, marked as not published. Left: the first release (D24), then the catalog's version and
+sha256 and the copy of `components.yaml` taken from it, FIBER Setup's push and its CI; then the bench.
+Checked: FIBER Setup's `cargo test` (100), clippy, `npm run check`, `npm test` (26), the build; the
+views walked in the browser preview with one FIBER and with two, in English and in Czech (the picker,
+nothing ticked, each stage of the first start, the links on the last step). Tried in the platform's
+systemd container with Avahi, against the release built here (served inside the container):
+`fiber-install.sh --start` puts the service in place; a failed download is tried again by the service
+after 30 s and then goes through; the installer is checked by its sha256, takes the seed and deletes it,
+and brings `mosquitto` up; the script's record goes `failed` (with `error=download`), `install`, then
+away, while the platform's goes `running` and `done`; a stand-in installer that exits 10 leaves
+`state=restart`, and the next start (another boot id) marks it done; with a clock 3 years behind and no
+NTP, the clock is moved forward to the date of the HTTP answer. FIBER Setup's query, built alone for
+arm64 Linux, read both records from a second container. Seen on the way: while Avahi registers a
+changed record, it answers nothing for a moment, so the app keeps the last state it saw and shows an
+end only when it reads it twice. Not tried: cloud-init itself, the Windows and Linux builds, anything
+on a FIBER. The two changes here (`557941f`, `0257447`) are pushed, CI green (44248217878,
+44249793562).
 
 In `../fiber-setup`. The one place where a user makes the choice.
 
-- [ ] `Settings.install_fiber` becomes a list of components, plus the two settings the platform
+- [x] `Settings.install_fiber` becomes a list of components, plus the two settings the platform
       has a choice for (`mqtt.lan`, `hardware.minipcie`): `firstboot.rs` (the struct, its checks,
       what it writes), `types.ts`, `wizard.svelte.ts`, `api.ts`, the command line's `FlashArgs`,
       the *Software* card in `Settings.svelte`, and every view that looks at the old switch
       (`Image`, `Write`, `FirstStart`, `Done`). The texts in all five languages
-- [ ] The list comes from a copy of `components.yaml` at the pinned release: what a component
+- [x] The list comes from a copy of `components.yaml` at the pinned release: what a component
       requires is ticked with it, and its download size is shown once it is measured. The
       titles and the sentences are translated in FIBER Setup, by component id; a test fails on a
       component without them
-- [ ] `personalise()` writes `fiber-seed.yaml` beside `fiber-install.sh`: the components, the
+- [x] `personalise()` writes `fiber-seed.yaml` beside `fiber-install.sh`: the components, the
       settings, and the user name and password for the services (D16). The file joins the list
       of old files that are cleared from the boot partition. A test here reads a seed with every
       kind of character FIBER Setup escapes, written as FIBER Setup writes it
 - [ ] `catalog.rs`: the installer by its version and sha256, as the system image is, in place
       of an address on a `main` branch. `fiber-install.sh` fetches it and checks it; the test
-      that keeps the two in step stays. Waits for D24
-- [ ] The clock: take the date over plain HTTP before anything over HTTPS, and only ever move
+      that keeps the two in step stays. Built and tested; what it names waits for D24: the first
+      release's version and sha256, and `image/components.yaml` copied from it. Then FIBER
+      Setup's commits are pushed and its CI watched
+- [x] The clock: take the date over plain HTTP before anything over HTTPS, and only ever move
       the clock forward
-- [ ] `fiber-install.service` tries again after a failure without waiting for a restart: written
+- [x] `fiber-install.service` tries again after a failure without waiting for a restart: written
       by cloud-init, started without blocking it, `Restart=on-failure`. Exit status 10 restarts the
       FIBER; 20 is done for the script, as the platform goes on by itself
-- [ ] cloud-init sets the final name, `fiber-<last 8 characters of the serial number>`, always
+- [x] cloud-init sets the final name, `fiber-<last 8 characters of the serial number>`, always
       with `manage_etc_hosts: true`; the line that edits `/etc/hosts` goes
 - [x] Here: the Avahi record says nothing a restart makes untrue: no `restart` in it. The
       script publishes its own record (`_fiber-setup._tcp`: waiting for the network, the clock,
@@ -230,20 +244,22 @@ In `../fiber-setup`. The one place where a user makes the choice.
       0.8 reads a service file again only when its time has changed in whole seconds, so a
       record written twice within a second kept the first (`running` long after `done`). A
       new record now has a time at least one second after the old one's
-- [ ] *Follow the first start* reads the progress from the platform's Avahi record (a DNS-SD
+- [x] *Follow the first start* reads the progress from the platform's Avahi record (a DNS-SD
       query sent straight to the FIBER's address, so nothing on the computer listens on port
       5353). Tried against Avahi in a container. The last step shows a link for every chosen
       component, and says in plain words that these services can be reached from the network
       with the password from the settings
-- [ ] The choice "set Wi-Fi later from your phone" stays hidden until T29
-- [ ] With nothing ticked no script and no seed are written, as today
-- [ ] Its README: the FIBER software is this platform; "about 10 minutes" becomes what the
-      bench shows
+- [x] The choice "set Wi-Fi later from your phone" stays hidden until T29 (`PHONE_SETUP` in
+      `wizard.svelte.ts`)
+- [x] With nothing ticked no script and no seed are written, as today
+- [x] Its README: the FIBER software is this platform, with its components, the one password
+      and what was tried. "About 10 minutes" stays until the bench shows the time (the last step)
 - [ ] On a FIBER: every box ticked; the same with NTP blocked; with the Ethernet cable plugged
       in only later; with the power cut in the middle of the installation; with a RAK5146 card
       and with the LTE modem in the slot; and on a module with 1 GB of RAM, with the time, the
       download size and the memory in use written down. Each component's download and installed
-      size go into `size` in `provision/components.yaml`, which is empty until then
+      size go into `size` in `provision/components.yaml`, which is empty until then, and the time
+      into FIBER Setup's texts in place of "about 10 minutes"
 
 Watch out: today the script tests `https://github.com` before the clock is right. On a network
 that blocks NTP, TLS then fails, the script says "no internet", and its clock fallback (also
