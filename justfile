@@ -64,10 +64,18 @@ check-south: south-size
     cd firmware/south && cargo clippy --locked --release -- -D warnings
     cd firmware/south && RUSTDOCFLAGS="-D warnings" cargo doc --locked --release --no-deps
 
-# rust-lld links it with the target's own musl (.cargo/config.toml): no C toolchain needed.
-# Build the static `fiber` program for the FIBER (arm64 Linux, musl).
-build-fiber:
-    cargo build --locked --release --target aarch64-unknown-linux-musl -p fiber-agent
+# rust-lld links it with the target's own musl (.cargo/config.toml): no C toolchain needed. It
+# carries the south bridge's firmware as a binary image (llvm-objcopy, from llvm-tools), to flash
+# the chip with.
+# Build the static `fiber` program for the FIBER (arm64 Linux, musl), with the firmware in it.
+build-fiber: south
+    #!/usr/bin/env bash
+    set -euo pipefail
+    objcopy=$(find "$(rustc --print sysroot)/lib/rustlib" -name llvm-objcopy -type f | head -n 1)
+    mkdir -p target/firmware
+    "$objcopy" -O binary firmware/south/target/thumbv6m-none-eabi/release/fiber-south target/firmware/south.bin
+    FIBER_SOUTH_IMAGE="$PWD/target/firmware/south.bin" \
+        cargo build --locked --release --target aarch64-unknown-linux-musl -p fiber-agent
 
 # The archive, the stamped installer and SHA256SUMS (provision/release.py).
 # Build a release of the platform into dist/.

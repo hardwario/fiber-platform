@@ -37,9 +37,12 @@ with, and the schema tag of the TOWER radio messages.
 
 ## The board: `fiber agent`, `status`, `power`, `ports`, `leds`, `firmware`
 
-**A draft for the maintainer to read (T13); not written yet (T17).** These commands are clients of
-the agent's MQTT API ([`mqtt-api.md`](mqtt-api.md)): each one reads its retained topics or sends a
-request on `fiber/cmd`, so whatever they do, a program of your own can do too. They connect to
+**Built on the drafts of T13, which the maintainer has yet to read (T17).** Tested in a container
+against a simulated south bridge, through Mosquitto; flashing and `fiber firmware chip` are tested
+against a simulated bootloader only. Not run on a FIBER yet. These commands, but for `fiber firmware
+chip`, are clients of the agent's MQTT API ([`mqtt-api.md`](mqtt-api.md)): each one reads its
+retained topics or sends a request on `fiber/cmd`, so whatever they do, a program of your own can
+do too. They connect to
 the broker on the FIBER (`127.0.0.1:1883`); `--broker HOST[:PORT]`, `--user` and the password in
 `FIBER_MQTT_PASSWORD` reach another FIBER, through its listener for the network.
 
@@ -53,7 +56,23 @@ Their exit statuses, beside the ones at the top of this page:
 ### `fiber agent`
 
 The agent itself: the one process that owns the board. `fiber-agent.service` runs it (the `agent`
-component, T18); it is not meant to be started by hand while the service runs.
+component, T18); it is not meant to be started by hand while the service runs. It needs no
+settings; `/etc/fiber/agent.toml` changes the defaults:
+
+```toml
+[mqtt]
+host = "127.0.0.1"   # the broker on the FIBER itself
+port = 1883
+
+[board]
+dividers = true      # false on the board variant without the two voltage dividers
+```
+
+It keeps working while the broker is down, and sends every retained topic again when it is back.
+When it cannot open the south bridge's port, it tries again every 5 s. It carries the south
+bridge's firmware (`just build-fiber` builds it in) and writes it to the chip when the chip runs
+another image, speaks another schema, or says nothing for 10 s after the start: at most three
+tries an hour, kept in `/var/lib/fiber/agent/flash-tries.json` across restarts.
 
 ### `fiber status`
 
@@ -72,14 +91,16 @@ North       running 0.2.0, image 0x1a2b3c4d (the one carried)
 The power source and the two voltages, as `power` has them. `--follow` prints a line on every
 change, and each `power/event`, until Ctrl+C.
 
-### `fiber ports [on|off|cycle [SECONDS]] [PORT...]`
+### `fiber ports [on|off|cycle] [PORT...] [--seconds N]`
 
 Without an action, the power of every port. With one, it switches the ports named (1 to 8; all
 when none is named) and prints them all after it. `cycle` switches them off and on again after
-5 s, or `SECONDS`.
+5 s, or `--seconds N` (1 to 60).
 
 ```
-$ fiber ports cycle 3
+$ fiber ports off 3
+Ports       1 2 4 5 6 7 8 on, 3 off
+$ fiber ports cycle --seconds 3
 Ports       1 2 3 4 5 6 7 8 on
 ```
 
@@ -95,8 +116,21 @@ all port LEDs when none is named); `auto` gives them back to the agent.
 - `flash south` or `flash north`: writes the image the agent carries to the chip, through the
   agent (`firmware.flash`), and waits for it, up to 2 minutes.
 - `chip south` or `chip north`: talks to the chip's ROM bootloader directly and prints what it
-  is (product id, option bytes, readout protection). It needs root, and it refuses while the
-  agent holds the serial port: stop the agent first.
+  is (product id, option bytes, readout protection), then starts its firmware again. It needs
+  root, and it refuses while the agent holds the serial port: stop the agent first. It ends
+  with 1 when the chip is not the one the board should have.
+
+```
+$ sudo systemctl stop fiber-agent
+$ sudo fiber firmware chip south
+Chip        product id 0x453 (the STM32C031 expected)
+Bootloader  3.1, commands 00 01 02 11 21 31 44 63 73 82 92
+Options     0xfffffeaa
+Protection  off
+$ sudo systemctl start fiber-agent
+```
+
+This is what the simulated bootloader answers; a real chip's answer has not been seen yet (T2).
 
 ## `fiber doctor`
 

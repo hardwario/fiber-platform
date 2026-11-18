@@ -13,7 +13,8 @@
 #      names a bad line, and turning the base off takes the block away
 #   7. Mosquitto's listener for the network with the seed's login; a changed password stays
 #   8. Node-RED behind the seed's login, with the flow to start from; a second apply changes
-#      nothing; only the expected ports listen
+#      nothing; only the expected ports listen; then the agent through Mosquitto against a
+#      simulated south bridge, with the board's commands, and its last will
 #   9. ChirpStack: at no moment does its API answer to admin/admin; the seed's login works; Redis
 #      on loopback; the API key kept; the concentrator daemon and its udev rule there; a second
 #      apply changes nothing
@@ -207,6 +208,39 @@ grep -q '^mosquitto: up, nothing changed$' /tmp/apply.out || fail "the second ap
 say "8c. Only the expected ports listen: 1880 (Node-RED), 1883 (loopback), 1884 (with a login)"
 ports=$(listening | sed 's/.*://' | sort -un | grep -vx 8000 | tr '\n' ' ')
 [ "$ports" = "1880 1883 1884 " ] || fail "these ports listen: $ports"
+
+say "8d. The agent, through Mosquitto, against a simulated south bridge on a pseudo-terminal"
+socat pty,raw,echo=0,link=/tmp/south-sim pty,raw,echo=0,link=/tmp/south-agent &
+socat_pid=$!
+wait_for 10 test -e /tmp/south-agent || fail "socat made no pseudo-terminals"
+fiber south-simulator /tmp/south-sim &
+simulator_pid=$!
+FIBER_SOUTH_PORT=/tmp/south-agent fiber agent > /tmp/agent.log 2>&1 &
+agent_pid=$!
+agent_answers() { fiber status > /tmp/status.out 2>&1 && grep -q '^South       running' /tmp/status.out; }
+wait_for 30 agent_answers || fail "fiber status: $(cat /tmp/status.out); the agent: $(cat /tmp/agent.log)"
+cat /tmp/status.out
+grep -qE '^South       running 0\.1\.0, image 0x[0-9a-f]{8} \(the one carried\)$' /tmp/status.out ||
+    fail "fiber status does not show the south bridge running the image the agent carries"
+grep -qE '^Power       PoE, input 1[12]\.[0-9]{2} V, battery 4\.[01][0-9] V$' /tmp/status.out || fail "fiber status does not show the power"
+grep -q '^Ports       1 2 3 4 5 6 7 8 on$' /tmp/status.out || fail "fiber status does not show the ports"
+[ "$(fiber ports off 3)" = "Ports       1 2 4 5 6 7 8 on, 3 off" ] || fail "fiber ports off 3"
+mosquitto_sub -h 127.0.0.1 -t fiber/ports/3 -C 1 -W 5 | grep -q '"power":false' || fail "fiber/ports/3 does not say off"
+[ "$(fiber ports on)" = "Ports       1 2 3 4 5 6 7 8 on" ] || fail "fiber ports on"
+fiber leds amber port2 --blink 500 500
+fiber leds | grep -q '^port2       set$' || fail "fiber leds does not show port2 set"
+fiber leds auto
+expect 1 fiber leds yellow port2
+fiber firmware | grep -q '^South       running' || fail "fiber firmware"
+kill "$agent_pid"
+agent_gone() {
+    local code=0
+    fiber status > /dev/null 2>&1 || code=$?
+    [ "$code" -eq 4 ]
+}
+wait_for 40 agent_gone || fail "the last will did not come"
+expect 4 fiber status
+kill "$simulator_pid" "$socat_pid" 2> /dev/null || true
 
 say "9. ChirpStack: at no moment does its API answer to admin/admin"
 login() { python3 /tests/chirpstack-login.py "$@" 2> /dev/null || echo "no answer"; }

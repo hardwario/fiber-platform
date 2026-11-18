@@ -68,6 +68,9 @@ pub mod gpio {
 /// The board and its revision, as `fiber/status` names it.
 pub const HARDWARE: &str = "FIBER-R2 2.1";
 
+/// The GPIO chip of the CM4's own lines (BCM2711).
+pub const GPIO_CHIP: &str = "/dev/gpiochip0";
+
 /// The serial link to the north bridge (`uart3`).
 pub const NORTH_BRIDGE_UART: &str = "/dev/ttyAMA3";
 /// The serial link to the south bridge (`uart4`).

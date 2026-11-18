@@ -307,17 +307,17 @@ the south bridge firmware changes them, once (T16).
 
 State (2026-11-18): waiting for a FIBER (T2) to run it, and for T13's drafts. Built on the draft of
 `docs/firmware/south-link.md`: `crates/south-core` (6 tests) and `firmware/south`, 16224 bytes of
-flash (15.8 KB of the 24 KB), with fmt, clippy, rustdoc and the size in `just check-south` and a
-CI job. Not run on a chip: not the LEDs, not the ports, not the ADC, and above all not the write of
-the option bytes, which is for the bench with a debug probe at hand. Settled: one tick counter for
-every LED; the start pattern is the power LED blinking green, the fallback the power LED blinking
-yellow with the port LEDs dark; a panic is reported without its place (3.2 KB); the ADC's longest
-sample time, for the dividers' resistance. Not done yet: the simulator on a pseudo-terminal for the
-agent's tests (it comes with T17, which uses it).
+flash (15.8 KB of the 24 KB), with fmt, clippy, rustdoc and the size in `just check-south` and a CI
+job, green since `30fb908` (44202681510). Not run on a chip: not the LEDs, not the ports, not the
+ADC, and above all not the write of the option bytes, which is for the bench with a debug probe at
+hand. Settled: one tick counter for every LED; the start pattern is the power LED blinking green,
+the fallback the power LED blinking yellow with the port LEDs dark; a panic is reported without its
+place (3.2 KB); the ADC's longest sample time, for the dividers' resistance. The simulator for the
+agent's tests is `fiber south-simulator`, on a pseudo-terminal (made with T17).
 
 The status lights, the power of the 1-Wire ports and two voltages, in at most 24 KB.
 
-- [ ] `crates/south-core`: the LED engine (off, on, blinking, by colour, on a 50 Hz tick), what
+- [x] `crates/south-core`: the LED engine (off, on, blinking, by colour, on a 50 Hz tick), what
       happens with a `Desired`, the fallback pattern after 5 s without one, the ports switched
       on one after another at start. Tested on the computer, and built as a simulator on a
       pseudo-terminal for the agent's tests
@@ -350,16 +350,20 @@ costs 82 bytes.
 
 ### T17. The agent's core (M2)
 
-State (2026-11-18): `fiber agent` runs: the core's logic (`agent/src/agent/`, 20 tests), the loop
-around it (the south link every second, MQTT, requests, port cycles), MQTT through rumqttc
-without TLS, `agent.toml` with defaults. The loop is tested against a simulated south bridge on an
-in-memory pipe and a fake bus (paused clock): Hello and Status, the volts, a request delivered
-twice and answered once, a cycle, a reconnect, a south bridge going silent. Not done yet: flashing
-(the flasher's adapters to the real port and lines, and the images carried in the program); the
-command line's clients; the service; a test against a real broker. Next: the command line's
-clients. Settled: `Hello` carries `VREFINT_CAL`; a board without dividers is a setting
-(`[board] dividers`); rumqttc's loop runs in a task of its own, and a publish while the broker is
-down is dropped (every retained topic is sent again after the reconnect).
+State (2026-11-18, 02:05): everything that needs no board is written and tested (`just check`
+and the converge test pass on the computer). `fiber agent` runs: the core's logic (`agent/src/agent/`), the loop around it (the south link
+every second, MQTT, requests, port cycles), MQTT through rumqttc without TLS, `agent.toml` with
+defaults. The agent carries the south bridge's image (`just build-fiber` builds it in) and flashes
+the chip through the flasher's adapters to the real port and GPIO lines; tested against the loop
+with a fake bus, not against a chip. The command line's clients are written: `status`, `power`,
+`ports`, `leds`, `firmware status` and `firmware flash` through MQTT, `firmware chip` on the
+bootloader directly (tested against the simulated one). The converge test runs the agent through
+Mosquitto against `fiber south-simulator` on a pseudo-terminal (step 8d). Next: the service
+(with T18, whose role installs it). Not done: the mini-PCIe lines (they wait for T2's
+levels); anything on a FIBER. Settled: `Hello` carries `VREFINT_CAL`; a board without dividers is a
+setting (`[board] dividers`); rumqttc's loop runs in a task of its own, and a publish while the
+broker is down is dropped (every retained topic is sent again after the reconnect); the simulator
+says it runs the image the program carries, so that the agent leaves it alone.
 
 The one program that owns the board. This task gives it the south bridge and its first topics.
 
@@ -371,27 +375,51 @@ The one program that owns the board. This task gives it the south bridge and its
 - [x] The south link: `Desired` every second, `Status` and `Hello` read; the counts turned into
       volts (battery: the pin times 2; input: the pin times 398 / 68); PoE or battery, with a
       margin so that it does not flap
-- [ ] Firmware: both images are built into the program. A chip whose `Hello` names another
-      image or another schema tag, or that says nothing, is flashed (T15). At most three tries
-      for one image in an hour, remembered across restarts
+- [x] Firmware: the south bridge's image is built into the program (the north bridge's comes
+      with T26). A chip whose `Hello` names another image or another schema tag, or that says
+      nothing, is flashed (T15). At most three tries for one image in an hour, remembered
+      across restarts
 - [ ] The mini-PCIe card's two lines (GPIO10 and 11), set for the card that
       `hardware.minipcie` names, with the levels T2 found
 - [x] MQTT: the last will on `status`, every retained topic sent again after a reconnect,
       requests and answers, the `schema` number
 - [x] `/etc/fiber/agent.toml`, with defaults that need no file
-- [ ] The command line as a client of MQTT: `status`, `power`, `ports`, `leds`, `firmware
-      status`. `firmware flash` and `doctor` talk to the hardware themselves and refuse while
-      the agent holds it
+- [x] The command line as a client of MQTT: `status`, `power`, `ports`, `leds`, `firmware
+      status`, `firmware flash` (through the agent). `firmware chip` talks to the bootloader
+      itself and refuses while the agent holds the port; `doctor` only reads
 - [ ] The service: the user `fiber`, read-only system directories, only the devices it needs, no
-      capabilities, a watchdog
-- [ ] Tests without a board: against the south bridge simulator, the simulated bootloader, and
-      a broker inside the test
+      capabilities, a watchdog. It is written with T18, whose role installs it
+- [x] Tests without a board: against the south bridge simulator, the simulated bootloader, and
+      a broker inside the test (Mosquitto in the converge test, step 8d)
 
 Watch out: the schematic has a variant of the board without the two voltage dividers. On such a
 board the two voltages read nothing useful, and `power` has to say so.
 
 - Needs: T14 to T16.
 - Done when: the three lines under "M2" hold on a FIBER.
+
+### T18. The `agent` role (M2)
+
+State (2026-11-18, 01:55): started; the steps below are new. Waits for nothing to begin; the last
+step waits for a FIBER (T2).
+
+- [ ] `docs/provisioning.md` first: the agent role (the user, its groups, the unit, the settings
+      file), and the unit's lines in `docs/architecture.md`
+- [ ] `fiber-agent.service`: the user `fiber`; `Type=notify` with a watchdog that the agent's
+      loop feeds (also while the port is missing and while it flashes); the system read-only
+      but for `/var/lib/fiber/agent` and `/run/lock`; only the device classes it needs; no
+      capabilities
+- [ ] The role: the user and its groups, the unit, `/etc/fiber/agent.toml` written once with the
+      defaults in comments, enabled and started; restarted when the program changed (an update
+      or a rollback)
+- [ ] Turning it off stops and disables the service; both microcontrollers keep their firmware
+- [ ] In the converge test: the service against the south bridge simulator; it runs as `fiber`,
+      holds the port (`fiber firmware chip` refuses), its watchdog does not fire, an update
+      restarts it on the new program, and turning it off takes `fiber/status` offline
+- [ ] On a FIBER: `fiber platform enable agent` brings up `fiber/status`
+
+- Needs: T6, T17.
+- Done when: `fiber platform enable agent` on a FIBER brings up `fiber/status`.
 
 ## Tasks ahead
 
@@ -492,14 +520,7 @@ password also opens services on the network.
 Done when: a unit with the earlier south bridge firmware is flashed by the agent on its own; a
 power cut in the middle of flashing recovers; stopping the agent shows the fallback LED pattern.
 
-#### T18. The `agent` role
-
-- [ ] The service unit, the user and its groups, `/etc/fiber/agent.toml`, enabled and started
-- [ ] Turning it off stops and disables the service; both microcontrollers keep their firmware
-- [ ] In the converge test: the agent starts against the simulators
-
-- Needs: T6, T17.
-- Done when: `fiber platform enable agent` on a FIBER brings up `fiber/status`.
+Its tasks, T13 to T18, are all in progress.
 
 ### M3. Thermometers
 
@@ -701,6 +722,8 @@ hopping (US 915), the remote shell, bulk transfer.
       topics by its property tables
 - [ ] Pairing: opened from the command line, from MQTT or from the menu, for 60 s; the six-digit
       code on the LCD and in `radio/pairing`
+- [ ] The north bridge's image built into the program, and flashed by the agent as the south
+      bridge's is (T17)
 - [ ] `fiber radio status | config | nodes | pair | watch`
 - [ ] Tests against the north bridge simulator
 

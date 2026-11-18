@@ -37,6 +37,15 @@ memory, so an overflow faults at once (the chip has no MPU), and with the profil
 - **50 ticks a second.** Lines that blink alike blink together: they count from the same tick.
 - **The watchdog** (2 s) resets it when its loop stops.
 
+## How it gets onto the chip
+
+The `fiber` program carries it: `just build-fiber` builds the firmware, turns it into a binary
+image (llvm-objcopy) and builds that into the program. The agent compares the CRC-32 of that
+image with the one the chip's `Hello` names, and writes it through the ROM bootloader when they
+differ, when the chip speaks another schema, or when it says nothing (`fiber-flasher`; at most
+three tries an hour). The image's CRC-32 covers the flash from its start to the end of the initial
+data, which is exactly what the firmware works out for itself.
+
 ## The board
 
 - **USART1** on PA9 and PA10, 115200 baud, 8N1.

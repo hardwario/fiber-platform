@@ -12,6 +12,7 @@
 #[allow(dead_code)] // The agent's I/O around it comes next (T17).
 mod agent;
 mod board;
+mod client;
 mod doctor;
 mod paths;
 mod platform;
@@ -37,6 +38,14 @@ struct Cli {
     #[arg(long, global = true, hide = true, value_name = "DIR")]
     root: Option<PathBuf>,
 
+    /// The broker of another FIBER, as HOST or HOST:PORT (the board's commands; this FIBER without it).
+    #[arg(long, global = true, value_name = "HOST[:PORT]")]
+    broker: Option<String>,
+
+    /// The user for a FIBER's listener for the network; the password in FIBER_MQTT_PASSWORD.
+    #[arg(long, global = true, value_name = "USER")]
+    user: Option<String>,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -53,6 +62,41 @@ enum Command {
     /// The agent: the one process that owns the board and shows it on MQTT. Run by
     /// fiber-agent.service.
     Agent,
+    /// The south bridge, simulated, on a serial port (for the tests).
+    #[command(hide = true)]
+    SouthSimulator { port: PathBuf },
+    /// The FIBER, the agent, the power, the ports and the firmware, in short.
+    Status,
+    /// The power source and the two voltages.
+    Power,
+    /// The power of the 1-Wire ports: show it, or switch ports on, off, or off and on again.
+    Ports {
+        /// on, off or cycle; without it, the ports are shown.
+        #[arg(value_parser = ["on", "off", "cycle"])]
+        action: Option<String>,
+        /// The ports, 1 to 8; all of them when none is named.
+        #[arg(value_parser = clap::value_parser!(u8).range(1..=8))]
+        ports: Vec<u8>,
+        /// For cycle: how long the ports stay off, 1 to 60 s (5 without it).
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..=60))]
+        seconds: Option<u64>,
+    },
+    /// The LEDs: show how they are set, set them, or give them back to the agent.
+    Leds {
+        /// auto, or a colour: off, green, red, amber, yellow. Without it, the LEDs are shown.
+        #[arg(value_parser = ["auto", "off", "green", "red", "amber", "yellow"])]
+        action: Option<String>,
+        /// power, port1 to port8; all port LEDs when none is named.
+        leds: Vec<String>,
+        /// Blink: milliseconds on, then off, each a multiple of 20 from 20 to 5100.
+        #[arg(long, num_args = 2, value_names = ["ON", "OFF"])]
+        blink: Option<Vec<u64>>,
+    },
+    /// The firmware of the two microcontrollers: show it, or write it again.
+    Firmware {
+        #[command(subcommand)]
+        command: Option<FirmwareCommand>,
+    },
     /// Check that the board's hardware is there as Linux should see it, and say what to do
     /// where it is not.
     Doctor,
@@ -60,6 +104,22 @@ enum Command {
     Platform {
         #[command(subcommand)]
         command: PlatformCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum FirmwareCommand {
+    /// Both chips: what runs on them, and whether it is the image the agent carries.
+    Status,
+    /// Writes the image the agent carries to a chip, through the agent.
+    Flash {
+        #[arg(value_parser = ["south", "north"])]
+        chip: String,
+    },
+    /// Asks a chip's bootloader what the chip is, without the agent: stop the agent first.
+    Chip {
+        #[arg(value_parser = ["south", "north"])]
+        chip: String,
     },
 }
 
@@ -111,12 +171,32 @@ enum PlatformCommand {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let paths = Paths::new(cli.root);
+    let broker = || client::Broker::new(cli.broker.as_deref(), cli.user.clone());
     let result = match cli.command {
         Command::Version { all } => {
             print!("{}", version_text(all));
             Ok(ExitCode::SUCCESS)
         }
         Command::Agent => agent::agent(&paths),
+        Command::SouthSimulator { port } => agent::south_simulator(&port),
+        Command::Status => broker().and_then(|b| client::status(&b)),
+        Command::Power => broker().and_then(|b| client::power(&b)),
+        Command::Ports {
+            action,
+            ports,
+            seconds,
+        } => broker().and_then(|b| client::ports(&b, action.as_deref(), &ports, seconds)),
+        Command::Leds { action, leds, blink } => broker().and_then(|b| {
+            let blink = blink.and_then(|v| Some((*v.first()?, *v.get(1)?)));
+            client::leds(&b, action.as_deref(), &leds, blink)
+        }),
+        Command::Firmware {
+            command: Some(FirmwareCommand::Chip { chip }),
+        } => agent::firmware_chip(&paths, &chip),
+        Command::Firmware { command } => broker().and_then(|b| match command {
+            Some(FirmwareCommand::Flash { chip }) => client::firmware(&b, Some(&chip)),
+            _ => client::firmware(&b, None),
+        }),
         Command::Doctor => doctor::doctor(&paths),
         Command::Platform { command } => match command {
             PlatformCommand::List => platform::list(&paths),

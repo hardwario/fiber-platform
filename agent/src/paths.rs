@@ -35,6 +35,17 @@ impl Paths {
         self.under("/etc/fiber/agent.toml")
     }
 
+    /// How often the agent tried to flash each image in the last hour, kept across restarts.
+    pub fn flash_tries(&self) -> PathBuf {
+        self.under("/var/lib/fiber/agent/flash-tries.json")
+    }
+
+    /// Where the locks on the two serial ports are: the agent holds the south bridge's while it
+    /// runs, so that a command run by hand keeps off it.
+    pub fn lock_dir(&self) -> PathBuf {
+        self.under("/run/lock")
+    }
+
     /// The releases, `current` and `previous`.
     pub fn opt_dir(&self) -> PathBuf {
         self.under("/opt/fiber")

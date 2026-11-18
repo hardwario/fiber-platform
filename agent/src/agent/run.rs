@@ -14,9 +14,10 @@ use serde_json::Value;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::Instant;
 
+use super::firmware::{self, Seen, Tries};
 use super::link::{Event, Reader, Writer};
 use super::requests::{self, Answer, Handled, RecentIds};
-use super::state::State;
+use super::state::{FirmwareState, State};
 use super::topics::{self, Identity};
 
 /// The prefix of every topic.
@@ -25,6 +26,18 @@ pub const PREFIX: &str = "fiber/";
 pub const SILENT_AFTER: Duration = Duration::from_secs(3);
 /// `power` is sent again at least this often.
 pub const POWER_EVERY: Duration = Duration::from_secs(60);
+/// Without a `Hello` for this long after the start, the south bridge counts as not running the
+/// firmware at all.
+pub const NO_FIRMWARE_AFTER: Duration = Duration::from_secs(10);
+/// Frames with another schema tag, in a row, before the chip is flashed.
+pub const OTHER_SCHEMA_FRAMES: u32 = 3;
+
+/// Why [`run`] returned with the link still whole.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Stop {
+    /// The south bridge is to be flashed; `request` is the id of a `firmware.flash` to answer.
+    Flash { request: Option<String> },
+}
 
 /// What comes from the broker.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -62,6 +75,12 @@ pub struct Agent<B: Bus> {
     /// The payloads last sent (without `ts`), to send only what changed.
     sent: std::collections::BTreeMap<String, Value>,
     power_sent: Option<Instant>,
+    /// The flash tries, and where they are kept (none in the tests).
+    tries: Tries,
+    tries_path: Option<std::path::PathBuf>,
+    other_schema: u32,
+    hello_seen: bool,
+    flash: Option<Option<String>>,
 }
 
 /// A payload without its `ts`, to compare.
@@ -84,7 +103,69 @@ impl<B: Bus> Agent<B> {
             started: Instant::now(),
             sent: Default::default(),
             power_sent: None,
+            tries: Tries::default(),
+            tries_path: None,
+            other_schema: 0,
+            hello_seen: false,
+            flash: None,
         }
+    }
+
+    /// Keeps the flash tries in `path`, across restarts.
+    pub fn keep_tries(&mut self, path: std::path::PathBuf) {
+        self.tries = Tries::load(&path);
+        self.tries_path = Some(path);
+    }
+
+    /// Asks for a flash of the south bridge when what was `seen` calls for one and a try is
+    /// allowed; the chip counts as failed when tries are used up.
+    fn consider_flash(&mut self, seen: Seen) {
+        let Some(carried) = self.state.south.carried else {
+            return;
+        };
+        if self.flash.is_some() || !firmware::needs_flash(seen, carried) {
+            return;
+        }
+        if self.tries.allowed("south", carried, now()) {
+            self.flash = Some(None);
+        } else {
+            self.state.south.state = FirmwareState::Failed;
+        }
+    }
+
+    /// Marks the south bridge as being flashed, and says so.
+    pub async fn begin_flash(&mut self) {
+        self.state.south.state = FirmwareState::Flashing;
+        self.publish_state(false).await;
+    }
+
+    /// The end of a flash: the try is kept, the request answered, the state said. The link
+    /// starts again afterwards, and the chip's `Hello` comes with it.
+    pub async fn end_flash(&mut self, result: Result<(), String>, request: Option<String>) {
+        let carried = self.state.south.carried.unwrap_or(0);
+        self.tries.record("south", carried, now());
+        if let Some(path) = &self.tries_path
+            && let Err(e) = self.tries.save(path)
+        {
+            eprintln!("cannot keep the flash tries in {}: {e}", path.display());
+        }
+        self.state.south.state = match (&result, self.tries.allowed("south", carried, now())) {
+            (Ok(()), _) => FirmwareState::Running,
+            (Err(_), true) => FirmwareState::Silent,
+            (Err(_), false) => FirmwareState::Failed,
+        };
+        self.state.south.hello = None;
+        self.hello_seen = false;
+        self.other_schema = 0;
+        self.started = Instant::now();
+        if let Some(id) = request {
+            let answer = match result {
+                Ok(()) => Answer::ok(&id, Some(serde_json::json!({"crc": format!("0x{carried:08x}")}))),
+                Err(e) => Answer::error(&id, e),
+            };
+            self.answer(answer).await;
+        }
+        self.publish_state(false).await;
     }
 
     /// Sends a retained topic when its payload changed, or always with `force`.
@@ -162,6 +243,9 @@ impl<B: Bus> Agent<B> {
         if last.elapsed() > SILENT_AFTER {
             self.state.south_silent();
         }
+        if !self.hello_seen && self.started.elapsed() > NO_FIRMWARE_AFTER {
+            self.consider_flash(Seen::Silent);
+        }
         writer.send(&Message::Desired(self.state.desired())).await?;
         self.publish_state(false).await;
         Ok(())
@@ -169,7 +253,14 @@ impl<B: Bus> Agent<B> {
 
     async fn link(&mut self, event: Event) {
         match event {
-            Event::Hello(hello) => self.state.south_hello(hello),
+            Event::Hello(hello) => {
+                self.hello_seen = true;
+                self.other_schema = 0;
+                self.state.south_hello(hello);
+                self.consider_flash(Seen::Hello {
+                    image_crc: hello.image_crc,
+                });
+            }
             Event::Status { status, .. } => {
                 self.last_status = Some(Instant::now());
                 if let Some(source) = self.state.south_status(status) {
@@ -179,9 +270,13 @@ impl<B: Bus> Agent<B> {
                         .await;
                 }
             }
-            // A firmware from another build, or noise: flashing it comes with the flasher's
-            // adapters (T17).
-            Event::OtherSchema | Event::Dropped => {}
+            Event::OtherSchema => {
+                self.other_schema += 1;
+                if self.other_schema >= OTHER_SCHEMA_FRAMES {
+                    self.consider_flash(Seen::OtherSchema);
+                }
+            }
+            Event::Dropped => {}
         }
         self.publish_state(false).await;
     }
@@ -199,20 +294,28 @@ impl<B: Bus> Agent<B> {
                 self.cycles
                     .push((Instant::now() + Duration::from_secs(seconds), mask, id));
             }
-            Handled::Flash { id, .. } => {
-                self.answer(Answer::error(
-                    &id,
-                    "flashing through the agent is not written yet",
-                ))
-                .await
-            }
+            Handled::Flash { id, .. } => match self.state.south.carried {
+                None => {
+                    self.answer(Answer::error(&id, "this fiber program carries no firmware image"))
+                        .await
+                }
+                Some(carried) if !self.tries.allowed("south", carried, now()) => {
+                    self.answer(Answer::error(
+                        &id,
+                        "flashed three times in the last hour; try again later",
+                    ))
+                    .await
+                }
+                Some(_) => self.flash = Some(Some(id)),
+            },
         }
         self.publish_state(false).await;
     }
 }
 
-/// Runs the agent on a south link until the link ends or breaks.
-pub async fn run<R, W, B>(agent: &mut Agent<B>, reader: R, writer: W) -> io::Result<()>
+/// Runs the agent on a south link until the link ends or breaks, or the south bridge is to be
+/// flashed.
+pub async fn run<R, W, B>(agent: &mut Agent<B>, reader: R, writer: W) -> io::Result<Stop>
 where
     R: AsyncRead + Unpin,
     W: AsyncWrite + Unpin,
@@ -231,6 +334,9 @@ where
                 BusEvent::Request(payload) => agent.request(&payload).await,
             },
         }
+        if let Some(request) = agent.flash.take() {
+            return Ok(Stop::Flash { request });
+        }
     }
 }
 
@@ -238,73 +344,13 @@ where
 mod tests {
     use super::*;
     use crate::agent::state::Settings;
-    use fiber_protocol::south::{Desired, Hello, Reset, Status};
-    use fiber_protocol::{FrameDecoder, MAX_WIRE};
-    use fiber_south_core::Engine;
     use std::cell::RefCell;
     use std::rc::Rc;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
     use tokio::sync::mpsc;
 
-    const CRC: u32 = 0x6f1c_2a90;
-
-    /// The south bridge, simulated: `fiber-south-core` on the other end of a pipe, with counts
-    /// that make 12 V on the input and 4.1 V on the battery at a supply of 3.3 V.
-    async fn south_bridge(
-        stream: DuplexStream,
-        silent: Arc<AtomicBool>,
-        seen: mpsc::UnboundedSender<Desired>,
-    ) {
-        let (mut rd, mut wr) = tokio::io::split(stream);
-        let mut decoder = FrameDecoder::<MAX_WIRE>::new();
-        let mut engine = Engine::new();
-        let mut seq = 0u16;
-        let mut buf = [0u8; 64];
-        let hello = Hello {
-            version: [0, 1, 0],
-            image_crc: CRC,
-            uid: [7; 12],
-            reset: Reset::PowerOn,
-            fault: None,
-            option_bytes: 0xDEFF_E1AA,
-            vrefint_cal: 1655,
-        };
-        loop {
-            let Ok(n) = rd.read(&mut buf).await else { return };
-            if n == 0 {
-                return;
-            }
-            for &byte in &buf[..n] {
-                let Some(frame) = decoder.push(byte) else { continue };
-                if silent.load(Ordering::Relaxed) {
-                    continue;
-                }
-                let answer = match Message::decode(frame) {
-                    Ok((_, Message::HelloRequest)) => Message::Hello(hello),
-                    Ok((applied, Message::Desired(desired))) => {
-                        engine.desired(desired);
-                        let _ = seen.send(desired);
-                        Message::Status(Status {
-                            applied,
-                            ports: engine.ports(),
-                            vbat: 2544,
-                            vin: 2557,
-                            vref: 1505,
-                            uptime: 1,
-                            rx_dropped: 0,
-                        })
-                    }
-                    _ => continue,
-                };
-                let mut wire = [0u8; MAX_WIRE];
-                let n = answer.encode(seq, &mut wire).unwrap();
-                seq = seq.wrapping_add(1);
-                wr.write_all(&wire[..n]).await.unwrap();
-            }
-        }
-    }
+    const CRC: u32 = crate::agent::simulator::IMAGE_CRC;
 
     /// What was published: topic, payload, retained.
     type Published = Rc<RefCell<Vec<(String, String, bool)>>>;
@@ -346,7 +392,11 @@ mod tests {
         let (agent_side, bridge_side) = tokio::io::duplex(1024);
         let silent = Arc::new(AtomicBool::new(false));
         let (seen_tx, mut seen) = mpsc::unbounded_channel();
-        tokio::spawn(south_bridge(bridge_side, silent.clone(), seen_tx));
+        tokio::spawn(crate::agent::simulator::simulate(
+            bridge_side,
+            silent.clone(),
+            Some(seen_tx),
+        ));
 
         let published = Rc::new(RefCell::new(Vec::new()));
         let (bus_tx, incoming) = mpsc::unbounded_channel();
@@ -418,6 +468,124 @@ mod tests {
                 "silent"
             );
             assert_eq!(last(&published, "fiber/power").unwrap()["source"], "unknown");
+        };
+        tokio::select! {
+            result = run(&mut agent, rd, wr) => panic!("the agent stopped: {result:?}"),
+            () = script => {}
+        }
+    }
+
+    fn agent_with(
+        carried: Option<u32>,
+        published: &Published,
+    ) -> (Agent<FakeBus>, mpsc::UnboundedSender<BusEvent>) {
+        let (bus_tx, incoming) = mpsc::unbounded_channel();
+        let identity = Identity {
+            version: "0".into(),
+            hardware: "h".into(),
+            serial: "s".into(),
+            name: "n".into(),
+        };
+        let bus = FakeBus {
+            published: published.clone(),
+            incoming,
+        };
+        (
+            Agent::new(State::new(Settings { dividers: true }, carried), bus, identity),
+            bus_tx,
+        )
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_chip_with_another_image_is_flashed() {
+        let (agent_side, bridge_side) = tokio::io::duplex(1024);
+        tokio::spawn(crate::agent::simulator::simulate(
+            bridge_side,
+            Arc::new(AtomicBool::new(false)),
+            None,
+        ));
+        let published = Rc::new(RefCell::new(Vec::new()));
+        let (mut agent, _bus) = agent_with(Some(0x1234_5678), &published);
+        let (rd, wr) = tokio::io::split(agent_side);
+        assert_eq!(
+            run(&mut agent, rd, wr).await.unwrap(),
+            Stop::Flash { request: None }
+        );
+
+        agent.begin_flash().await;
+        assert_eq!(
+            last(&published, "fiber/firmware/south").unwrap()["state"],
+            "flashing"
+        );
+        agent.end_flash(Ok(()), None).await;
+        assert_eq!(
+            last(&published, "fiber/firmware/south").unwrap()["state"],
+            "running"
+        );
+        // Two more failed tries, and the chip counts as failed.
+        agent.end_flash(Err("no answer".into()), None).await;
+        assert_eq!(
+            last(&published, "fiber/firmware/south").unwrap()["state"],
+            "silent"
+        );
+        agent.end_flash(Err("no answer".into()), None).await;
+        assert_eq!(
+            last(&published, "fiber/firmware/south").unwrap()["state"],
+            "failed"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_flash_asked_for() {
+        let (agent_side, bridge_side) = tokio::io::duplex(1024);
+        tokio::spawn(crate::agent::simulator::simulate(
+            bridge_side,
+            Arc::new(AtomicBool::new(false)),
+            None,
+        ));
+        let published = Rc::new(RefCell::new(Vec::new()));
+        // The chip runs the image carried: only a request makes a flash.
+        let (mut agent, bus) = agent_with(Some(CRC), &published);
+        let (rd, wr) = tokio::io::split(agent_side);
+        bus.send(BusEvent::Request(
+            br#"{"id":"f1","op":"firmware.flash","params":{"chip":"south"}}"#.to_vec(),
+        ))
+        .unwrap();
+        assert_eq!(
+            run(&mut agent, rd, wr).await.unwrap(),
+            Stop::Flash {
+                request: Some("f1".into())
+            }
+        );
+        agent.end_flash(Ok(()), Some("f1".into())).await;
+        let answer = last(&published, "fiber/rsp/f1").unwrap();
+        assert_eq!(answer["ok"], true);
+        assert_eq!(answer["data"]["crc"], format!("0x{CRC:08x}"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn without_a_carried_image_nothing_is_flashed() {
+        let (agent_side, bridge_side) = tokio::io::duplex(1024);
+        tokio::spawn(crate::agent::simulator::simulate(
+            bridge_side,
+            Arc::new(AtomicBool::new(false)),
+            None,
+        ));
+        let published = Rc::new(RefCell::new(Vec::new()));
+        let (mut agent, bus) = agent_with(None, &published);
+        let (rd, wr) = tokio::io::split(agent_side);
+        bus.send(BusEvent::Request(
+            br#"{"id":"f2","op":"firmware.flash","params":{"chip":"south"}}"#.to_vec(),
+        ))
+        .unwrap();
+        let script = async {
+            tokio::time::sleep(Duration::from_secs(15)).await;
+            let answer = last(&published, "fiber/rsp/f2").unwrap();
+            assert_eq!(answer["error"], "this fiber program carries no firmware image");
+            assert_eq!(
+                last(&published, "fiber/firmware/south").unwrap()["state"],
+                "running"
+            );
         };
         tokio::select! {
             result = run(&mut agent, rd, wr) => panic!("the agent stopped: {result:?}"),

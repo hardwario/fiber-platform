@@ -27,6 +27,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     commits.sort_unstable();
     commits.dedup();
 
+    carry_firmware()?;
+
     match commits.as_slice() {
         [commit] => println!("cargo:rustc-env=FIBER_TOWER_REV={commit}"),
         [] => return Err("Cargo.lock names no github.com/hardwario/tower crate".into()),
@@ -38,5 +40,21 @@ fn main() -> Result<(), Box<dyn Error>> {
             .into());
         }
     }
+    Ok(())
+}
+
+/// The south bridge's firmware image, built into the program when `FIBER_SOUTH_IMAGE` names it
+/// (`just build-fiber` does: the firmware as a binary image, made by llvm-objcopy). Without it the
+/// program carries no image and never flashes the chip; that is the build for the tests.
+fn carry_firmware() -> Result<(), Box<dyn Error>> {
+    println!("cargo::rustc-check-cfg=cfg(fiber_south_image)");
+    println!("cargo:rerun-if-env-changed=FIBER_SOUTH_IMAGE");
+    let Ok(image) = env::var("FIBER_SOUTH_IMAGE") else {
+        return Ok(());
+    };
+    println!("cargo:rerun-if-changed={image}");
+    let out = PathBuf::from(env::var("OUT_DIR")?).join("south.bin");
+    fs::copy(&image, &out).map_err(|e| format!("FIBER_SOUTH_IMAGE: cannot read {image}: {e}"))?;
+    println!("cargo:rustc-cfg=fiber_south_image");
     Ok(())
 }

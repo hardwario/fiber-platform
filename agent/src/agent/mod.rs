@@ -8,13 +8,18 @@
 pub mod config;
 mod daemon;
 pub mod firmware;
+mod hardware;
+pub mod images;
 pub mod leds;
 pub mod link;
 pub mod mqtt;
 pub mod power;
 pub mod requests;
 pub mod run;
+pub mod simulator;
 pub mod state;
 pub mod topics;
 
 pub use daemon::agent;
+pub use hardware::firmware_chip;
+pub use simulator::south_simulator;
