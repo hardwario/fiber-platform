@@ -8,6 +8,11 @@ fiber_versions:
   nodejs_major: 24
   # Node-RED from npm; checked 2026-11-17 (the newest then).
   node_red: "5.0.10"
+  # The dashboard (D20), in Node-RED's directory; the newest that was at least 14 days old on
+  # 2026-11-18 (1.37.0 was two days old), checked by npm's integrity of it.
+  node_red_dashboard: "1.34.1"
+  node_red_dashboard_integrity: >-
+    sha512-1NBloAGaxaB3OqkF0ry0/Ce+MxfzAh/hgomMqCgCXD2tqL3b0Q3twT/cE9EB6jsJjVHnYQtrpS1oObPVvP6QYg==
   # ChirpStack's package source keeps one version of each package, so only the major is pinned.
   chirpstack_major: 4
   # The concentrator daemon for the RAK5146 (SX1302), a tarball checked by its sha256.

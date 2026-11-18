@@ -136,7 +136,7 @@ it.
 | `base` | The `config.txt` block below, the DS2482 overlay, the `i2c-dev` module, groups | |
 | `mosquitto` | The broker, loopback only | |
 | `agent` | The agent's service and settings | `base`, `mosquitto` |
-| `node-red` | Node.js, Node-RED, a starter flow | `mosquitto` |
+| `node-red` | Node.js, Node-RED, the dashboard, a starter flow | `mosquitto` |
 | `chirpstack` | ChirpStack, Redis, the concentrator daemon and the MQTT forwarder | `mosquitto` |
 
 A database and charts (InfluxDB, Grafana) are left out for now (`TASKS.md`, D13).
@@ -200,16 +200,21 @@ platform writes `/etc/mosquitto/conf.d/fiber.conf`:
   `/var/lib/node-red` as its directory. **Our own `nodered.service`,** with Node's memory capped at
   256 MB.
 - **`settings.js` is written once,** before the first start, with the login typed into FIBER Setup
-  as a bcrypt hash made by the `bcryptjs` that Node-RED brings. The platform never writes it
+  as a bcrypt hash made by the `bcryptjs` that Node-RED brings: for the editor (`adminAuth`), and
+  for the dashboard and every "http in" node (`httpNodeAuth`). The platform never writes it
   again, so the owner's changes, and a changed password, stay.
+- **The dashboard** (D20): `@flowfuse/node-red-dashboard`, pinned, installed in
+  `/var/lib/node-red` by the user `nodered`, as Node-RED's palette would, and only when that
+  version is not the one there. npm's integrity of it is checked against the pinned one.
 - **A flow to start from,** written only when there is no `flows.json`: a broker node on
-  `localhost:1883`, everything under `fiber/#` in the debug panel, and a line for each reading
-  of the thermometers.
-- Port 1880 on every interface; the editor asks for the login.
+  `localhost:1883`, everything under `fiber/#` in the debug panel, a line for each reading of the
+  thermometers, and a table of them on the dashboard (`/dashboard/thermometers`).
+- Port 1880 on every interface; the editor and the dashboard ask for the login.
 
-Both are tested in the converge test: the login from the seed works and nothing works without it;
-a password the owner changes stays changed; a second apply changes nothing; only ports 1880, 1883
-(loopback) and 1884 listen. Not run on a FIBER yet.
+Both are tested in the converge test: the login from the seed works and nothing works without it,
+in the editor and on the dashboard; a password the owner changes stays changed; a second apply
+changes nothing; only ports 1880, 1883 (loopback) and 1884 listen. Not run on a FIBER yet; the
+dashboard's page has not been looked at in a browser.
 
 ### ChirpStack
 
@@ -284,7 +289,7 @@ Third-party repositories are written in deb822 form with a vendored armored key
 |---|---|---|
 | Mosquitto | Debian: `mosquitto`, `mosquitto-clients` 2.0.21 | With no listener configured it serves port 1883 on loopback only, anonymously, which is the default wanted. `mqtt.lan: true` adds port 1884 with a login (`per_listener_settings true` must come first in the file). One drop-in in `/etc/mosquitto/conf.d`. |
 | Node.js | NodeSource: `https://deb.nodesource.com/node_24.x`, suite `nodistro`. Key `https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key`, fingerprint `6F71F525282841EEDAF851B42F59B5F99B1BE0B4` | Debian's Node.js 20 is too old for Node-RED 5. An apt preference keeps `nodejs` on NodeSource. |
-| Node-RED | `npm install -g --omit=dev node-red@<pinned>` (5.0.10, the newest on 2026-11-17; it asks for Node.js 22.9 or newer, and brings `bcryptjs` 3.0.3) | The installer script the old FIBER documentation names is gone (its URL returns 404), and its successor is not idempotent. Own `nodered.service` as a system user `nodered`, port 1880, `adminAuth` written before the first start, a starter flow copied only if none exists. |
+| Node-RED | `npm install -g --omit=dev node-red@<pinned>` (5.0.10, the newest on 2026-11-17; it asks for Node.js 22.9 or newer, and brings `bcryptjs` 3.0.3). The dashboard: `@flowfuse/node-red-dashboard` 1.34.1 (2026-10-27, the newest that was at least 14 days old on 2026-11-18; it asks for Node-RED 3 or newer) | The installer script the old FIBER documentation names is gone (its URL returns 404), and its successor is not idempotent. Own `nodered.service` as a system user `nodered`, port 1880, `adminAuth` written before the first start, a starter flow copied only if none exists. |
 | ChirpStack | `https://artifacts.chirpstack.io/packages/4.x/deb`. Key `https://artifacts.chirpstack.io/packages/chirpstack.key`, fingerprint `E078226D4144665AD8793A601CE2AFD36DBCCA00`. Packages `chirpstack-sqlite`, `chirpstack-mqtt-forwarder`; Debian `redis-server` | **The package starts on install, on `0.0.0.0:8080` with admin/admin.** Install it with `policy_rc_d: 101`, then `set-password --password-file` and `create-api-key` before the first start. The repository keeps one version per package, so pin the major only. A region file is mandatory. The unit is `chirpstack-sqlite.service`, and since 4.20.0 the package replaces the placeholder API secret with a random one on install (both read from the package, 2026-11-17). |
 | Concentrator daemon | Tarball `chirpstack-concentratord-sx1302_4.7.1_linux_arm64.tar.gz` from `artifacts.chirpstack.io/downloads`, sha256 `328faf7e6fe6fcc9f5a50f8368fd520807ac2939214c607593318e017e857345` | Model `rak_5146`, flag `USB`. Always installed with `chirpstack`, started by a udev rule when the card (USB `0483:5740`) appears: the card can show up long after boot. |
 | Ansible | Debian: `ansible-core` 2.19 and `python3-debian`, installed with `--no-install-recommends` | Without that flag apt also installs the `ansible` collection bundle (205 MB). `python3-debian` is what the deb822 module needs. |

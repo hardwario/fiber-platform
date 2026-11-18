@@ -13,6 +13,11 @@ module.exports = {
             permissions: "*",
         }],
     },
+    // The dashboard (/dashboard) and every "http in" node ask for the same login.
+    httpNodeAuth: {
+        user: {{ node_red_user | to_json }},
+        pass: {{ node_red_hash.stdout | to_json }},
+    },
     logging: {
         console: { level: "info", metrics: false, audit: false },
     },

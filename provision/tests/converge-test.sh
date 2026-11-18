@@ -12,7 +12,8 @@
 #      a second apply changes nothing, a file edited by hand gets its block back, fiber doctor
 #      names a bad line, and turning the base off takes the block away
 #   7. Mosquitto's listener for the network with the seed's login; a changed password stays
-#   8. Node-RED behind the seed's login, with the flow to start from; a second apply changes
+#   8. Node-RED behind the seed's login, with the flow to start from and the dashboard behind
+#      the same login; a second apply changes
 #      nothing; only the expected ports listen; then the agent through Mosquitto against a
 #      simulated south bridge, with the board's commands, and its last will
 #   9. ChirpStack: at no moment does its API answer to admin/admin; the seed's login works; Redis
@@ -206,6 +207,15 @@ token=$(curl -fs -d client_id=node-red-admin -d grant_type=password -d scope='*'
     python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])') || fail "Node-RED refuses the login from the seed"
 curl -fs -H "Authorization: Bearer $token" http://127.0.0.1:1880/flows | grep -q '"fiber-in"' || fail "the flow to start from is not there"
 [ "$(stat -c '%U %a' /var/lib/node-red/settings.js)" = "nodered 640" ] || fail "settings.js is readable by others"
+# The dashboard (D20): the pinned version, its page in the flow, and the same login.
+grep -q '"version": "1.34.1"' /var/lib/node-red/node_modules/@flowfuse/node-red-dashboard/package.json ||
+    fail "the dashboard is not the pinned version"
+curl -fs -H "Authorization: Bearer $token" http://127.0.0.1:1880/flows | grep -q '"fiber-ui-page"' ||
+    fail "the dashboard's page is not in the flow to start from"
+dashboard() { curl -s -o /dev/null -w '%{http_code}' "$@" http://127.0.0.1:1880/dashboard/thermometers; }
+wait_for 30 test "$(dashboard -u 'pi:a secret')" = 200 || fail "the dashboard does not answer with the login: $(dashboard -u 'pi:a secret')"
+[ "$(dashboard)" = 401 ] || fail "the dashboard answers without the login: $(dashboard)"
+[ "$(dashboard -u pi:fiber)" = 401 ] || fail "the dashboard takes another password"
 
 say "8b. Apply again: nothing changes"
 fiber platform apply | tee /tmp/apply.out

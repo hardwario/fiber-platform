@@ -4,7 +4,7 @@
         "type": "tab",
         "label": "FIBER",
         "disabled": false,
-        "info": "Everything the FIBER says on MQTT (fiber/#) shows up in the debug panel on the right. Below it, the thermometers on the ports, one line per reading."
+        "info": "Everything the FIBER says on MQTT (fiber/#) shows up in the debug panel on the right. Below it, the thermometers on the ports: one line per reading in the debug panel, and a table on the dashboard at /dashboard."
     },
     {
         "id": "fiber-broker",
@@ -72,7 +72,8 @@
         "y": 160,
         "wires": [
             [
-                "fiber-thermometers-line"
+                "fiber-thermometers-line",
+                "fiber-thermometers-table"
             ]
         ]
     },
@@ -112,5 +113,141 @@
         "x": 610,
         "y": 160,
         "wires": []
+    },
+    {
+        "id": "fiber-ui",
+        "type": "ui-base",
+        "name": "FIBER",
+        "path": "/dashboard",
+        "appIcon": "",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "headerContent": "page",
+        "navigationStyle": "default",
+        "titleBarStyle": "default",
+        "showReconnectNotification": true,
+        "notificationDisplayTime": 1,
+        "showDisconnectNotification": true,
+        "allowInstall": false
+    },
+    {
+        "id": "fiber-ui-theme",
+        "type": "ui-theme",
+        "name": "FIBER",
+        "colors": {
+            "surface": "#fcfcfd",
+            "primary": "#0d74ce",
+            "bgPage": "#f9f9fb",
+            "groupBg": "#ffffff",
+            "groupOutline": "#d9d9e0"
+        },
+        "sizes": {
+            "density": "default",
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "fiber-ui-page",
+        "type": "ui-page",
+        "name": "Thermometers",
+        "ui": "fiber-ui",
+        "path": "/thermometers",
+        "icon": "thermometer",
+        "layout": "grid",
+        "theme": "fiber-ui-theme",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": 0,
+                "cols": 3
+            },
+            {
+                "name": "Tablet",
+                "px": 576,
+                "cols": 6
+            },
+            {
+                "name": "Small Desktop",
+                "px": 768,
+                "cols": 9
+            },
+            {
+                "name": "Desktop",
+                "px": 1024,
+                "cols": 12
+            }
+        ],
+        "order": 1,
+        "className": "",
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "fiber-ui-group",
+        "type": "ui-group",
+        "name": "The probes on the ports",
+        "page": "fiber-ui-page",
+        "width": "6",
+        "height": "1",
+        "order": 1,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "fiber-thermometers-table",
+        "type": "function",
+        "z": "fiber-tab",
+        "name": "The probes as a table",
+        "func": "// Every probe that has a topic, one row each, by port. An empty message means the\n// probe is gone (docs/mqtt-api.md).\nconst probes = context.get(\"probes\") || {};\nconst id = msg.topic.split(\"/\").pop();\nconst t = msg.payload;\nif (!t || typeof t !== \"object\") {\n    delete probes[id];\n} else {\n    probes[id] = {\n        Port: t.port,\n        Thermometer: id,\n        \"°C\": t.temperature === null ? \"no reading\" : t.temperature.toFixed(2),\n    };\n}\ncontext.set(\"probes\", probes);\nmsg.payload = Object.values(probes).sort((a, b) => a.Port - b.Port || a.Thermometer.localeCompare(b.Thermometer));\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 390,
+        "y": 220,
+        "wires": [
+            [
+                "fiber-thermometers-ui"
+            ]
+        ]
+    },
+    {
+        "id": "fiber-thermometers-ui",
+        "type": "ui-table",
+        "z": "fiber-tab",
+        "group": "fiber-ui-group",
+        "name": "Thermometers",
+        "label": "",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "maxrows": 0,
+        "passthru": false,
+        "autocols": true,
+        "showSearch": false,
+        "deselect": true,
+        "selectionType": "none",
+        "columns": [],
+        "mobileBreakpoint": "sm",
+        "mobileBreakpointType": "defaults",
+        "action": "replace",
+        "className": "",
+        "x": 620,
+        "y": 220,
+        "wires": [
+            []
+        ]
     }
 ]

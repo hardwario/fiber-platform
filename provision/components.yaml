@@ -36,7 +36,7 @@ components:
     services: [fiber-agent]
   node-red:
     title: Node-RED
-    about: Node.js and Node-RED, with a starter flow on the local broker.
+    about: Node.js, Node-RED and its dashboard, with a starter flow on the local broker.
     roles: [node_red]
     requires: [mosquitto]
     suggests: [agent]

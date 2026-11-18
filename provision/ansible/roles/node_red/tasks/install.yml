@@ -89,6 +89,57 @@
     group: nodered
     mode: "0750"
 
+- name: Whether the dashboard is installed
+  ansible.builtin.stat:
+    path: /var/lib/node-red/node_modules/@flowfuse/node-red-dashboard/package.json
+  register: node_red_dashboard
+
+- name: Which version of the dashboard is installed
+  ansible.builtin.slurp:
+    src: /var/lib/node-red/node_modules/@flowfuse/node-red-dashboard/package.json
+  register: node_red_dashboard_json
+  when: node_red_dashboard.stat.exists
+
+# In Node-RED's own directory, by its user, as Node-RED's palette would install it (D20).
+- name: The dashboard from npm, version {{ fiber_versions.node_red_dashboard }}
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - nodered
+      - --
+      - npm
+      - install
+      - --omit=dev
+      - --no-audit
+      - --no-fund
+      - --save
+      - --save-exact
+      - "@flowfuse/node-red-dashboard@{{ fiber_versions.node_red_dashboard }}"
+    chdir: /var/lib/node-red
+  environment:
+    HOME: /var/lib/node-red
+  when: >-
+    not node_red_dashboard.stat.exists
+    or (node_red_dashboard_json.content | b64decode | from_json).version != fiber_versions.node_red_dashboard
+  changed_when: true
+  notify: Restart Node-RED
+
+- name: What npm installed of the dashboard
+  ansible.builtin.slurp:
+    src: /var/lib/node-red/package-lock.json
+  register: node_red_lock
+
+- name: The dashboard is the package that was checked
+  ansible.builtin.assert:
+    that: >-
+      node_red_packages['node_modules/@flowfuse/node-red-dashboard'].integrity
+      == fiber_versions.node_red_dashboard_integrity
+    fail_msg: "npm installed a @flowfuse/node-red-dashboard that is not the one pinned in versions.yml"
+    quiet: true
+  vars:
+    node_red_packages: "{{ (node_red_lock.content | b64decode | from_json).packages }}"
+
 - name: The login, in Node-RED's settings
   ansible.builtin.import_tasks: login.yml
 

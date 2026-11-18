@@ -59,7 +59,7 @@ In FIBER Setup you choose what the FIBER installs on its first start:
 | Basic system configuration | The board's hardware working under plain Raspberry Pi OS: the real-time clock, both serial links, the 1-Wire ports, the display's bus |
 | FIBER agent | The board on MQTT and on the command line: thermometers, status lights, buttons, the display, the buzzer, the radio |
 | Mosquitto | An MQTT broker |
-| Node-RED | Flows wired to the broker, with one to start from |
+| Node-RED | Flows wired to the broker, with one to start from, and a dashboard |
 | ChirpStack | A LoRaWAN network server. With a concentrator card in the FIBER it is the gateway too |
 
 With nothing chosen the FIBER stays a plain Raspberry Pi OS.
