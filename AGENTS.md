@@ -159,7 +159,10 @@ when the maintainer asks for it.
 - **The toolchain** is the one the pinned TOWER crates need. CI installs the same one
   (`RUST_TOOLCHAIN` in each workflow); its `audit` job fails when the two differ.
 - **CI:** every GitHub Action is pinned by its full commit, with the version in a comment. The
-  workflows may only read the repository. Every cargo call is `--locked`.
+  workflows may only read the repository, with two exceptions (D22): the publishing job of
+  `release.yml` (`contents`, `id-token` and `attestations: write`, only on a tag that passed the
+  gate) and the job of `canary.yml` that opens an issue (`issues: write`). Every cargo call is
+  `--locked`.
 - **Licence:** MIT, © 2026 HARDWARIO a.s., one `LICENSE` at the root.
 
 ## Nothing to stay compatible with, yet
@@ -207,5 +210,6 @@ program prints, comments in the code, commit messages, this file.
 - Do not put a pin number outside the agent's board module.
 - Do not add an Ansible collection, a pip package or a container to the provisioning.
 - Do not run a script from `hil/` against a FIBER unless the maintainer asked.
-- Do not point a workflow at an action by its tag or branch, or give a workflow more rights.
+- Do not point a workflow at an action by its tag or branch, or give a workflow more rights
+  than D22 names.
 - Do not use long dashes.

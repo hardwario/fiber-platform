@@ -88,15 +88,15 @@ which probe the same I2C bus as the board's own chips.
 
 ### T8. The `mosquitto` and `node-red` roles (M1)
 
-State (2026-11-18): waiting for a FIBER (T2) and for D20. Everything that needs neither is done,
-commit `14e348f`, and its CI run (44194596621) is green: the network listener with the seed's
-login; a password the owner changes stays; Node-RED behind the login, with the flow to start
-from; a second apply with nothing changed; only ports 1880, 1883 on loopback and 1884 listening.
-Settled: the password file is `/etc/mosquitto/fiber-passwd`, made once by `mosquitto_passwd`
-(the file is its own stamp); Node-RED's `settings.js` is written once, when there is none, with
-the login's bcrypt hash made by the `bcryptjs` Node-RED brings; the NodeSource key is vendored
-in the role (fingerprint checked 2026-11-17). Found on the way: the converge test's network test
-took the default route away with the link; it puts it back now.
+State (2026-11-18): waiting for a FIBER (T2); D20 is answered (the dashboard, yes), so its step is
+next. Everything else that needs no FIBER is done, commit `14e348f`, and its CI run (44194596621) is
+green: the network listener with the seed's login; a password the owner changes stays; Node-RED
+behind the login, with the flow to start from; a second apply with nothing changed; only ports 1880,
+1883 on loopback and 1884 listening. Settled: the password file is `/etc/mosquitto/fiber-passwd`,
+made once by `mosquitto_passwd` (the file is its own stamp); Node-RED's `settings.js` is written
+once, when there is none, with the login's bcrypt hash made by the `bcryptjs` Node-RED brings; the
+NodeSource key is vendored in the role (fingerprint checked 2026-11-17). Found on the way: the
+converge test's network test took the default route away with the link; it puts it back now.
 
 The broker everything else talks through, and the first thing a user sees working.
 
@@ -124,7 +124,8 @@ Node-RED:
       before the first start
 - [x] The starter flow, copied only when there is none: a broker node on `localhost:1883` and a
       debug node on `fiber/#`
-- [ ] The dashboard nodes, if D20 says so (waiting for D20)
+- [ ] The dashboard nodes (D20): `@flowfuse/node-red-dashboard`, pinned, and a page with the
+      thermometers in the starter flow
 - [x] In CI: after a converge only the expected ports listen; the editor asks for the login; a
       second apply changes nothing
 
@@ -185,21 +186,23 @@ The card is fed from the battery rail and goes away when the battery is low.
 
 ### T11. Releases and the weekly canary (M1)
 
-State (2026-11-18): waiting for D22 for the publishing, the attestation and the canary's issue; the
-"Done when" is met. A dry run of `release.yml` passed (44200461354): the release built, built a
-second time and compared, the program and the installer tried in containers, the files kept as
-an artifact. The canary ran once and passed (44200466387): every component converged against the
-live sources, and the keys checked (`just check-keys`). `docs/release.md` is written.
+State (2026-11-18): D22 is answered (one job with the rights in each workflow), so the publishing,
+the attestation and the canary's issue are next; the "Done when" is met. A dry run of `release.yml`
+passed (44200461354): the release built, built a second time and compared, the program and the
+installer tried in containers, the files kept as an artifact. The canary ran once and passed
+(44200466387): every component converged against the live sources, and the keys checked (`just
+check-keys`). `docs/release.md` is written.
 
 - [ ] `.github/workflows/release.yml`: on a tag `vX.Y.Z` that matches the version, on a commit
       of `main` with green CI. It builds the static `fiber`, the archive, the stamped
       `install.sh`, `SHA256SUMS` and a provenance attestation, tries the archive in a container,
       and publishes a release that cannot be changed afterwards (everything is uploaded to a
-      draft first). Written without the publishing and the attestation (waiting for D22)
+      draft first). Written without the publishing and the attestation; D22 says how: one
+      job with `contents`, `id-token` and `attestations: write`
 - [x] The same workflow run by hand builds everything and publishes nothing
 - [ ] `.github/workflows/canary.yml`, weekly: converge every component against the live package
-      sources, open an issue when one breaks (waiting for D22), and warn when a key we carry is
-      about to expire
+      sources, open an issue when one breaks (one job with `issues: write`, D22), and warn when
+      a key we carry is about to expire
 - [x] `docs/release.md`: the steps of a release
 
 Watch out: a tag cannot be moved, so a release whose build fails uses up its version. Run the
@@ -210,12 +213,12 @@ workflow by hand first after any change to the build.
 
 ### T13. The interfaces, written first (M2)
 
-State (2026-11-18): waiting for the maintainer to read the three drafts. Written: `docs/mqtt-api.md`,
-the board's commands in `docs/cli.md`, `docs/firmware/south-link.md`. Settled for the drafts: a
-request carries `op`, as TOWER's gateway API does, not `method` as this task first said, so that
-one client shape fits both; the south link's `Desired` has a state for each of the 18 LED lines
-(in ticks of 20 ms), the agent can ask for a `Hello` at any time (`HelloRequest`), and `Status`
-counts the frames the firmware dropped.
+State (2026-11-18): waiting for the maintainer to read the three drafts. Written:
+`docs/mqtt-api.md`, the board's commands in `docs/cli.md`, `docs/firmware/south-link.md`. Settled
+for the drafts: a request carries `op`, as TOWER's gateway API does, not `method` as this task first
+said, so that one client shape fits both; the south link's `Desired` has a state for each of the 18
+LED lines (in ticks of 20 ms), the agent can ask for a `Hello` at any time (`HelloRequest`), and
+`Status` counts the frames the firmware dropped.
 
 Nothing of the agent is written before its interfaces are on paper (D19).
 
@@ -233,12 +236,12 @@ Nothing of the agent is written before its interfaces are on paper (D19).
 
 ### T14. `fiber-protocol` (M2)
 
-State (2026-11-18): built on the draft of `docs/firmware/south-link.md`, and `just check` passes:
-11 tests, and the builds for `thumbv6m` and `thumbv7em`. Next: the push and CI. It stays in
-progress until T13's drafts are agreed: a change there is a change here. Settled: the schema tag
-is worked out as TOWER's is (a structural hash of the postcard schema, names left out, folded
-to 16 bits), by code of our own, so it does not move with the TOWER pin; the south link's tag is
-`0x9a90` now (`Hello` got `vrefint_cal` for T17); `serde` and `postcard` without their standard library.
+State (2026-11-18): built on the draft of `docs/firmware/south-link.md`, and `just check` passes: 11
+tests, and the builds for `thumbv6m` and `thumbv7em`. Next: the push and CI. It stays in progress
+until T13's drafts are agreed: a change there is a change here. Settled: the schema tag is worked
+out as TOWER's is (a structural hash of the postcard schema, names left out, folded to 16 bits), by
+code of our own, so it does not move with the TOWER pin; the south link's tag is `0x9a90` now
+(`Hello` got `vrefint_cal` for T17); `serde` and `postcard` without their standard library.
 
 The one contract between the agent and the firmware, built by both from the same source.
 
@@ -389,8 +392,8 @@ The one program that owns the board. This task gives it the south bridge and its
 - [x] The command line as a client of MQTT: `status`, `power`, `ports`, `leds`, `firmware
       status`, `firmware flash` (through the agent). `firmware chip` talks to the bootloader
       itself and refuses while the agent holds the port; `doctor` only reads
-- [x] The service: the user `fiber-agent`, read-only system directories, only the devices it needs, no
-      capabilities, a watchdog. Written with T18, whose role installs it
+- [x] The service: the user `fiber-agent`, read-only system directories, only the devices it needs,
+      no capabilities, a watchdog. Written with T18, whose role installs it
 - [x] Tests without a board: against the south bridge simulator, the simulated bootloader, and
       a broker inside the test (Mosquitto in the converge test, step 8d)
 
@@ -403,12 +406,12 @@ board the two voltages read nothing useful, and `power` has to say so.
 ### T18. The `agent` role (M2)
 
 State (2026-11-18): everything that needs no board is done and checked (commit `94dea9b`, CI run
-44210054395 green): `just check`, and the converge test with the service in it (the agent runs as `fiber-agent` without capabilities, holds
-the port, feeds a watchdog of 3 s, is restarted on the new program by an update and a rollback,
-and goes offline when turned off). On the way the converge test found that the agent served
-nothing on MQTT without the south bridge's port; fixed (`run_without_link`). The port lock is
-taken read-only when its file is there (another user's file in the sticky `/run/lock`). Waits for
-a FIBER (T2) for the last step.
+44210054395 green): `just check`, and the converge test with the service in it (the agent runs as
+`fiber-agent` without capabilities, holds the port, feeds a watchdog of 3 s, is restarted on the new
+program by an update and a rollback, and goes offline when turned off). On the way the converge test
+found that the agent served nothing on MQTT without the south bridge's port; fixed
+(`run_without_link`). The port lock is taken read-only when its file is there (another user's file
+in the sticky `/run/lock`). Waits for a FIBER (T2) for the last step.
 
 - [x] `docs/provisioning.md` first: the agent role (the user, its groups, the unit, the settings
       file), and the unit's lines in `docs/architecture.md`
@@ -420,9 +423,9 @@ a FIBER (T2) for the last step.
       defaults in comments, enabled and started; restarted when the program changed (an update
       or a rollback)
 - [x] Turning it off stops and disables the service; both microcontrollers keep their firmware
-- [x] In the converge test: the service against the south bridge simulator; it runs as `fiber-agent`,
-      holds the port (`fiber firmware chip` refuses), its watchdog does not fire, an update
-      restarts it on the new program, and turning it off takes `fiber/status` offline
+- [x] In the converge test: the service against the south bridge simulator; it runs as
+      `fiber-agent`, holds the port (`fiber firmware chip` refuses), its watchdog does not fire, an
+      update restarts it on the new program, and turning it off takes `fiber/status` offline
 - [ ] On a FIBER: `fiber platform enable agent` brings up `fiber/status`
 
 - Needs: T6, T17.
@@ -430,15 +433,15 @@ a FIBER (T2) for the last step.
 
 ### T19. Thermometers (M3)
 
-State (2026-11-18): written and tested on the computer: the docs (drafts, like T13's: the
-maintainer has not read them), `agent/src/agent/thermometers.rs` (the trait, the kernel's reader on
-a thread of its own, what counts as a reading), the topics, the port lights, `fiber thermometers
-[watch]`, `fiber power --follow`, the starter flow, `fiber doctor` counting the masters as the
-agent does. `just check` and the converge test pass (commit `fc863c3`, CI run 44211968012 green); the
-converge test runs the service against a made-up 1-Wire tree (a reading, no reading, gone). What
-is left needs a FIBER. The kernel's source was read for this (rpi-6.12.y and v6.12): nothing in sysfs
-ties a 1-Wire bus master to the DS2482 or to its channel, so the masters are taken by their order.
-The schematic says port k is DS2482 channel k - 1, and no part reports a shorted port.
+State (2026-11-18): written and tested on the computer: the docs (drafts, like T13's: the maintainer
+has not read them), `agent/src/agent/thermometers.rs` (the trait, the kernel's reader on a thread of
+its own, what counts as a reading), the topics, the port lights, `fiber thermometers [watch]`,
+`fiber power --follow`, the starter flow, `fiber doctor` counting the masters as the agent does.
+`just check` and the converge test pass (commit `fc863c3`, CI run 44211968012 green); the converge
+test runs the service against a made-up 1-Wire tree (a reading, no reading, gone). What is left
+needs a FIBER. The kernel's source was read for this (rpi-6.12.y and v6.12): nothing in sysfs ties a
+1-Wire bus master to the DS2482 or to its channel, so the masters are taken by their order. The
+schematic says port k is DS2482 channel k - 1, and no part reports a shorted port.
 
 The first thing most users will plug in: a DS18B20 on one of the eight ports.
 
@@ -477,14 +480,14 @@ cannot be used: the driver puts it on one master only, the master of the first D
 ### T20. LCD, backlight, buttons, buzzer (M4)
 
 State (2026-11-18): all but the display driver is written and tested on the computer: the docs
-(drafts), the buttons (`agent/src/agent/buttons.rs`, `tower-hmi`'s recognizer on a thread that
-waits for the lines' edges), the buzzer's patterns, the backlight through sysfs PWM with its
-dimming, the `display` topic, a message drawn into a `Frame<16, 64>` and compared with stored
-pictures, `fiber display`, `fiber buzzer beep`, `fiber buttons watch` (commit `a59cf8c`, CI
-run 44213917356 green). The unit no longer has
-`ProtectKernelTunables=yes`: the backlight is written through `/sys/class/pwm`. `just check`
-and the converge test pass (it asks for a message, the backlight and a beep through the service). The display driver waits for T2 (the LCD's bus);
-nothing of this has run on a FIBER.
+(drafts), the buttons (`agent/src/agent/buttons.rs`, `tower-hmi`'s recognizer on a thread that waits
+for the lines' edges), the buzzer's patterns, the backlight through sysfs PWM with its dimming, the
+`display` topic, a message drawn into a `Frame<16, 64>` and compared with stored pictures, `fiber
+display`, `fiber buzzer beep`, `fiber buttons watch` (commit `a59cf8c`, CI run 44213917356 green).
+The unit no longer has `ProtectKernelTunables=yes`: the backlight is written through
+`/sys/class/pwm`. `just check` and the converge test pass (it asks for a message, the backlight and
+a beep through the service). The display driver waits for T2 (the LCD's bus); nothing of this has
+run on a FIBER.
 
 - [x] `docs/mqtt-api.md` and `docs/cli.md` first: `buttons/event`, `display`, and the methods
       `buzzer.beep`, `display.message`, `display.backlight`
@@ -508,7 +511,7 @@ State (2026-11-18): written and tested on the computer: `docs/front-panel.md` (a
 client's message over the pages, the addresses from `/proc/net/fib_trie`), the agent drawing the
 picture every second and on every gesture, the first press after the backlight dimmed only
 lighting it; a stored picture of every page. The picture goes nowhere until T20's driver. The
-menu's "Restart" waits for D23: the agent has no right to restart the FIBER. `just check` and
+menu's "Restart" is next: D23 says through a path unit in the agent role. `just check` and
 the converge test pass on the computer (commit `ab9671d`). Its CI run 44215459393 failed in the
 converge test's cleanup, not in the agent: `rm -r /run/fiber-test` raced with `socat` taking its
 links away as it ended. The next run, on `5d3fbad` with the same code (44215720443), is green.
@@ -518,8 +521,8 @@ green).
 - [x] `docs/front-panel.md` first: the pages, what the buttons do, the menu, what covers the pages
 - [x] The pages: the name, the addresses and the time; the components and their state; the power
       source and the voltages; the thermometers. The radio's page comes with T26
-- [ ] The menu, with `tower-hmi`'s menus: about (the versions), done; restart (waits for D23);
-      later pairing and setup from the phone
+- [ ] The menu, with `tower-hmi`'s menus: about (the versions), done; restart (D23:
+      `fiber-restart.path` and `.service` in the agent role); later pairing and setup from the phone
 - [x] While an apply runs, its progress (from `/run/fiber/platform/status.json`); a client's
       message over the pages
 - [x] A stored picture of every page, compared in the tests
@@ -556,6 +559,16 @@ In the order of the plan. Every task has its steps already; when a task starts, 
 again and brought up to date before the first one is ticked.
 
 ### M0. Foundations and bench checks
+
+#### T35. The Rust toolchain off Dependabot's list (D21)
+
+The toolchain moves with the TOWER pin and nothing else (D21).
+
+- [ ] `.github/dependabot.yml`: the `rust-toolchain` entry taken out, and its comment says why
+- [ ] Pull request #1 (1.99.1 to 1.100.0) closed, with a comment that names D21
+
+- Needs: nothing.
+- Done when: Dependabot no longer opens pull requests for the toolchain, and #1 is closed.
 
 #### T2. Bench checks on a FIBER
 
@@ -640,7 +653,8 @@ that blocks NTP, TLS then fails, the script says "no internet", and its clock fa
 HTTPS) is never reached. The password field is pre-filled with `fiber`, and from now on that
 password also opens services on the network.
 
-- Needs: T5 to T8 (a release to point at). D11 may change one step.
+- Needs: T5 to T8 (a release to point at). D11: the `base` role alone writes the `config.txt`
+  block, so FIBER Setup does not.
 - Done when: a FIBER written by the new FIBER Setup comes up with the chosen components, and the
   last step shows a link for each.
 
@@ -878,7 +892,8 @@ In `../docs/fiber`. The pages there describe a setup by hand that no longer work
 
 - [ ] `hardwario/fiber-agent` and `hardwario/fiber-platform-legacy`, as D12 says
 
-- Needs: D12, T12.
+- Needs: T12. D12: left as they are until a FIBER Setup with the new installer is out, then
+  archived.
 
 ### Not planned
 
@@ -1185,84 +1200,7 @@ T17 to T21 (`54cb19e..ab9671d`) for defects that show at run time. It found nine
 
 ## Decisions ahead
 
-### D11. Should FIBER Setup write the `config.txt` block when it writes the system?
-
-Today only the `base` role writes it, after the first start.
-
-- (a) One writer, the `base` role. During the first installation the GPIO lines sit at their
-  power-on levels, and one restart is needed afterwards.
-- (b) FIBER Setup writes the same block and the overlay. Defined levels and a working clock from
-  the first second and no restart, but two writers of one block.
-
-Recommendation: (a), until the first installation has been watched on the bench. It changes one
-step of T12 and blocks nothing.
-
-### D12. What happens to `hardwario/fiber-agent` when FIBER Setup moves to this platform?
-
-FIBER Setup 1.2.0, as released, fetches `bootstrap.sh` from that repository's `main` branch.
-
-- (a) Leave it as it is, and archive the repository once a FIBER Setup with the new installer is
-  out. An old FIBER Setup then keeps installing what it was tested with.
-- (b) Put a forwarder to this platform's installer in place of its `bootstrap.sh`.
-
-Recommendation: (a). Blocks T33.
-
-### D20. Should the Node-RED component bring the dashboard nodes?
-
-With InfluxDB and Grafana out (D13), nothing on a FIBER shows a value as a chart or a gauge.
-
-- (a) Install `@flowfuse/node-red-dashboard`, pinned, and give the starter flow one page (a
-  thermometer). The earlier student guide did this.
-- (b) Node-RED alone. The starter flow shows messages in the debug panel; a user adds the
-  dashboard from Node-RED's own palette.
-
-Recommendation: (a): it is what makes the first minute with a FIBER show something. Changes one
-step of T8 and blocks nothing else.
-
-### D21. Who moves the Rust toolchain?
-
-`rust-toolchain.toml` pins the channel, and `AGENTS.md` says it is the one the pinned TOWER
-crates need, so it moves when the TOWER pin moves. Dependabot was set up to watch it anyway, and
-on the first day it opened pull request #1 (1.99.1 to 1.100.0). Its CI fails, as it should: the
-`audit` job checks that every workflow sets the same `RUST_TOOLCHAIN`, and Dependabot changes
-only the one file.
-
-- (a) Take the channel off Dependabot's list. It then moves only with the TOWER pin, as the rule
-  says, and this platform always builds TOWER's crates on the compiler TOWER itself uses.
-- (b) Keep it, and push the matching `RUST_TOOLCHAIN` change onto every such pull request by
-  hand, as `.github/dependabot.yml` says today. Rust releases arrive every six weeks.
-
-Recommendation: (a), and close pull request #1. Blocks nothing. Until it is answered, the pull
-request stays open and red.
-
-### D22. May the release and the canary workflows write?
-
-`AGENTS.md` says that the workflows may only read the repository, and that no workflow gets more
-rights. T11 needs two things that write: publishing a release (`contents: write`, and
-`id-token: write` with `attestations: write` for the provenance attestation), and the canary
-opening an issue when a package source breaks (`issues: write`).
-
-- (a) As TOWER does it: one job of `release.yml` that gets those rights, runs only on a tag that
-  passed the gate (the version, on `main`, CI green), and uploads to a draft first; and one job
-  of `canary.yml` with `issues: write`. `AGENTS.md` names these two jobs as the exceptions.
-- (b) No workflow writes. A person publishes a release by hand from the dry run's artifact
-  (`gh release create`), and reads the canary's failures on the Actions page.
-
-Recommendation: (a). Blocks the last step of T11. Everything else of T11 is written read-only.
-
-### D23. How does the agent restart the FIBER from the front panel's menu?
-
-The agent runs as the user `fiber-agent`, without capabilities (T18), so it cannot restart the system
-itself, and T21's menu has a "Restart".
-
-- (a) A path unit in the agent role: `fiber-restart.path` watches a file that only the agent may
-  write (in its own `/run/fiber-agent/`), and starts `fiber-restart.service`, which runs
-  `systemctl reboot` as root. Two small units, nothing else to install.
-- (b) A polkit rule that lets the user `fiber-agent` ask logind for a restart, and the agent runs
-  `systemctl reboot`. Needs polkit on the FIBER and a rule file in `/etc/polkit-1/rules.d/`.
-- (c) No restart in the menu: the power button cuts the power.
-
-Recommendation: (a). Blocks one item of T21's menu, nothing else.
+None open.
 
 ## Decisions done
 
@@ -1296,6 +1234,13 @@ Recommendation: (a). Blocks one item of T21's menu, nothing else.
 - **D10. Anything kept from the earlier on-device software?** No (2026-11-17, with the plan).
   Not its MQTT topics, its serial protocols, its settings or its Bluetooth service. A FIBER moves
   over by being written again with FIBER Setup.
+- **D11. Does FIBER Setup write the `config.txt` block too?** No: one writer, the `base` role
+  (2026-11-18). During the first installation the GPIO lines sit at their power-on levels, and
+  one restart follows it. Looked at again once the first installation has been watched on the
+  bench.
+- **D12. What happens to `hardwario/fiber-agent`?** It is left as it is, and archived once a
+  FIBER Setup with the new installer is out (2026-11-18). An old FIBER Setup keeps installing
+  what it was tested with (T33).
 - **D13. InfluxDB, Grafana and sinqtt?** Left out for now (2026-11-17). The components are
   `base`, `agent`, `mosquitto`, `node-red` and `chirpstack`; nothing stores or charts history.
   What was learned, for the day they come back: InfluxDB 3 Core limits a query to 432 files
@@ -1321,3 +1266,18 @@ Recommendation: (a). Blocks one item of T21's menu, nothing else.
 - **D19. How is the agent reached?** Over MQTT, and only over MQTT (2026-11-17, with the plan).
   The command line is a client of the same topics, so anything it can do, a user's program can
   do. The agent needs the local broker; it has no broker of its own and no TLS.
+- **D20. Does the Node-RED component bring the dashboard?** Yes (2026-11-18):
+  `@flowfuse/node-red-dashboard`, pinned, and a page in the starter flow with the thermometers,
+  so that the first minute with a FIBER shows something (T8).
+- **D21. Who moves the Rust toolchain?** The TOWER pin, and not Dependabot (2026-11-18): the
+  channel is taken off Dependabot's list, so that TOWER's crates always build here on the
+  compiler TOWER uses, and its pull request #1 is closed.
+- **D22. May the release and the canary workflows write?** Each through one job of its own
+  (2026-11-18), as TOWER does it: the publishing job of `release.yml` gets `contents: write`,
+  `id-token: write` and `attestations: write`, runs only on a tag that passed the gate, and
+  uploads to a draft first; one job of `canary.yml` gets `issues: write`. `AGENTS.md` names the
+  two as the only exceptions to "the workflows may only read" (T11).
+- **D23. How does the menu restart the FIBER?** Through a path unit (2026-11-18):
+  `fiber-restart.path` in the agent role watches a file that only the agent may write, and
+  starts `fiber-restart.service`, which runs `systemctl reboot` as root. Nothing else is
+  installed, and the agent keeps no right of its own (T21).
