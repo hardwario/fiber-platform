@@ -88,8 +88,8 @@ which probe the same I2C bus as the board's own chips.
 
 ### T8. The `mosquitto` and `node-red` roles (M1)
 
-State (2026-11-18): waiting for a FIBER (T2). The dashboard (D20) is in, checked by the converge
-test on the computer. Everything else that needs no FIBER is done, commit `14e348f`, and its CI run
+State (2026-11-18): waiting for a FIBER (T2). The dashboard (D20) is in (commit `71321b0`, CI run
+44241706037 green). Everything else that needs no FIBER is done, commit `14e348f`, and its CI run
 (44194596621) is green: the network listener with the seed's login; a password the owner changes
 stays; Node-RED behind the login, with the flow to start from; a second apply with nothing changed;
 only ports 1880, 1883 on loopback and 1884 listening. Settled: the password file is
@@ -189,10 +189,11 @@ The card is fed from the battery rail and goes away when the battery is low.
 
 ### T11. Releases and the weekly canary (M1)
 
-State (2026-11-18): the publishing and the canary's issue are written, as D22 says, and pass
-`actionlint`; neither has run yet (nothing is tagged, and the canary has not failed). Left for the
-maintainer: the repository's *immutable releases* setting. The "Done when" is met: a dry run of
-`release.yml` passed (44200461354), the canary ran once and passed (44200466387).
+State (2026-11-18): the publishing and the canary's issue are written, as D22 says (commit
+`a303713`), and pass `actionlint` and CI; neither has run yet (nothing is tagged, and the canary has
+not failed). Left for the maintainer: the repository's *immutable releases* setting. The "Done when"
+is met: a dry run of `release.yml` passed (44200461354), the canary ran once and passed
+(44200466387).
 
 - [x] `.github/workflows/release.yml`: on a tag `vX.Y.Z` that matches the version, on a commit
       of `main` with green CI. It builds the static `fiber`, the archive, the stamped
@@ -513,16 +514,15 @@ run on a FIBER.
 State (2026-11-18): written and tested on the computer: `docs/front-panel.md` (a draft),
 `agent/src/agent/screen.rs` (the four pages, the menu with About, the apply's progress and a
 client's message over the pages, the addresses from `/proc/net/fib_trie`), the agent drawing the
-picture every second and on every gesture, the first press after the backlight dimmed only
-lighting it; a stored picture of every page. The picture goes nowhere until T20's driver. The
-menu's "Restart" is written as D23 says: a confirmation, then `/run/fiber-agent/restart`, which
-`fiber-restart.path` hands to `fiber-restart.service`; the converge test checks the chain, with
-the restart made a mark, and passes. `just check` and
-the converge test pass on the computer (commit `ab9671d`). Its CI run 44215459393 failed in the
-converge test's cleanup, not in the agent: `rm -r /run/fiber-test` raced with `socat` taking its
-links away as it ended. The next run, on `5d3fbad` with the same code (44215720443), is green.
-The test now waits for `socat` first; pushed with T34's fixes (`2a04dff`, CI run 44219055224
-green).
+picture every second and on every gesture, the first press after the backlight dimmed only lighting
+it; a stored picture of every page. The picture goes nowhere until T20's driver. The menu's
+"Restart" is written as D23 says: a confirmation, then `/run/fiber-agent/restart`, which
+`fiber-restart.path` hands to `fiber-restart.service`; the converge test checks the chain, with the
+restart made a mark, and passes (commit `b9c9bbb`, CI run 44241706037 green). `just check` and the
+converge test pass on the computer (commit `ab9671d`). Its CI run 44215459393 failed in the converge
+test's cleanup, not in the agent: `rm -r /run/fiber-test` raced with `socat` taking its links away
+as it ended. The next run, on `5d3fbad` with the same code (44215720443), is green. The test now
+waits for `socat` first; pushed with T34's fixes (`2a04dff`, CI run 44219055224 green).
 
 - [x] `docs/front-panel.md` first: the pages, what the buttons do, the menu, what covers the pages
 - [x] The pages: the name, the addresses and the time; the components and their state; the power
