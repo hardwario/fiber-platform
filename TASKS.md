@@ -187,35 +187,6 @@ The card is fed from the battery rail and goes away when the battery is low.
 - Needs: T6, T8; T2 (the level on mini-PCIe pin 22) for the part with a card.
 - Done when: the CI checks pass, and a FIBER with a card shows uplinks.
 
-### T11. Releases and the weekly canary (M1)
-
-State (2026-11-18): the publishing and the canary's issue are written, as D22 says (commit
-`a303713`), and pass `actionlint` and CI; neither has run yet (nothing is tagged, and the canary has
-not failed). Left for the maintainer: the repository's *immutable releases* setting. The "Done when"
-is met: a dry run of `release.yml` passed (44200461354), the canary ran once and passed
-(44200466387).
-
-- [x] `.github/workflows/release.yml`: on a tag `vX.Y.Z` that matches the version, on a commit
-      of `main` with green CI. It builds the static `fiber`, the archive, the stamped
-      `install.sh`, `SHA256SUMS` and a provenance attestation, tries the archive in a container,
-      and publishes a release that cannot be changed afterwards (everything is uploaded to a
-      draft first). The `publish` job (D22) checks the files against `SHA256SUMS`, attests them
-      with `actions/attest`, and publishes; not run yet, as nothing is tagged
-- [ ] The repository's *immutable releases* setting turned on (the maintainer: a setting of the
-      repository; it is off today)
-- [x] The same workflow run by hand builds everything and publishes nothing
-- [x] `.github/workflows/canary.yml`, weekly: converge every component against the live package
-      sources, open an issue when one breaks (one job with `issues: write`, D22), and warn when
-      a key we carry is about to expire. The `report` job has not run yet: it runs only when a
-      Monday's run fails
-- [x] `docs/release.md`: the steps of a release
-
-Watch out: a tag cannot be moved, so a release whose build fails uses up its version. Run the
-workflow by hand first after any change to the build.
-
-- Needs: T5, T6.
-- Done when: a dry run of a release passes, and the canary has run once.
-
 ### T13. The interfaces, written first (M2)
 
 State (2026-11-18): waiting for the maintainer to read the three drafts. Written:
@@ -1156,6 +1127,33 @@ What a package manager would do for us, done by hand and tested.
 - Needs: T6.
 - Done when: an update to a test release and back works in the container; after an uninstall
   only files that a Debian package owns, and data, are left.
+
+### T11. Releases and the weekly canary (M1)
+
+Done 2026-11-18, commits `a303713` and the earlier ones of T11. Checked: a dry run of `release.yml`
+passed (44200461354); the canary ran once and passed (44200466387); the publish and report jobs pass
+`actionlint` and CI (44241706037); immutable releases are on. Not run yet: the publish job (nothing
+is tagged) and the report job (the canary has not failed). The first tag will run the publishing for
+the first time; run the workflow by hand on `main` before it.
+
+- [x] `.github/workflows/release.yml`: on a tag `vX.Y.Z` that matches the version, on a commit
+      of `main` with green CI. It builds the static `fiber`, the archive, the stamped
+      `install.sh`, `SHA256SUMS` and a provenance attestation, tries the archive in a container,
+      and publishes a release that cannot be changed afterwards (everything is uploaded to a
+      draft first). The `publish` job (D22) checks the files against `SHA256SUMS`, attests them
+      with `actions/attest`, and publishes; not run yet, as nothing is tagged
+- [x] The repository's *immutable releases* setting turned on (2026-11-18, with `gh api`; read
+      back as enabled)
+- [x] The same workflow run by hand builds everything and publishes nothing
+- [x] `.github/workflows/canary.yml`, weekly: converge every component against the live package
+      sources, open an issue when one breaks (one job with `issues: write`, D22), and warn when
+      a key we carry is about to expire. The `report` job has not run yet: it runs only when a
+      Monday's run fails
+- [x] `docs/release.md`: the steps of a release
+
+Watch out: a tag cannot be moved, so a release whose build fails uses up its version. Run the
+workflow by hand first after any change to the build.
+
 
 ### T34. Review of the night's code (M2 to M4)
 

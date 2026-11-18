@@ -4,7 +4,7 @@ How a release is made. What a release holds and how the installer uses it is in
 [`provisioning.md`](provisioning.md), "The release archive and the installer".
 
 **Status:** written (`.github/workflows/release.yml`); the publishing has not run yet, as no
-release has been made. The repository's *immutable releases* setting is still off (step 0).
+release has been made. The repository's *immutable releases* setting is on (since 2026-11-18).
 
 ## What a release is
 
@@ -16,8 +16,9 @@ version.
 
 ## The steps
 
-0. **Once:** turn on *immutable releases* in the repository's settings (Settings > General >
-   Releases), so that a published release and its tag cannot be changed.
+0. **Once, done:** *immutable releases* is on in the repository's settings (Settings > General >
+   Releases, or `gh api -X PUT repos/hardwario/fiber-platform/immutable-releases`), so that a
+   published release and its tag cannot be changed.
 
 1. **On `main`, with green CI,** set the version in `agent/Cargo.toml` (and the lock file:
    `cargo update -p fiber-agent`), and commit: "FIBER Platform 0.2.0".
