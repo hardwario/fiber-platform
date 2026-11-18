@@ -415,6 +415,17 @@ pub(super) fn write_error(path: &Path, e: &std::io::Error, command: &str) -> any
 /// A reader sees the old file or the new one, never half of it. The new file keeps the old one's
 /// owner and permissions; a file that was not there gets `mode`.
 pub(super) fn write_file(path: &Path, text: &str, mode: u32) -> std::io::Result<()> {
+    write_file_at(path, text, mode, None)
+}
+
+/// [`write_file`], with the new file's modification time set to `modified` before it takes the
+/// old one's place, when one is given.
+pub(super) fn write_file_at(
+    path: &Path,
+    text: &str,
+    mode: u32,
+    modified: Option<std::time::SystemTime>,
+) -> std::io::Result<()> {
     use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 
     let dir = path.parent().unwrap_or(Path::new("."));
@@ -442,6 +453,9 @@ pub(super) fn write_file(path: &Path, text: &str, mode: u32) -> std::io::Result<
             Err(_) => file.set_permissions(std::fs::Permissions::from_mode(mode))?,
         }
         file.write_all(text.as_bytes())?;
+        if let Some(modified) = modified {
+            file.set_modified(modified)?;
+        }
         file.sync_all()?;
         std::fs::rename(&new, path)?;
         std::fs::File::open(dir)?.sync_all()

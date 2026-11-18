@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use super::catalog::Catalog;
 use super::file::{Platform, Settings};
 use super::results::{ComponentResult, Outcome, Results, Wanted};
-use super::{State, states, write_file};
+use super::{State, states, write_file, write_file_at};
 use crate::paths::Paths;
 use crate::release::Release;
 
@@ -349,8 +349,24 @@ fn publish(paths: &Paths, status: &Status) {
     }
     let service = paths.avahi_service();
     if service.parent().is_some_and(Path::is_dir) {
-        let _ = write_file(&service, &avahi_text(status), 0o644);
+        let before = std::fs::metadata(&service).and_then(|m| m.modified()).ok();
+        let modified = before.map(|before| next_second(before, SystemTime::now()));
+        let _ = write_file_at(&service, &avahi_text(status), 0o644, modified);
     }
+}
+
+/// The modification time for a file that replaces one modified at `before`: now, or one whole
+/// second after `before` if that is later. Avahi reads a service file again only when its time
+/// has changed in whole seconds (avahi-daemon 0.8, `static-services.c`), and is told about the
+/// new file once, when it is renamed into place: a second write within the same second would
+/// stay unread for good. Seen in a container: the record said `running` long after the file
+/// said `done`.
+fn next_second(before: SystemTime, now: SystemTime) -> SystemTime {
+    let seconds = before
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    now.max(UNIX_EPOCH + Duration::from_secs(seconds + 1))
 }
 
 /// The Avahi service of the FIBER (`_fiber._tcp`): FIBER Setup follows the first start by its
@@ -841,6 +857,47 @@ mod tests {
             rfc3339(UNIX_EPOCH + Duration::from_secs(951_782_400)),
             "2000-02-29T00:00:00Z"
         );
+    }
+
+    #[test]
+    fn a_record_written_again_has_a_later_second() {
+        let at = |s: u64, ms: u64| UNIX_EPOCH + Duration::from_millis(s * 1000 + ms);
+        // Within the same second, or with a clock that went back: the next second.
+        assert_eq!(next_second(at(100, 200), at(100, 900)), at(101, 0));
+        assert_eq!(next_second(at(100, 200), at(50, 0)), at(101, 0));
+        // Later than that: now.
+        assert_eq!(next_second(at(100, 200), at(101, 300)), at(101, 300));
+
+        let dir = crate::testdir::TestDir::new("avahi");
+        let paths = Paths::new(Some(dir.path().to_path_buf()));
+        let service = paths.avahi_service();
+        std::fs::create_dir_all(service.parent().unwrap()).unwrap();
+        let status = |state| Status {
+            schema: 1,
+            run: "1".into(),
+            release: "0.1.0".into(),
+            state,
+            step: 2,
+            steps: 2,
+            component: None,
+            restart_needed: false,
+            message: None,
+            results: Vec::new(),
+        };
+        let seconds = || {
+            std::fs::metadata(&service)
+                .unwrap()
+                .modified()
+                .unwrap()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        };
+        publish(&paths, &status(ApplyState::Running));
+        let first = seconds();
+        publish(&paths, &status(ApplyState::Done));
+        assert!(seconds() > first);
+        assert!(std::fs::read_to_string(&service).unwrap().contains("state=done"));
     }
 
     #[test]

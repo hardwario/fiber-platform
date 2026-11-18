@@ -226,6 +226,10 @@ In `../fiber-setup`. The one place where a user makes the choice.
       script publishes its own record (`_fiber-setup._tcp`: waiting for the network, the clock,
       the download, the installation, the restart) and removes it when it is done; after a
       restart it runs once more to say so
+- [x] Here: the record is read again by Avahi after every write. Found in a container: Avahi
+      0.8 reads a service file again only when its time has changed in whole seconds, so a
+      record written twice within a second kept the first (`running` long after `done`). A
+      new record now has a time at least one second after the old one's
 - [ ] *Follow the first start* reads the progress from the platform's Avahi record (a DNS-SD
       query sent straight to the FIBER's address, so nothing on the computer listens on port
       5353). Tried against Avahi in a container. The last step shows a link for every chosen
