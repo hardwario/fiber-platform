@@ -75,7 +75,7 @@ down.
   so everything the command line can do, a Node-RED flow can do too, flashing included. The
   exceptions: `fiber doctor` only reads what Linux shows of the hardware, and `fiber firmware
   chip` talks to a bootloader directly and needs the agent stopped.
-- **Privileges.** The user `fiber`, in the serial, GPIO, I2C and SPI groups (Bluetooth comes
+- **Privileges.** The user `fiber-agent`, in the serial, GPIO, I2C and SPI groups (Bluetooth comes
   with M6), under `fiber-agent.service`: no capabilities, the system read-only, only the board's
   device classes, and a watchdog its loop feeds ([`provisioning.md`](provisioning.md), "The
   agent"). No TLS and no broker inside the agent: it requires the local Mosquitto.

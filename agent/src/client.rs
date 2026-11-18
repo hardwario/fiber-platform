@@ -99,14 +99,22 @@ fn check_agent(topics: &Retained) -> Option<ExitCode> {
     }
 }
 
+/// A new id for every request: the process, a count within it, and the time. The agent drops
+/// an id it has seen among the last 64, so two requests of one command must never share one.
+fn request_id() -> String {
+    static COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let count = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    format!("cli-{}-{count}-{nanos}", std::process::id())
+}
+
 /// Sends a request and waits for its answer.
 async fn request(broker: &Broker, op: &str, params: Value, wait: Duration) -> Result<Value> {
     let (client, mut events) = broker.connect();
-    let id = format!(
-        "cli-{}-{}",
-        std::process::id(),
-        tokio::time::Instant::now().elapsed().as_nanos()
-    );
+    let id = request_id();
     client
         .subscribe(format!("fiber/rsp/{id}"), QoS::AtLeastOnce)
         .await?;
@@ -578,6 +586,18 @@ mod tests {
         assert_eq!(
             display_text(&topics),
             "Backlight   80 %\nMessage     Back in / 5 minutes\n"
+        );
+    }
+
+    #[test]
+    fn every_request_has_its_own_id() {
+        let ids: std::collections::BTreeSet<String> = (0..100).map(|_| request_id()).collect();
+        assert_eq!(ids.len(), 100);
+        // As the agent takes them: at most 64 characters of A-Z a-z 0-9 _ . -
+        assert!(
+            ids.iter().all(
+                |id| id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c))
+            )
         );
     }
 

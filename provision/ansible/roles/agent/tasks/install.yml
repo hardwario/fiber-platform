@@ -7,9 +7,10 @@
     system: true
   loop: [gpio, i2c, spi]
 
-- name: The user fiber, in the groups of the serial ports, GPIO, I2C and SPI
+# Not `fiber`: that is the login FIBER Setup suggests, and this task would take it over.
+- name: The user fiber-agent, in the groups of the serial ports, GPIO, I2C and SPI
   ansible.builtin.user:
-    name: fiber
+    name: fiber-agent
     system: true
     home: /var/lib/fiber/agent
     create_home: false

@@ -41,6 +41,9 @@ pub const NO_FIRMWARE_AFTER: Duration = Duration::from_secs(10);
 /// Frames with another schema tag, in a row, before the chip is flashed.
 pub const OTHER_SCHEMA_FRAMES: u32 = 3;
 
+/// The longest an apply runs (`TimeoutStartSec=` of `fiber-platform-apply.service`).
+const APPLY_AT_MOST: Duration = Duration::from_secs(2 * 3600);
+
 /// A probe's topic is sent at least this often.
 pub const THERMOMETER_EVERY: Duration = Duration::from_secs(60);
 
@@ -60,6 +63,9 @@ pub enum BusEvent {
     Connected,
     /// A request on `fiber/cmd`.
     Request(Vec<u8>),
+    /// A retained topic the broker kept, as `thermometers/{id}`: maybe of a probe that went
+    /// while the agent was not running.
+    Retained(String),
 }
 
 /// MQTT, as the loop sees it.
@@ -101,6 +107,8 @@ pub struct Agent<B: Bus> {
     pub rounds: Option<mpsc::Receiver<Round>>,
     /// Each probe's last topic: its reading, and when it was sent.
     thermometers_sent: std::collections::BTreeMap<String, (Option<i32>, u8, Instant)>,
+    /// Thermometers the broker kept that no round has found yet.
+    stale: std::collections::BTreeSet<String>,
     /// The buttons' gestures, from the thread that watches them; none without the lines.
     pub gestures: Option<mpsc::Receiver<ButtonEvent>>,
     /// The buzzer's patterns; none without its line.
@@ -150,6 +158,7 @@ impl<B: Bus> Agent<B> {
             notify: Notify::default(),
             rounds: None,
             thermometers_sent: Default::default(),
+            stale: Default::default(),
             gestures: None,
             buzzer: None,
             backlight: None,
@@ -328,8 +337,13 @@ impl<B: Bus> Agent<B> {
                     .map(|(name, r)| (name, format!("{:?}", r.result).to_lowercase()))
                     .collect();
             }
+            // An apply that was killed leaves `running` behind; the unit gives one 2 hours at most.
+            let fresh = std::fs::metadata(&sources.status)
+                .and_then(|m| m.modified())
+                .is_ok_and(|at| at.elapsed().is_ok_and(|age| age < APPLY_AT_MOST));
             if let Ok(status) = serde_json::from_str::<crate::platform::apply::Status>(&read(&sources.status))
                 && status.state == crate::platform::apply::ApplyState::Running
+                && fresh
             {
                 facts.apply = Some((status.component.unwrap_or_default(), status.step, status.steps));
             }
@@ -366,11 +380,41 @@ impl<B: Bus> Agent<B> {
     async fn round(&mut self, round: Round) {
         for id in self.state.thermometers.take(round, self.state.ports) {
             self.thermometers_sent.remove(&id);
-            self.bus
-                .publish(format!("{PREFIX}thermometers/{id}"), String::new(), true)
-                .await;
+            self.clear_thermometer(&id).await;
         }
+        self.clear_stale().await;
         self.publish_state(false).await;
+    }
+
+    async fn clear_thermometer(&mut self, id: &str) {
+        self.bus
+            .publish(format!("{PREFIX}thermometers/{id}"), String::new(), true)
+            .await;
+    }
+
+    /// A retained topic from the broker: a probe the agent does not know is stale, once a round
+    /// has said which probes there are.
+    async fn retained_seen(&mut self, topic: String) {
+        if let Some(id) = topic.strip_prefix("thermometers/")
+            && !self.state.thermometers.known.contains_key(id)
+        {
+            self.stale.insert(id.to_owned());
+        }
+        self.clear_stale().await;
+    }
+
+    /// Clears the stale thermometers: those the broker kept and no round has found.
+    async fn clear_stale(&mut self) {
+        if self.state.thermometers.buses.is_none() {
+            return;
+        }
+        let stale: Vec<String> = std::mem::take(&mut self.stale)
+            .into_iter()
+            .filter(|id| !self.state.thermometers.known.contains_key(id))
+            .collect();
+        for id in stale {
+            self.clear_thermometer(&id).await;
+        }
     }
 
     /// Each probe's topic, when it moved by 0.1 °C or more, gained or lost its reading, changed
@@ -604,6 +648,7 @@ where
             event = agent.bus.next() => match event {
                 BusEvent::Connected => agent.publish_state(true).await,
                 BusEvent::Request(payload) => agent.request(&payload).await,
+                BusEvent::Retained(topic) => agent.retained_seen(topic).await,
             },
             () = over => return Ok(Stop::Reopen),
         }
@@ -864,6 +909,39 @@ mod tests {
         assert_eq!(
             last(&published, "fiber/ports/2").unwrap()["thermometers"],
             serde_json::json!([])
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_probe_that_went_while_the_agent_was_away() {
+        use crate::agent::thermometers::{Probe, Round};
+        let published = Rc::new(RefCell::new(Vec::new()));
+        let (mut agent, bus) = agent_with(Some(CRC), &published);
+        let (rounds, rx) = mpsc::channel(4);
+        agent.rounds = Some(rx);
+        // The broker kept two; before the first round nothing is cleared.
+        bus.send(BusEvent::Retained("thermometers/28-old".into()))
+            .unwrap();
+        bus.send(BusEvent::Retained("thermometers/28-a".into())).unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        assert!(last(&published, "fiber/thermometers/28-old").is_none());
+        let mut ports = vec![Vec::new(); 8];
+        ports[0] = vec![Probe {
+            id: "28-a".into(),
+            millis: Some(20000),
+        }];
+        rounds.send(Round { ports: Some(ports) }).await.unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        let cleared = |id: &str| {
+            published.borrow().iter().any(|(t, payload, retained)| {
+                t == &format!("fiber/thermometers/{id}") && payload.is_empty() && *retained
+            })
+        };
+        assert!(cleared("28-old"));
+        assert!(!cleared("28-a"));
+        assert_eq!(
+            last(&published, "fiber/thermometers/28-a").unwrap()["temperature"],
+            20.0
         );
     }
 

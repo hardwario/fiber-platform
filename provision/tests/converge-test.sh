@@ -19,7 +19,7 @@
 #      on loopback; the API key kept; the concentrator daemon and its udev rule there; a second
 #      apply changes nothing
 #  10. the agent's service with the base, against the simulated south bridge and a made-up
-#      1-Wire tree: it runs as the user fiber without capabilities, holds the port, feeds its
+#      1-Wire tree: it runs as the user fiber-agent without capabilities, holds the port, feeds its
 #      watchdog, shows a thermometer, its failing and its going, takes a message and a
 #      backlight, says there is no buzzer, and a second apply changes nothing; then the
 #      footprint: every path the platform added is a package's, its own, or listed
@@ -66,6 +66,8 @@ export FIBER_RELEASE_URL=http://127.0.0.1:8000
 (cd /dist && exec python3 -m http.server 8000 --bind 127.0.0.1 > /dev/null 2>&1) &
 wait_for 10 curl -fs -o /dev/null http://127.0.0.1:8000/install.sh || fail "the web server did not start"
 wait_for 60 systemctl is-system-running --quiet --wait || true
+# The owner's login, as FIBER Setup makes it with its suggested name: no role may touch it.
+useradd -m -s /bin/bash fiber
 # In /root, which the snapshot leaves out: systemd mounts a new /tmp while it starts.
 snapshot > /root/before.txt
 
@@ -229,7 +231,8 @@ grep -qE '^South       running 0\.1\.0, image 0x[0-9a-f]{8} \(the one carried\)$
     fail "fiber status does not show the south bridge running the image the agent carries"
 grep -qE '^Power       PoE, input 1[12]\.[0-9]{2} V, battery 4\.[01][0-9] V$' /tmp/status.out || fail "fiber status does not show the power"
 grep -q '^Ports       1 2 3 4 5 6 7 8 on$' /tmp/status.out || fail "fiber status does not show the ports"
-[ "$(fiber ports off 3)" = "Ports       1 2 4 5 6 7 8 on, 3 off" ] || fail "fiber ports off 3"
+# Two ports: two requests from one command, each with its own id.
+[ "$(fiber ports off 3 4)" = "Ports       1 2 5 6 7 8 on, 3 4 off" ] || fail "fiber ports off 3 4"
 mosquitto_sub -h 127.0.0.1 -t fiber/ports/3 -C 1 -W 5 | grep -q '"power":false' || fail "fiber/ports/3 does not say off"
 [ "$(fiber ports on)" = "Ports       1 2 3 4 5 6 7 8 on" ] || fail "fiber ports on"
 fiber leds amber port2 --blink 500 500
@@ -312,12 +315,13 @@ fiber platform enable agent
 expect 10 fiber platform apply
 rm /run/fiber/platform/restart-needed
 systemctl is-enabled --quiet fiber-agent || fail "the agent does not start with the FIBER"
-# The user fiber is there now: the pseudo-terminal becomes its.
-chown fiber "$(readlink -f /run/fiber-test/south-agent)"
+[ "$(getent passwd fiber | cut -d: -f6,7)" = /home/fiber:/bin/bash ] || fail "the agent role changed the login fiber"
+# The user fiber-agent is there now: the pseudo-terminal becomes its.
+chown fiber-agent "$(readlink -f /run/fiber-test/south-agent)"
 wait_for 30 agent_answers || fail "fiber status: $(cat /tmp/status.out); the agent: $(journalctl -u fiber-agent --no-pager | tail -n 20)"
 cat /tmp/status.out
 agent_pid=$(systemctl show -p MainPID --value fiber-agent)
-[ "$(stat -c %U "/proc/$agent_pid")" = fiber ] || fail "the agent does not run as the user fiber"
+[ "$(stat -c %U "/proc/$agent_pid")" = fiber-agent ] || fail "the agent does not run as the user fiber-agent"
 grep -q '^CapEff:[[:space:]]*0000000000000000$' "/proc/$agent_pid/status" || fail "the agent has capabilities"
 [ -f /etc/fiber/agent.toml ] || fail "the agent's settings file is not there"
 fiber firmware chip south 2> /tmp/chip.err && fail "fiber firmware chip ran beside the agent"
@@ -382,7 +386,10 @@ wait_for 10 agent_gone || fail "fiber/status does not say the agent is offline"
 [ -f /etc/fiber/agent.toml ] || fail "the agent's settings are gone"
 umount /boot/firmware
 kill "$simulator_pid" "$socat_pid" 2> /dev/null || true
-rm -r /run/systemd/system/fiber-agent.service.d /run/fiber-test
+# socat takes its links away as it ends: wait for it before the directory goes.
+wait "$simulator_pid" "$socat_pid" 2> /dev/null || true
+rm -r /run/systemd/system/fiber-agent.service.d
+rm -rf /run/fiber-test
 systemctl daemon-reload
 
 say "Turning ChirpStack, Node-RED and Mosquitto off stops them, and keeps their settings"
@@ -405,7 +412,7 @@ for gone in /opt/fiber /etc/fiber /var/lib/fiber /usr/local/bin/fiber /etc/syste
     [ ! -e "$gone" ] || fail "$gone is still there"
 done
 grep -q '^  sudo apt purge ' /tmp/uninstall.out || fail "the uninstall did not print how to purge the packages"
-grep -q '^  sudo userdel fiber$' /tmp/uninstall.out || fail "the uninstall did not say how to take the user fiber off"
+grep -q '^  sudo userdel fiber-agent$' /tmp/uninstall.out || fail "the uninstall did not say how to take the user fiber-agent off"
 snapshot > /root/uninstalled.txt
 python3 /tests/footprint-check.py /root/before.txt /root/uninstalled.txt /footprint.yaml --uninstalled ||
     fail "the uninstall left paths behind"

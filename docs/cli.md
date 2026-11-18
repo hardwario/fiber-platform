@@ -354,7 +354,7 @@ releases change places, so a second rollback goes forward again. Exit status: th
 Takes the FIBER platform off the system: every component is turned off (each role's `disable`),
 then every file of the footprint ([`provisioning.md`](provisioning.md)), `/etc/fiber` with the
 login, `/var/lib/fiber`, `/var/log/fiber`, `/usr/local/bin/fiber` and `/opt/fiber` are removed.
-The services' data and the users the roles made (`fiber`, `nodered`) stay; the command lists the
+The services' data and the users the roles made (`fiber-agent`, `nodered`) stay; the command lists the
 data, and prints, without running them, the commands that would take the packages from other
 sources, their data and the users off too. Without `--yes` it only says what it would do.
 

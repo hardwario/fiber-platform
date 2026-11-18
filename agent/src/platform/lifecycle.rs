@@ -273,7 +273,7 @@ pub fn uninstall(paths: &Paths, yes: bool) -> Result<ExitCode> {
 
 /// The users the roles made that are still there: an uninstall leaves them, as a package does.
 fn users_left(passwd: &str) -> Vec<&'static str> {
-    ["fiber", "nodered"]
+    ["fiber-agent", "nodered"]
         .into_iter()
         .filter(|user| passwd.lines().any(|line| line.split(':').next() == Some(*user)))
         .collect()
@@ -285,9 +285,14 @@ mod tests {
 
     #[test]
     fn the_users_left_are_named() {
+        // `fiber` is the owner's login, as FIBER Setup suggests it: never named.
         let passwd = "root:x:0:0::/root:/bin/bash\nnodered:x:998:998::/var/lib/node-red:/usr/sbin/nologin\n\
-                      fiberish:x:997:997::/:/bin/sh\n";
-        assert_eq!(users_left(passwd), ["nodered"]);
+                      fiber:x:1000:1000::/home/fiber:/bin/bash\nfiber-agent:x:997:997::/var/lib/fiber/agent:/usr/sbin/nologin\n";
+        assert_eq!(users_left(passwd), ["fiber-agent", "nodered"]);
+        assert_eq!(
+            users_left("fiber:x:1000:1000::/home/fiber:/bin/bash\n"),
+            Vec::<&str>::new()
+        );
         assert!(users_left("").is_empty());
     }
 

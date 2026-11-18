@@ -41,17 +41,37 @@ impl Pwm {
     }
 }
 
-/// Sets the duty cycles that come in; says once when it cannot.
+/// How soon a failed write is tried again: right after the export, udev may not have given the
+/// new files to the group `gpio` yet.
+const RETRY: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// Sets the duty cycles that come in, and tries a failed one again every second until it is
+/// written or another comes; says once when it cannot.
 pub async fn drive(mut pwm: Pwm, mut duties: tokio::sync::mpsc::UnboundedReceiver<u8>) {
     let mut said = false;
-    while let Some(duty) = duties.recv().await {
-        match pwm.set(duty) {
-            Ok(()) => said = false,
-            Err(e) if !said => {
-                eprintln!("the backlight ({}): {e}", pwm.chip.display());
-                said = true;
+    let mut unwritten: Option<u8> = None;
+    loop {
+        let next = match unwritten {
+            Some(_) => tokio::time::timeout(RETRY, duties.recv()).await.ok(),
+            None => Some(duties.recv().await),
+        };
+        match next {
+            Some(None) => return,
+            Some(Some(duty)) => unwritten = Some(duty),
+            None => {}
+        }
+        if let Some(duty) = unwritten {
+            match pwm.set(duty) {
+                Ok(()) => {
+                    unwritten = None;
+                    said = false;
+                }
+                Err(e) if !said => {
+                    eprintln!("the backlight ({}): {e}", pwm.chip.display());
+                    said = true;
+                }
+                Err(_) => {}
             }
-            Err(_) => {}
         }
     }
 }
@@ -77,5 +97,24 @@ mod tests {
         assert_eq!(read("duty_cycle"), "160000");
         // Not exported, and the export cannot be written: an error, said once by `drive`.
         assert!(Pwm::new(dir.path().join("none"), 1).set(50).is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_failed_write_is_tried_again() {
+        let dir = TestDir::new("pwm-retry");
+        let chip = dir.path().join("pwmchip0");
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let driver = tokio::spawn(drive(Pwm::new(chip.clone(), 1), rx));
+        tx.send(80).unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        // The channel's files appear, as udev would make them writable.
+        std::fs::create_dir_all(chip.join("pwm1")).unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+        assert_eq!(
+            std::fs::read_to_string(chip.join("pwm1/duty_cycle")).unwrap(),
+            "800000"
+        );
+        drop(tx);
+        driver.await.unwrap();
     }
 }

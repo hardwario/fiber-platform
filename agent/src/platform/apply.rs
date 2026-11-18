@@ -451,6 +451,9 @@ fn apply_once(paths: &Paths, request: &str) -> Result<u8> {
     };
     let steps = plan(&catalog, &platform);
     status.steps = steps.len();
+    // The step that runs, from 1, and its component (the front panel and Avahi show them).
+    status.step = usize::from(!steps.is_empty());
+    status.component = steps.first().map(|s| s.component.clone());
     publish(paths, &status);
 
     let log_path = paths.platform_log();
@@ -486,7 +489,8 @@ fn apply_once(paths: &Paths, request: &str) -> Result<u8> {
             record_error.get_or_insert(e);
         }
         status.results.push(result.clone());
-        status.step = index + 1;
+        // The next step, or the number of steps when this was the last.
+        status.step = (index + 2).min(steps.len());
         status.component = steps.get(index + 1).map(|s| s.component.clone());
         publish(paths, &status);
     });

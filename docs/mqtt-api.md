@@ -43,7 +43,7 @@ They are those of TOWER's gateway API, so that one client can talk to both.
 | `power/event` | agent | no | [power/event](#powerevent) |
 | `ports/{1..8}` | agent | yes | [ports/n](#portsn) |
 | `thermometers/{id}` | agent | yes (empty = gone) | [thermometers/id](#thermometersid) |
-| `firmware/south`, `firmware/north` | agent | yes | [firmware/chip](#firmwarechip) |
+| `firmware/south`, later `firmware/north` (T26) | agent | yes | [firmware/chip](#firmwarechip) |
 | `buttons/event` | agent | no | [buttons/event](#buttonsevent) |
 | `display` | agent | yes | [display](#display) |
 | `cmd` | client | **never** | [a request](#requests) |
@@ -133,7 +133,7 @@ a DS18B20 holds after power-on, unless the reading before it was above 75 °C.
 
 ### `firmware/chip`
 
-`firmware/south` and `firmware/north`:
+`firmware/south`, and `firmware/north` once the agent carries the north bridge's firmware (T26):
 
 ```json
 {"state":"running","version":"0.2.0","crc":"0x6f1c2a90","carried":"0x6f1c2a90",
@@ -204,7 +204,7 @@ back with the next one.
 - **Subscribe to `rsp/+` once,** before the first request, and match answers by `id`.
 - **Never retain a request.** A retained one is cleared and not run.
 - **Every request gets one answer,** within 10 s, except `firmware.flash`, which answers when it is
-  done (up to 2 minutes). A request with a bad `id`, a repeated `id` (the agent remembers the last
+  done (up to 2 minutes). While a chip is being flashed, the other requests wait for it. A request with a bad `id`, a repeated `id` (the agent remembers the last
   64) or a payload that is not JSON is dropped without an answer.
 
 Errors that any op can answer:

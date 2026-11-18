@@ -252,7 +252,7 @@ Tested in the converge test, without a card. Not run on a FIBER yet.
 
 The `agent` role runs `fiber agent` ([`cli.md`](cli.md)) as a service:
 
-- **The user `fiber`,** a system user without a login, in the groups `dialout`, `gpio`, `i2c`
+- **The user `fiber-agent`,** a system user without a login, in the groups `dialout`, `gpio`, `i2c`
   and `spi`: the serial ports, the GPIO lines, the I2C and SPI buses.
 - **`fiber-agent.service`,** the role's own unit. `Type=notify`: the agent tells systemd when it
   runs, and its loop feeds a watchdog of 30 s, also while the south bridge's port is missing and

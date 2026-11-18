@@ -4,7 +4,7 @@
 //! 1-Wire drivers (`docs/hardware.md`, "The 1-Wire ports in Linux"). A driver of our own for the
 //! DS2482 would be another implementation (D17). [`Probes`] is what the agent knows of them.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -166,41 +166,53 @@ impl Probes {
     /// Takes a round in. `powered` is the ports' power (bit 0 is port 1): the probes of a port
     /// without power are gone at once. Returns the ids of the probes that are gone.
     pub fn take(&mut self, round: Round, powered: u8) -> Vec<String> {
-        let mut seen = BTreeSet::new();
         self.buses = Some(round.ports.is_some());
+        // Each probe with the ports that list it: a probe moved to another port stays listed on
+        // its old one for about 100 s, and reads only on the new one.
+        let mut listed: BTreeMap<String, Vec<(u8, Option<i32>)>> = BTreeMap::new();
         for (index, probes) in round.ports.into_iter().flatten().enumerate() {
-            let port = index as u8 + 1;
             if powered & (1 << index) == 0 {
                 continue;
             }
             for probe in probes {
-                seen.insert(probe.id.clone());
-                let known = self.known.entry(probe.id).or_insert(Known {
-                    port,
-                    millis: None,
-                    misses: 0,
-                });
-                known.port = port;
-                let before = known.millis;
-                match probe.millis {
-                    Some(POWER_ON) if !before.is_some_and(|m| m > POWER_ON_BELIEVED_ABOVE) => {
-                        known.misses += 1
-                    }
-                    Some(millis) => {
-                        known.millis = Some(millis);
-                        known.misses = 0;
-                    }
-                    None => known.misses += 1,
+                listed
+                    .entry(probe.id)
+                    .or_default()
+                    .push((index as u8 + 1, probe.millis));
+            }
+        }
+        for (id, places) in &listed {
+            let before = self.known.get(id).map(|known| known.port);
+            let (port, millis) = places
+                .iter()
+                .find(|(_, millis)| millis.is_some())
+                .or_else(|| places.iter().find(|(port, _)| Some(*port) == before))
+                .or(places.first())
+                .copied()
+                .unwrap_or((0, None));
+            let known = self.known.entry(id.clone()).or_insert(Known {
+                port,
+                millis: None,
+                misses: 0,
+            });
+            known.port = port;
+            let last = known.millis;
+            match millis {
+                Some(POWER_ON) if !last.is_some_and(|m| m > POWER_ON_BELIEVED_ABOVE) => known.misses += 1,
+                Some(millis) => {
+                    known.millis = Some(millis);
+                    known.misses = 0;
                 }
-                if known.failing() {
-                    known.millis = None;
-                }
+                None => known.misses += 1,
+            }
+            if known.failing() {
+                known.millis = None;
             }
         }
         let gone: Vec<String> = self
             .known
             .keys()
-            .filter(|id| !seen.contains(*id))
+            .filter(|id| !listed.contains_key(*id))
             .cloned()
             .collect();
         for id in &gone {
@@ -375,6 +387,24 @@ mod tests {
         probes.take(round(3, &[("28-b", Some(20000))]), 0xFF);
         assert_eq!(probes.take(Round { ports: None }, 0xFF), ["28-b"]);
         assert_eq!(probes.on_port(3), None);
+    }
+
+    #[test]
+    fn a_probe_moved_to_another_port() {
+        let mut probes = Probes::default();
+        probes.take(round(5, &[("28-a", Some(21000))]), 0xFF);
+        // Moved to port 3: Linux lists it on both for a while, and it reads on port 3 only.
+        let mut both = round(3, &[("28-a", Some(21100))]);
+        if let Some(ports) = &mut both.ports {
+            ports[4] = vec![Probe {
+                id: "28-a".into(),
+                millis: None,
+            }];
+        }
+        probes.take(both, 0xFF);
+        assert_eq!(probes.known["28-a"].port, 3);
+        assert_eq!(probes.known["28-a"].misses, 0);
+        assert_eq!(probes.on_port(5), Some(vec![]));
     }
 
     #[test]

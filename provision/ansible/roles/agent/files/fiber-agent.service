@@ -10,8 +10,8 @@ After=mosquitto.service
 [Service]
 Type=notify
 ExecStart=/usr/local/bin/fiber agent
-User=fiber
-Group=fiber
+User=fiber-agent
+Group=fiber-agent
 # The agent's loop feeds the watchdog once a second; a loop that stops is restarted.
 WatchdogSec=30s
 Restart=always

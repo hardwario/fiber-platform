@@ -389,7 +389,7 @@ The one program that owns the board. This task gives it the south bridge and its
 - [x] The command line as a client of MQTT: `status`, `power`, `ports`, `leds`, `firmware
       status`, `firmware flash` (through the agent). `firmware chip` talks to the bootloader
       itself and refuses while the agent holds the port; `doctor` only reads
-- [x] The service: the user `fiber`, read-only system directories, only the devices it needs, no
+- [x] The service: the user `fiber-agent`, read-only system directories, only the devices it needs, no
       capabilities, a watchdog. Written with T18, whose role installs it
 - [x] Tests without a board: against the south bridge simulator, the simulated bootloader, and
       a broker inside the test (Mosquitto in the converge test, step 8d)
@@ -403,7 +403,7 @@ board the two voltages read nothing useful, and `power` has to say so.
 ### T18. The `agent` role (M2)
 
 State (2026-11-18): everything that needs no board is done and checked (commit `94dea9b`, CI run
-44210054395 green): `just check`, and the converge test with the service in it (the agent runs as `fiber` without capabilities, holds
+44210054395 green): `just check`, and the converge test with the service in it (the agent runs as `fiber-agent` without capabilities, holds
 the port, feeds a watchdog of 3 s, is restarted on the new program by an update and a rollback,
 and goes offline when turned off). On the way the converge test found that the agent served
 nothing on MQTT without the south bridge's port; fixed (`run_without_link`). The port lock is
@@ -412,7 +412,7 @@ a FIBER (T2) for the last step.
 
 - [x] `docs/provisioning.md` first: the agent role (the user, its groups, the unit, the settings
       file), and the unit's lines in `docs/architecture.md`
-- [x] `fiber-agent.service`: the user `fiber`; `Type=notify` with a watchdog that the agent's
+- [x] `fiber-agent.service`: the user `fiber-agent`; `Type=notify` with a watchdog that the agent's
       loop feeds (also while the port is missing and while it flashes); the system read-only
       but for `/var/lib/fiber/agent` and `/run/lock`; only the device classes it needs; no
       capabilities
@@ -420,7 +420,7 @@ a FIBER (T2) for the last step.
       defaults in comments, enabled and started; restarted when the program changed (an update
       or a rollback)
 - [x] Turning it off stops and disables the service; both microcontrollers keep their firmware
-- [x] In the converge test: the service against the south bridge simulator; it runs as `fiber`,
+- [x] In the converge test: the service against the south bridge simulator; it runs as `fiber-agent`,
       holds the port (`fiber firmware chip` refuses), its watchdog does not fire, an update
       restarts it on the new program, and turning it off takes `fiber/status` offline
 - [ ] On a FIBER: `fiber platform enable agent` brings up `fiber/status`
@@ -509,7 +509,10 @@ client's message over the pages, the addresses from `/proc/net/fib_trie`), the a
 picture every second and on every gesture, the first press after the backlight dimmed only
 lighting it; a stored picture of every page. The picture goes nowhere until T20's driver. The
 menu's "Restart" waits for D23: the agent has no right to restart the FIBER. `just check` and
-the converge test pass.
+the converge test pass on the computer (commit `ab9671d`). Its CI run 44215459393 failed in the
+converge test's cleanup, not in the agent: `rm -r /run/fiber-test` raced with `socat` taking its
+links away as it ended. The next run, on `5d3fbad` with the same code (44215720443), is green.
+The test now waits for `socat` first; pushed with T34's fixes, which also touch these pages.
 
 - [x] `docs/front-panel.md` first: the pages, what the buttons do, the menu, what covers the pages
 - [x] The pages: the name, the addresses and the time; the components and their state; the power
@@ -545,6 +548,41 @@ A new, small profile (D3), agreed with the people who make the app before any co
 - [ ] Agreed with the HARDWARIO Manager app
 
 - Done when: the app's side has said yes to the document.
+
+### T34. Review of the night's code (M2 to M4)
+
+State (2026-11-18): the fixes are written; `just check`, the roles' lint and the converge test
+pass on the computer; CI is next. An
+independent review read the code of T17 to T21 (`54cb19e..ab9671d`) for defects that show at run
+time. It found nine; all are fixed here:
+
+- [x] **The agent role took over the owner's login.** FIBER Setup suggests the login user name
+      `fiber`, and the role's user task would have given that account `nologin` and another
+      home, and the uninstall would have said `userdel fiber`. The agent's user is
+      `fiber-agent` now; the converge test makes a login `fiber` first and checks it is left
+      alone
+- [x] **The command line reused request ids** within one command (`fiber leds red`,
+      `fiber ports off 1 2`), and the agent dropped the repeats: each request has its own id
+      now; the converge test switches two ports with one command
+- [x] **A long broker outage could leave the agent without its subscription to `cmd`:**
+      rumqttc queued the publishes made while the broker was down, and a full queue kept the
+      subscription from going out. Publishes while disconnected are dropped now, as the comments
+      said they were
+- [x] **A probe unplugged while the agent was not running stayed retained:** the agent reads
+      the retained `thermometers/+` back and clears those no round finds
+- [x] **A failed backlight write was not tried again** (udev may give the PWM's files to the
+      group `gpio` only after the export): it is tried every second
+- [x] **A probe moved to a lower port was reported on its old one** for about 100 s: it counts
+      on the port where it reads
+- [x] **The apply's status named the next component with the number of the finished steps:**
+      it names the step that runs, from 1, as its doc comment says; a `running` status older
+      than 2 hours (an apply that was killed) no longer covers the display
+- [x] **Requests wait while a chip is flashed,** which `docs/mqtt-api.md` did not say: it says
+      so now
+- [x] **`firmware/north` was listed but is never sent:** the docs say it comes with T26
+- [ ] The converge test and CI pass with the fixes
+
+- Done when: the fixes are pushed and CI is green.
 
 ## Tasks ahead
 
@@ -1215,13 +1253,13 @@ Recommendation: (a). Blocks the last step of T11. Everything else of T11 is writ
 
 ### D23. How does the agent restart the FIBER from the front panel's menu?
 
-The agent runs as the user `fiber`, without capabilities (T18), so it cannot restart the system
+The agent runs as the user `fiber-agent`, without capabilities (T18), so it cannot restart the system
 itself, and T21's menu has a "Restart".
 
 - (a) A path unit in the agent role: `fiber-restart.path` watches a file that only the agent may
   write (in its own `/run/fiber-agent/`), and starts `fiber-restart.service`, which runs
   `systemctl reboot` as root. Two small units, nothing else to install.
-- (b) A polkit rule that lets the user `fiber` ask logind for a restart, and the agent runs
+- (b) A polkit rule that lets the user `fiber-agent` ask logind for a restart, and the agent runs
   `systemctl reboot`. Needs polkit on the FIBER and a rule file in `/etc/polkit-1/rules.d/`.
 - (c) No restart in the menu: the power button cuts the power.
 
