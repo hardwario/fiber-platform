@@ -617,6 +617,40 @@ A new, small profile (D3), agreed with the people who make the app before any co
 
 - Done when: the app's side has said yes to the document.
 
+### T31. Examples (M7)
+
+State (2026-11-18): everything that runs without a FIBER is done and checked: `just check` (with
+`check-examples` and the example's lock file in `audit`) and the converge test pass on this
+computer. In step 10c, against the agent's service: `request.sh` and `request.py` put a message on
+the display and get "the buzzer is not there" for a beep; `thermometers.py` and the Rust example
+print the probe's reading; at 31.5 °C the alarm flow puts "Port 3: 31.5 °C / above 30 °C" on the
+display and asks for the alarm, and the Rust example asks for it too and prints the answer; a hold of
+*enter* (published as the agent would) makes the button flow ask for a beep. The Python examples use
+paho-mqtt 2.1, Debian trixie's; the button flow beeps on a hold of *enter*, as a click opens the
+display's menu. Left: the TOWER node's flow (T26) and a run on a FIBER (T2). Learned the hard way:
+the converge test reads its script while it runs, so the script must not be edited during a run.
+
+Small programs that use the agent's MQTT API ([`docs/mqtt-api.md`](docs/mqtt-api.md)), for a
+user to copy.
+
+- [x] `docs/examples.md` first: each example, what it shows, how to run it on a FIBER
+- [x] The command line: `mosquitto_sub` and `mosquitto_pub`, and a request with its answer
+      (`examples/shell/request.sh`)
+- [x] Python, with Debian's `python3-paho-mqtt`: the thermometers as they change, and a request
+      with its answer (`examples/python/`)
+- [x] Rust, with `rumqttc` as the agent has it: a project of its own (`examples/rust/`, its own
+      lock file), built, linted and audited by `just check`, built for the FIBER and run in the
+      converge test
+- [x] Node-RED flows to import: a thermometer above a limit puts a message on the display and
+      sounds the buzzer; the *enter* button sounds a beep. Each with its own broker node, so it
+      imports into any Node-RED. In the converge test they are deployed through Node-RED's API,
+      and what they ask the agent for is checked on `fiber/cmd`
+- [ ] Node-RED: what a TOWER node sends. Waits for T26
+- [ ] On a FIBER: each example once (with T2)
+
+- Needs: T17 to T21 (the topics they use); T26 for the TOWER node's flow.
+- Done when: every example runs in CI, and once on a FIBER.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -885,11 +919,8 @@ In `../docs/fiber`. The pages there describe a setup by hand that no longer work
 - [ ] What the old pages get wrong, put right: the Node-RED installer that is gone, the default
       password, the name of the FIBER, the `config.txt` lines
 
-#### T31. Examples
-
-- [ ] Node-RED flows: the thermometers, a button that sounds the buzzer, what a TOWER node sends
-- [ ] MQTT from the command line, from Python and from Rust
-- [ ] Each example tried on a FIBER, and in CI where it can run without one
+- Needs: a FIBER Setup that installs the platform is out (T12, D24): the site publishes what is
+  pushed to it, and until then its readers' FIBER Setup installs the earlier software.
 
 #### T32. A ready-made image
 

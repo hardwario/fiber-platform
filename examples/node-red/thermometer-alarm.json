@@ -1,0 +1,119 @@
+[
+  {
+    "id": "example-alarm-tab",
+    "type": "tab",
+    "label": "Thermometer alarm",
+    "disabled": false,
+    "info": "When a thermometer on the FIBER goes above 30 °C, the display says which one and how warm, for 10 minutes, and the buzzer sounds the alarm. Once more only after it was a degree below. The limit is a line in the function node. docs/examples.md in the FIBER platform."
+  },
+  {
+    "id": "example-alarm-broker",
+    "type": "mqtt-broker",
+    "name": "FIBER (localhost:1883)",
+    "broker": "localhost",
+    "port": "1883",
+    "clientid": "",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true
+  },
+  {
+    "id": "example-alarm-thermometers",
+    "type": "mqtt in",
+    "z": "example-alarm-tab",
+    "name": "fiber/thermometers/+",
+    "topic": "fiber/thermometers/+",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "example-alarm-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 170,
+    "y": 100,
+    "wires": [
+      [
+        "example-alarm-function"
+      ]
+    ]
+  },
+  {
+    "id": "example-alarm-function",
+    "type": "function",
+    "z": "example-alarm-tab",
+    "name": "Above 30 °C?",
+    "func": "// A request to the agent (docs/mqtt-api.md, \"Requests\"): a new id every time, as the agent\n// drops one it has seen. The mqtt out node sends it on fiber/cmd, never retained.\nconst ask = (op, params) => ({\n    payload: { id: \"node-red-\" + Date.now() + \"-\" + Math.random().toString(36).slice(2, 10), op, params },\n});\n\n// Above this, in degrees Celsius, the display says which probe and how warm, and the buzzer\n// sounds the alarm. Once more only after the probe was a degree below.\nconst LIMIT = 30;\nconst BELOW = LIMIT - 1;\n\n// fiber/thermometers/<id>: {\"port\":3,\"temperature\":31.5,\"ts\":...}, or an empty message when the\n// probe is gone (docs/mqtt-api.md).\nconst probe = msg.topic.split(\"/\").pop();\nconst above = context.get(\"above\") || {};\nconst t = msg.payload;\nif (!t || typeof t !== \"object\") {\n    delete above[probe];\n} else if (t.temperature !== null && t.temperature > LIMIT && !above[probe]) {\n    above[probe] = true;\n    context.set(\"above\", above);\n    return [[\n        ask(\"display.message\", {\n            text: \"Port \" + t.port + \": \" + t.temperature.toFixed(1) + \" °C\\nabove \" + LIMIT + \" °C\",\n            seconds: 600,\n        }),\n        ask(\"buzzer.beep\", { pattern: \"alarm\" }),\n    ]];\n} else if (t.temperature !== null && t.temperature < BELOW) {\n    delete above[probe];\n}\ncontext.set(\"above\", above);\nreturn null;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 410,
+    "y": 100,
+    "wires": [
+      [
+        "example-alarm-cmd"
+      ]
+    ]
+  },
+  {
+    "id": "example-alarm-cmd",
+    "type": "mqtt out",
+    "z": "example-alarm-tab",
+    "name": "fiber/cmd",
+    "topic": "fiber/cmd",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "example-alarm-broker",
+    "x": 620,
+    "y": 100,
+    "wires": []
+  },
+  {
+    "id": "example-alarm-rsp",
+    "type": "mqtt in",
+    "z": "example-alarm-tab",
+    "name": "fiber/rsp/+",
+    "topic": "fiber/rsp/+",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "example-alarm-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 150,
+    "y": 180,
+    "wires": [
+      [
+        "example-alarm-answers"
+      ]
+    ]
+  },
+  {
+    "id": "example-alarm-answers",
+    "type": "debug",
+    "z": "example-alarm-tab",
+    "name": "The agent's answers",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 420,
+    "y": 180,
+    "wires": []
+  }
+]

@@ -1,0 +1,19 @@
+# An example (docs/examples.md): a project of its own, to copy, and not part of this repository's
+# workspace. `rumqttc` is the version the agent uses, without TLS.
+[package]
+name = "fiber-thermometers-example"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[dependencies]
+rumqttc = { version = "0.25", default-features = false }
+serde_json = "1"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+
+# Its own workspace, so that cargo does not take it for a member of the repository's.
+[workspace]

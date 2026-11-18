@@ -23,7 +23,8 @@
 #      1-Wire tree: it runs as the user fiber-agent without capabilities, holds the port, feeds its
 #      watchdog, shows a thermometer, its failing and its going, takes a message and a
 #      backlight, says there is no buzzer, and a second apply changes nothing; then the
-#      footprint: every path the platform added is a package's, its own, or listed
+#      footprint: every path the platform added is a package's, its own, or listed; then the
+#      examples (docs/examples.md): the shell, Python, Rust and the Node-RED flows
 #  11. an update to a test release, a rollback, and an update to the current release; the agent
 #      is restarted on each new program; turning it off takes fiber/status offline
 #  12. an uninstall leaves only what packages own, and data
@@ -379,6 +380,56 @@ say "10b. The footprint: every path the platform added is a package's, its own, 
 snapshot > /root/after.txt
 python3 /tests/footprint-check.py /root/before.txt /root/after.txt /opt/fiber/current/provision/footprint.yaml ${FOOTPRINT_REPORT:+--report} ||
     fail "the platform wrote paths that the footprint does not list"
+
+say "10c. The examples (docs/examples.md), against the agent"
+# A probe on port 3 again, below the alarm's limit of 30 °C.
+echo 28-0000034a5b1c > /run/fiber-test/w1/w1_bus_master3/w1_master_slaves
+echo 21437 > /run/fiber-test/w1/w1_bus_master3/28-0000034a5b1c/temperature
+wait_for 15 thermometer_shown "21.44 °C" || fail "fiber thermometers: $(cat /tmp/thermometers.out)"
+message_shown() { fiber display > /tmp/display.out 2>&1 && grep -qF "Message     $1" /tmp/display.out; }
+# The command line: a request and its answer; without a buzzer the answer says no.
+/examples/shell/request.sh display.message '{"text":"From the shell","seconds":60}' > /tmp/example.out ||
+    fail "request.sh: $(cat /tmp/example.out)"
+grep -q '"ok":true' /tmp/example.out || fail "request.sh printed: $(cat /tmp/example.out)"
+message_shown "From the shell" || fail "fiber display: $(cat /tmp/display.out)"
+expect 1 /examples/shell/request.sh buzzer.beep
+# Python, with Debian's paho-mqtt, as a user installs it.
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-paho-mqtt > /dev/null
+python3 /examples/python/request.py display.message '{"text":"From Python","seconds":60}' > /tmp/example.out ||
+    fail "request.py: $(cat /tmp/example.out)"
+message_shown "From Python" || fail "fiber display: $(cat /tmp/display.out)"
+expect 1 python3 /examples/python/request.py buzzer.beep
+timeout 5 python3 /examples/python/thermometers.py > /tmp/example.out 2>&1 || true
+grep -qx '28-0000034a5b1c on port 3: 21.44 °C' /tmp/example.out || fail "thermometers.py: $(cat /tmp/example.out)"
+# Rust, built for the FIBER: the readings, and the alarm above 30 °C.
+: > /tmp/rust.out
+fiber-thermometers-example 30 > /tmp/rust.out 2>&1 &
+rust_pid=$!
+wait_for 10 grep -qx '28-0000034a5b1c on port 3: 21.44 °C' /tmp/rust.out || fail "the Rust example: $(cat /tmp/rust.out)"
+# Node-RED: both flows beside the starter flow, through its API. What they ask the agent for is
+# read on fiber/cmd.
+python3 /tests/node-red-deploy.py pi 'a secret' /examples/node-red/thermometer-alarm.json /examples/node-red/button-beep.json
+mosquitto_sub -h 127.0.0.1 -t fiber/cmd -W 120 > /tmp/cmd.out &
+cmd_pid=$!
+# A hold of enter, as the agent says it, until the flow (connecting to the broker) asks for a beep.
+beep_asked() {
+    mosquitto_pub -h 127.0.0.1 -t fiber/buttons/event -q 1 -m "{\"buttons\":[\"enter\"],\"gesture\":\"hold\",\"ts\":$(date +%s)}"
+    sleep 1
+    grep -q '"id":"node-red-[^"]*","op":"buzzer.beep","params":{"pattern":"beep"}' /tmp/cmd.out
+}
+wait_for 30 beep_asked || fail "the button flow asked for nothing: $(cat /tmp/cmd.out)"
+# Above the limit: the alarm flow puts a message on the display and asks for the alarm, and the
+# Rust example asks for it too.
+echo 31500 > /run/fiber-test/w1/w1_bus_master3/28-0000034a5b1c/temperature
+wait_for 30 message_shown "Port 3: 31.5 °C / above 30 °C" || fail "fiber display: $(cat /tmp/display.out)"
+wait_for 10 grep -q '"id":"node-red-[^"]*","op":"buzzer.beep","params":{"pattern":"alarm"}' /tmp/cmd.out ||
+    fail "the alarm flow did not ask for the alarm: $(cat /tmp/cmd.out)"
+wait_for 10 grep -q '"id":"rust-[^"]*","op":"buzzer.beep","params":{"pattern":"alarm"}' /tmp/cmd.out ||
+    fail "the Rust example did not ask for the alarm: $(cat /tmp/rust.out)"
+wait_for 10 grep -q '^The agent answers: .*the buzzer is not there' /tmp/rust.out || fail "the Rust example: $(cat /tmp/rust.out)"
+kill "$rust_pid" "$cmd_pid" 2> /dev/null || true
+wait "$rust_pid" "$cmd_pid" 2> /dev/null || true
+fiber display clear
 
 say "11. An update to a test release, and a rollback"
 export FIBER_RELEASES_URL=http://127.0.0.1:8000/test/releases

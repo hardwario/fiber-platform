@@ -22,3 +22,6 @@ Thumbs.db
 
 # Releases built by `just release`.
 /dist/
+
+# The examples (docs/examples.md) build in their own directories.
+/examples/rust/target

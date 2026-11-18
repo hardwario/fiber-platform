@@ -1,0 +1,119 @@
+[
+  {
+    "id": "example-button-tab",
+    "type": "tab",
+    "label": "Button beep",
+    "disabled": false,
+    "info": "Holding enter, the middle button beside the FIBER's display, for 0.8 s sounds a beep. docs/examples.md in the FIBER platform."
+  },
+  {
+    "id": "example-button-broker",
+    "type": "mqtt-broker",
+    "name": "FIBER (localhost:1883)",
+    "broker": "localhost",
+    "port": "1883",
+    "clientid": "",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true
+  },
+  {
+    "id": "example-button-buttons",
+    "type": "mqtt in",
+    "z": "example-button-tab",
+    "name": "fiber/buttons/event",
+    "topic": "fiber/buttons/event",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "example-button-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 170,
+    "y": 100,
+    "wires": [
+      [
+        "example-button-function"
+      ]
+    ]
+  },
+  {
+    "id": "example-button-function",
+    "type": "function",
+    "z": "example-button-tab",
+    "name": "Enter held?",
+    "func": "// A request to the agent (docs/mqtt-api.md, \"Requests\"): a new id every time, as the agent\n// drops one it has seen. The mqtt out node sends it on fiber/cmd, never retained.\nconst ask = (op, params) => ({\n    payload: { id: \"node-red-\" + Date.now() + \"-\" + Math.random().toString(36).slice(2, 10), op, params },\n});\n\n// fiber/buttons/event: {\"buttons\":[\"enter\"],\"gesture\":\"hold\",\"ts\":...}. A click on enter opens\n// the display's menu; holding it for 0.8 s does nothing on the pages, so it is free for this.\nconst e = msg.payload;\nif (e && e.gesture === \"hold\" && e.buttons.length === 1 && e.buttons[0] === \"enter\") {\n    return ask(\"buzzer.beep\", { pattern: \"beep\" });\n}\nreturn null;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 410,
+    "y": 100,
+    "wires": [
+      [
+        "example-button-cmd"
+      ]
+    ]
+  },
+  {
+    "id": "example-button-cmd",
+    "type": "mqtt out",
+    "z": "example-button-tab",
+    "name": "fiber/cmd",
+    "topic": "fiber/cmd",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "example-button-broker",
+    "x": 620,
+    "y": 100,
+    "wires": []
+  },
+  {
+    "id": "example-button-rsp",
+    "type": "mqtt in",
+    "z": "example-button-tab",
+    "name": "fiber/rsp/+",
+    "topic": "fiber/rsp/+",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "example-button-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 150,
+    "y": 180,
+    "wires": [
+      [
+        "example-button-answers"
+      ]
+    ]
+  },
+  {
+    "id": "example-button-answers",
+    "type": "debug",
+    "z": "example-button-tab",
+    "name": "The agent's answers",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 420,
+    "y": 180,
+    "wires": []
+  }
+]

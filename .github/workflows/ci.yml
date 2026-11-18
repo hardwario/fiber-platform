@@ -87,6 +87,9 @@ jobs:
       # The release archive, built twice from the same inputs, must be the same byte for byte.
       - name: release archive is reproducible
         run: just check-release
+      # The examples (docs/examples.md): the Rust one is a project of its own.
+      - name: examples (fmt, clippy, parsed)
+        run: just check-examples
       - name: shellcheck
         run: just shellcheck
       # The bench scripts' protocol code, against a fake ROM bootloader on a pseudo-terminal.
@@ -193,3 +196,4 @@ jobs:
         run: |
           cargo-audit audit
           cargo-audit audit --file firmware/south/Cargo.lock
+          cargo-audit audit --file examples/rust/Cargo.lock

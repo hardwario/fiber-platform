@@ -28,7 +28,7 @@ default:
 
 # What CI runs. Needs cargo-audit, python3 and network access (the RustSec advisory database).
 # Run every hardware-free gate (host workspace, firmware, the FIBER's build, the release, scripts, no long dashes, audit).
-check: check-host check-south build-fiber check-release shellcheck check-hil no-dashes audit
+check: check-host check-south build-fiber check-release check-examples shellcheck check-hil no-dashes audit
 
 # The thumb builds prove the pinned TOWER kernels and our own no_std crates still build for the
 # north bridge (an STM32WL55, Cortex-M4 without FPU) and the south bridge (STM32C031, Cortex-M0+).
@@ -97,6 +97,20 @@ test-releases: build-fiber
     mkdir -p dist/test/releases/latest
     cp -r "dist/test/releases/download/v$version-update-test" dist/test/releases/latest/download
 
+# The Rust one is a project of its own (its own lock file, not in the workspace); the Python ones
+# and the flows are parsed, not run. The converge test runs them all against the agent.
+# Check the examples (docs/examples.md): fmt and clippy of the Rust one, the Python and the flows.
+check-examples:
+    cd examples/rust && cargo fmt -- --check
+    cd examples/rust && cargo clippy --locked --all-targets -- -D warnings
+    python3 -c 'import ast, sys; [ast.parse(open(f).read(), f) for f in sys.argv[1:]]' examples/python/*.py
+    python3 -c 'import json, sys; [json.load(open(f)) for f in sys.argv[1:]]' examples/node-red/*.json
+
+# Linked by rust-lld, as `fiber` is: the repository's .cargo/config.toml applies in its directory.
+# Build the Rust example for the FIBER (arm64 Linux, musl, static).
+build-examples:
+    cd examples/rust && cargo build --locked --release --target aarch64-unknown-linux-musl
+
 # Builds the release twice and compares the bytes; keeps nothing.
 # Check that the release archive is the same in every build.
 check-release: build-fiber
@@ -110,7 +124,7 @@ check-keys:
 # Every shell script of the repository.
 # Run shellcheck on the shell scripts.
 shellcheck:
-    shellcheck provision/install.sh provision/tests/*.sh agent/tests/*.sh
+    shellcheck provision/install.sh provision/tests/*.sh agent/tests/*.sh examples/shell/*.sh
 
 # Needs Docker on an arm64 machine and the internet (the installer installs Ansible from Debian).
 # Run the installer's tests in a container like Raspberry Pi OS.
@@ -132,7 +146,7 @@ lint-ansible:
 # Needs Docker on an arm64 machine and the internet (the roles install from Debian). The container
 # runs systemd, privileged, so that services start in it as on a FIBER.
 # Run the converge test: install, apply, apply again, without network, with a role made to fail.
-check-converge: release test-releases
+check-converge: release test-releases build-examples
     docker build --platform linux/arm64 -q -t fiber-platform-test-systemd -f provision/tests/Containerfile.systemd provision/tests
     docker rm -f fiber-platform-converge > /dev/null 2>&1 || true
     docker run -d --name fiber-platform-converge --platform linux/arm64 --privileged --cgroupns=host \
@@ -140,6 +154,8 @@ check-converge: release test-releases
         -v "{{justfile_directory()}}/dist:/dist:ro" \
         -v "{{justfile_directory()}}/provision/tests:/tests:ro" \
         -v "{{justfile_directory()}}/provision/footprint.yaml:/footprint.yaml:ro" \
+        -v "{{justfile_directory()}}/examples:/examples:ro" \
+        -v "{{justfile_directory()}}/examples/rust/target/aarch64-unknown-linux-musl/release/fiber-thermometers-example:/usr/local/bin/fiber-thermometers-example:ro" \
         fiber-platform-test-systemd > /dev/null
     docker exec fiber-platform-converge bash /tests/converge-test.sh; status=$?; docker rm -f fiber-platform-converge > /dev/null; exit $status
 
@@ -163,6 +179,7 @@ check-hil:
 audit:
     cargo audit
     cargo audit --file firmware/south/Cargo.lock
+    cargo audit --file examples/rust/Cargo.lock
 
 # Build the rustdoc of the workspace, failing on any warning.
 [env("RUSTDOCFLAGS", "-D warnings")]
