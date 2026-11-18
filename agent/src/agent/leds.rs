@@ -97,17 +97,19 @@ pub fn set(led: Led, colour: Colour, blink: Option<(u8, u8)>) -> Option<Setting>
     colour.lines(led).map(|_| Setting::Set { colour, blink })
 }
 
-/// The two lines of an LED as lights.
-pub fn lights(led: Led, setting: Setting, source: Source, port_on: bool) -> (Light, Light) {
+/// The two lines of an LED as lights. `failing`: a probe on the port gives no readings.
+pub fn lights(led: Led, setting: Setting, source: Source, port_on: bool, failing: bool) -> (Light, Light) {
     let (colour, blink) = match setting {
         Setting::Set { colour, blink } => (colour, blink),
-        // The power LED: green on PoE (or when not known), yellow on the battery. A port's: green
-        // while its power is on.
+        // The power LED: green on PoE (or when not known), yellow on the battery. A port's
+        // (`docs/mqtt-api.md`, `ports/n`): off without power, red while a probe on it gives no
+        // readings, green otherwise.
         Setting::Auto => match led {
             Led::Power if source == Source::Battery => (Colour::Yellow, None),
             Led::Power => (Colour::Green, None),
-            Led::Port(_) if port_on => (Colour::Green, None),
-            Led::Port(_) => (Colour::Off, None),
+            Led::Port(_) if !port_on => (Colour::Off, None),
+            Led::Port(_) if failing => (Colour::Red, None),
+            Led::Port(_) => (Colour::Green, None),
         },
     };
     let (first, second) = colour.lines(led).unwrap_or((false, false));
@@ -153,19 +155,28 @@ mod tests {
     #[test]
     fn what_the_lines_show() {
         assert_eq!(
-            lights(Led::Power, Setting::Auto, Source::Poe, false),
+            lights(Led::Power, Setting::Auto, Source::Poe, false, false),
             (Light::On, Light::Off)
         );
         assert_eq!(
-            lights(Led::Power, Setting::Auto, Source::Battery, false),
+            lights(Led::Power, Setting::Auto, Source::Battery, false, false),
             (Light::Off, Light::On)
         );
         assert_eq!(
-            lights(Led::Port(1), Setting::Auto, Source::Poe, true),
+            lights(Led::Port(1), Setting::Auto, Source::Poe, true, false),
             (Light::On, Light::Off)
         );
         assert_eq!(
-            lights(Led::Port(1), Setting::Auto, Source::Poe, false),
+            lights(Led::Port(1), Setting::Auto, Source::Poe, false, false),
+            (Light::Off, Light::Off)
+        );
+        // A probe that gives no readings: red, but not without power.
+        assert_eq!(
+            lights(Led::Port(1), Setting::Auto, Source::Poe, true, true),
+            (Light::Off, Light::On)
+        );
+        assert_eq!(
+            lights(Led::Port(1), Setting::Auto, Source::Poe, false, true),
             (Light::Off, Light::Off)
         );
         let amber = Setting::Set {
@@ -177,6 +188,9 @@ mod tests {
             off: 25,
             phase: 0,
         };
-        assert_eq!(lights(Led::Port(2), amber, Source::Poe, false), (blink, blink));
+        assert_eq!(
+            lights(Led::Port(2), amber, Source::Poe, false, true),
+            (blink, blink)
+        );
     }
 }

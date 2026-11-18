@@ -350,7 +350,7 @@ costs 82 bytes.
 
 ### T17. The agent's core (M2)
 
-State (2026-11-18, 03:50): everything that needs no board is written and tested (`just check` and
+State (2026-11-18): everything that needs no board is written and tested (`just check` and
 the converge test pass on the computer; commit `b8f038d`, CI run 44206746581 green). `fiber agent`
 runs: the core's logic (`agent/src/agent/`), the loop around it (the south link every second, MQTT,
 requests, port cycles), MQTT through rumqttc without TLS, `agent.toml` with defaults. The agent
@@ -402,8 +402,8 @@ board the two voltages read nothing useful, and `power` has to say so.
 
 ### T18. The `agent` role (M2)
 
-State (2026-11-18, 03:50): everything that needs no board is done and checked: `just check`, and
-the converge test with the service in it (the agent runs as `fiber` without capabilities, holds
+State (2026-11-18): everything that needs no board is done and checked (commit `94dea9b`, CI run
+44210054395 green): `just check`, and the converge test with the service in it (the agent runs as `fiber` without capabilities, holds
 the port, feeds a watchdog of 3 s, is restarted on the new program by an update and a rollback,
 and goes offline when turned off). On the way the converge test found that the agent served
 nothing on MQTT without the south bridge's port; fixed (`run_without_link`). The port lock is
@@ -430,33 +430,37 @@ a FIBER (T2) for the last step.
 
 ### T19. Thermometers (M3)
 
-State (2026-11-18, 03:35): the docs are written (drafts, like T13's: the maintainer has not read
-them). The kernel's source was read for them (rpi-6.12.y and v6.12): nothing in sysfs ties a
-1-Wire bus master to the DS2482 or to its channel, so the masters are taken by their order. The
-schematic says port k is DS2482 channel k - 1, and a shorted port is not reported by any part.
-Next: the code, after T18's commit.
+State (2026-11-18): written and tested on the computer: the docs (drafts, like T13's: the
+maintainer has not read them), `agent/src/agent/thermometers.rs` (the trait, the kernel's reader on
+a thread of its own, what counts as a reading), the topics, the port lights, `fiber thermometers
+[watch]`, `fiber power --follow`, the starter flow, `fiber doctor` counting the masters as the
+agent does. `just check` and the converge test pass; the converge test runs the service against a made-up
+1-Wire tree (a reading, no reading, gone). What is left needs a FIBER. The kernel's source was read for this (rpi-6.12.y and v6.12): nothing in sysfs
+ties a 1-Wire bus master to the DS2482 or to its channel, so the masters are taken by their order.
+The schematic says port k is DS2482 channel k - 1, and no part reports a shorted port.
 
 The first thing most users will plug in: a DS18B20 on one of the eight ports.
 
 - [x] `docs/` first: what the kernel gives (`docs/hardware.md`, "The 1-Wire ports in Linux"),
       the topics and the port lights (`docs/mqtt-api.md`), `fiber thermometers` (`docs/cli.md`)
-- [ ] Thermometers behind a trait. The first implementation reads the kernel's 1-Wire tree. The
+- [x] Thermometers behind a trait. The first implementation reads the kernel's 1-Wire tree. The
       bus masters are `/sys/devices/w1_bus_masterN`, with nothing that names their chip or
       channel; the DS2482 registers its eight one after another, channel 0 first, so: exactly
       eight masters, sorted by number, the k-th is port k (more or fewer is said, and nothing is
       read). The eight ports read side by side (each master has its own lock), the probes of a
       port one after another (a read blocks for about 750 ms); off the main task
-- [ ] What is not a reading: an empty read (every error in the kernel's driver reads empty); the
+- [x] What is not a reading: an empty read (every error in the kernel's driver reads empty); the
       85 °C a probe reports right after power-on; a probe that is gone (the kernel keeps it for
       10 missed searches, about 100 s)
-- [ ] The port lights: what green, red and off mean for a port, written in `docs/mqtt-api.md`
+- [x] The port lights: what green, red and off mean for a port, written in `docs/mqtt-api.md`
       first
-- [ ] `thermometers/{id}` (retained; an empty message when a probe is gone) and the probes of
+- [x] `thermometers/{id}` (retained; an empty message when a probe is gone) and the probes of
       each port in `ports/{n}`; `fiber thermometers` and `fiber thermometers watch`
       (`fiber ports cycle` came with T17), and with the same loop `fiber power --follow`, which
       `docs/cli.md` has had since T13 and T17 did not build
-- [ ] Tests against a made-up 1-Wire tree under a root that the tests set
-- [ ] The Node-RED starter flow shows the thermometers
+- [x] Tests against a made-up 1-Wire tree under a root that the tests set (and in the converge
+      test, through the service)
+- [x] The Node-RED starter flow shows the thermometers
 - [ ] On a FIBER: plug a probe in and out; short a port; eight ports with probes; check that the
       k-th master is port k, by switching one port on at a time
 
@@ -468,6 +472,28 @@ cannot be used: the driver puts it on one master only, the master of the first D
 - Needs: T7, T17.
 - Done when: a DS18B20 shows up on `fiber/thermometers/...` and in the starter flow; plugging a
   probe in and out, and a shorted port, behave.
+
+### T20. LCD, backlight, buttons, buzzer (M4)
+
+State (2026-11-18): started, docs first. Of this task only the display driver needs T2's answers
+(the LCD's bus); the buttons, the buzzer and the backlight are done first, and tested without a
+board. Watch out: the unit's `ProtectKernelTunables=yes` makes `/sys` read-only, and the backlight
+is written through `/sys/class/pwm`.
+
+- [ ] `docs/mqtt-api.md` and `docs/cli.md` first: `buttons/event`, `display`, and the methods
+      `buzzer.beep`, `display.message`, `display.backlight`
+- [ ] The display driver over `/dev/spidev6.0`, with what T2 found (the mode, the speed, the
+      bytes before a command and before data), reset on GPIO16
+- [ ] The picture is a `tower_hmi::Frame<16, 64>`; only the rows that changed are sent
+- [ ] The backlight on PWM channel 1, with a brightness and a time after which it dims; the unit
+      lets the agent write that one PWM
+- [ ] The buttons on GPIO23, 24 and 25 through `gpiocdev`, with the pull-ups and the kernel's
+      debounce; click, hold and repeat from `tower-hmi`
+- [ ] The buzzer on GPIO17 (low = sound): a beep, and a few patterns
+- [ ] Tests: the frames a drawing produces, compared with stored ones; made-up button presses
+
+- Needs: T2 (the LCD's bus), T17.
+- Done when: `fiber display`, `fiber buzzer beep` and `fiber buttons watch` work on a FIBER.
 
 ## Tasks ahead
 
@@ -578,22 +604,6 @@ Its one task, T19, is in progress.
 
 Done when: the LCD shows the name and the address after the start, and the buttons move through
 the pages.
-
-#### T20. LCD, backlight, buttons, buzzer
-
-- [ ] `docs/mqtt-api.md` and `docs/cli.md` first: `buttons/event`, `display`, and the methods
-      `buzzer.beep`, `display.message`, `display.backlight`
-- [ ] The display driver over `/dev/spidev6.0`, with what T2 found (the mode, the speed, the
-      bytes before a command and before data), reset on GPIO16
-- [ ] The picture is a `tower_hmi::Frame<16, 64>`; only the rows that changed are sent
-- [ ] The backlight on PWM channel 1, with a brightness and a time after which it dims
-- [ ] The buttons on GPIO23, 24 and 25 through `gpiocdev`, with the pull-ups and the kernel's
-      debounce; click, hold and repeat from `tower-hmi`
-- [ ] The buzzer on GPIO17 (low = sound): a beep, and a few patterns
-- [ ] Tests: the frames a drawing produces, compared with stored ones; made-up button presses
-
-- Needs: T2 (the LCD's bus), T17.
-- Done when: `fiber display`, `fiber buzzer beep` and `fiber buttons watch` work on a FIBER.
 
 #### T21. Pages and the menu
 

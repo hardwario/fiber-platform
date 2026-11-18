@@ -93,6 +93,12 @@ pub const PCF85063A_ADDRESS: u16 = 0x51;
 /// The 1-Wire ports, one bus master of the DS2482-800 each.
 pub const ONE_WIRE_PORTS: u32 = 8;
 
+/// The 1-Wire devices in sysfs: the DS2482's eight bus masters, and the probes under each
+/// (`docs/hardware.md`, "The 1-Wire ports in Linux").
+pub const W1_DEVICES: &str = "/sys/bus/w1/devices";
+/// The family code of a DS18B20, the start of its name in sysfs.
+pub const DS18B20_FAMILY: &str = "28-";
+
 #[cfg(test)]
 mod tests {
     use super::*;

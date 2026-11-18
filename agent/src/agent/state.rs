@@ -4,6 +4,7 @@ use fiber_protocol::south::{Desired, Hello, LED_LINES, PORTS, Status};
 
 use super::leds::{self, Led, Setting};
 use super::power::{self, Power, Source};
+use super::thermometers::Probes;
 
 /// How a chip's firmware stands (`firmware/{chip}` on MQTT).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,6 +56,7 @@ pub struct State {
     pub power: Power,
     pub south: Chip,
     pub last_status: Option<Status>,
+    pub thermometers: Probes,
 }
 
 impl State {
@@ -70,6 +72,7 @@ impl State {
                 carried: south_carried,
             },
             last_status: None,
+            thermometers: Probes::default(),
         }
     }
 
@@ -83,7 +86,14 @@ impl State {
         for i in 0..9u8 {
             let led = if i == 0 { Led::Power } else { Led::Port(i) };
             let port_on = i > 0 && self.port_on(i);
-            let (first, second) = leds::lights(led, self.leds[usize::from(i)], self.power.source, port_on);
+            let failing = i > 0 && self.thermometers.failing(i);
+            let (first, second) = leds::lights(
+                led,
+                self.leds[usize::from(i)],
+                self.power.source,
+                port_on,
+                failing,
+            );
             lines[usize::from(i) * 2] = first;
             lines[usize::from(i) * 2 + 1] = second;
         }

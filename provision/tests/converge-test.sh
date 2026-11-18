@@ -18,10 +18,11 @@
 #   9. ChirpStack: at no moment does its API answer to admin/admin; the seed's login works; Redis
 #      on loopback; the API key kept; the concentrator daemon and its udev rule there; a second
 #      apply changes nothing
-#  10. the agent's service with the base, against the simulated south bridge: it runs as the
-#      user fiber without capabilities, holds the port, feeds its watchdog, and a second apply
-#      changes nothing; then the footprint: every path the platform added is a package's, its
-#      own, or listed
+#  10. the agent's service with the base, against the simulated south bridge and a made-up
+#      1-Wire tree: it runs as the user fiber without capabilities, holds the port, feeds its
+#      watchdog, shows a thermometer, its failing and its going, and a second apply changes
+#      nothing; then the footprint: every path the platform added is a package's, its own, or
+#      listed
 #  11. an update to a test release, a rollback, and an update to the current release; the agent
 #      is restarted on each new program; turning it off takes fiber/status offline
 #  12. an uninstall leaves only what packages own, and data
@@ -291,10 +292,18 @@ socat_pid=$!
 wait_for 10 test -e /run/fiber-test/south-agent || fail "socat made no pseudo-terminals"
 fiber south-simulator /run/fiber-test/south-sim &
 simulator_pid=$!
+# A made-up 1-Wire tree, as Linux shows the DS2482's eight buses: one probe, on port 3.
+for n in 1 2 3 4 5 6 7 8; do
+    mkdir -p "/run/fiber-test/w1/w1_bus_master$n"
+    echo 'not found.' > "/run/fiber-test/w1/w1_bus_master$n/w1_master_slaves"
+done
+mkdir -p /run/fiber-test/w1/w1_bus_master3/28-0000034a5b1c
+echo 28-0000034a5b1c > /run/fiber-test/w1/w1_bus_master3/w1_master_slaves
+echo 21437 > /run/fiber-test/w1/w1_bus_master3/28-0000034a5b1c/temperature
 mkdir -p /run/systemd/system/fiber-agent.service.d
 cat > /run/systemd/system/fiber-agent.service.d/fiber-test.conf << 'UNIT'
 [Service]
-Environment=FIBER_SOUTH_PORT=/run/fiber-test/south-agent
+Environment=FIBER_SOUTH_PORT=/run/fiber-test/south-agent FIBER_W1_DEVICES=/run/fiber-test/w1
 DeviceAllow=char-pts rw
 WatchdogSec=3s
 UNIT
@@ -313,7 +322,17 @@ grep -q '^CapEff:[[:space:]]*0000000000000000$' "/proc/$agent_pid/status" || fai
 [ -f /etc/fiber/agent.toml ] || fail "the agent's settings file is not there"
 fiber firmware chip south 2> /tmp/chip.err && fail "fiber firmware chip ran beside the agent"
 grep -q 'is in use by another program' /tmp/chip.err || fail "fiber firmware chip does not see the agent's lock: $(cat /tmp/chip.err)"
-sleep 8
+thermometer_shown() { fiber thermometers > /tmp/thermometers.out 2>&1 && grep -q "^Port 3      28-0000034a5b1c  $1\$" /tmp/thermometers.out; }
+wait_for 15 thermometer_shown "21.44 °C" || fail "fiber thermometers: $(cat /tmp/thermometers.out)"
+mosquitto_sub -h 127.0.0.1 -t fiber/thermometers/28-0000034a5b1c -C 1 -W 5 | grep -q '"temperature":21.44' ||
+    fail "fiber/thermometers/28-0000034a5b1c does not have the reading"
+# The probe gives no readings: after three rounds, no reading.
+: > /run/fiber-test/w1/w1_bus_master3/28-0000034a5b1c/temperature
+wait_for 45 thermometer_shown "no reading" || fail "fiber thermometers: $(cat /tmp/thermometers.out)"
+# Unplugged, and gone from Linux: gone.
+echo 'not found.' > /run/fiber-test/w1/w1_bus_master3/w1_master_slaves
+no_thermometers() { fiber thermometers > /tmp/thermometers.out 2>&1 && grep -q '^No thermometers\.$' /tmp/thermometers.out; }
+wait_for 15 no_thermometers || fail "fiber thermometers: $(cat /tmp/thermometers.out)"
 [ "$(systemctl show -p MainPID --value fiber-agent)" = "$agent_pid" ] || fail "the agent was restarted (by its watchdog?)"
 fiber platform apply | tee /tmp/apply.out
 grep -q '^agent: up, nothing changed$' /tmp/apply.out || fail "the second apply changed the agent"

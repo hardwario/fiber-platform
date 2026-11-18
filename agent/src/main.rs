@@ -68,7 +68,11 @@ enum Command {
     /// The FIBER, the agent, the power, the ports and the firmware, in short.
     Status,
     /// The power source and the two voltages.
-    Power,
+    Power {
+        /// Then a line on every change and every power event, until Ctrl+C.
+        #[arg(long)]
+        follow: bool,
+    },
     /// The power of the 1-Wire ports: show it, or switch ports on, off, or off and on again.
     Ports {
         /// on, off or cycle; without it, the ports are shown.
@@ -92,6 +96,11 @@ enum Command {
         #[arg(long, num_args = 2, value_names = ["ON", "OFF"])]
         blink: Option<Vec<u64>>,
     },
+    /// The DS18B20 probes on the ports.
+    Thermometers {
+        #[command(subcommand)]
+        command: Option<ThermometersCommand>,
+    },
     /// The firmware of the two microcontrollers: show it, or write it again.
     Firmware {
         #[command(subcommand)]
@@ -105,6 +114,12 @@ enum Command {
         #[command(subcommand)]
         command: PlatformCommand,
     },
+}
+
+#[derive(Subcommand)]
+enum ThermometersCommand {
+    /// A line for every change, until Ctrl+C.
+    Watch,
 }
 
 #[derive(Subcommand)]
@@ -180,7 +195,10 @@ fn main() -> ExitCode {
         Command::Agent => agent::agent(&paths),
         Command::SouthSimulator { port } => agent::south_simulator(&port),
         Command::Status => broker().and_then(|b| client::status(&b)),
-        Command::Power => broker().and_then(|b| client::power(&b)),
+        Command::Power { follow } => broker().and_then(|b| client::power(&b, follow)),
+        Command::Thermometers { command } => {
+            broker().and_then(|b| client::thermometers(&b, command.is_some()))
+        }
         Command::Ports {
             action,
             ports,

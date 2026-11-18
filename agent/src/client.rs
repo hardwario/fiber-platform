@@ -229,11 +229,132 @@ pub fn status(broker: &Broker) -> Result<ExitCode> {
     show(broker, status_text)
 }
 
-/// `fiber power`.
-pub fn power(broker: &Broker) -> Result<ExitCode> {
-    show(broker, |topics| {
+/// `fiber power [--follow]`.
+pub fn power(broker: &Broker, follow: bool) -> Result<ExitCode> {
+    let code = show(broker, |topics| {
         format!("Power       {}\n", power_line(topics.get("power")))
-    })
+    })?;
+    if !follow || code != ExitCode::SUCCESS {
+        return Ok(code);
+    }
+    runtime()?.block_on(watch(
+        broker,
+        &["fiber/power", "fiber/power/event"],
+        |topic, payload| {
+            let value: Value = serde_json::from_slice(payload).ok()?;
+            let at = clock(value["ts"].as_u64().unwrap_or(0));
+            Some(match topic {
+                "fiber/power/event" => format!("{at}  {}", value["event"].as_str().unwrap_or("?")),
+                _ => format!("{at}  {}", power_line(Some(&value))),
+            })
+        },
+    ))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// The time of day of a Unix time, in UTC: `14:02:11`.
+pub fn clock(ts: u64) -> String {
+    let seconds = ts % 86_400;
+    format!(
+        "{:02}:{:02}:{:02}",
+        seconds / 3600,
+        seconds / 60 % 60,
+        seconds % 60
+    )
+}
+
+/// Prints a line for every message on `topics` that is not a retained one (those are printed
+/// before), until Ctrl+C. `line` makes the line, or `None` to print nothing.
+async fn watch(
+    broker: &Broker,
+    topics: &[&str],
+    mut line: impl FnMut(&str, &[u8]) -> Option<String>,
+) -> Result<()> {
+    let (client, mut events) = broker.connect();
+    for topic in topics {
+        client.subscribe(*topic, QoS::AtLeastOnce).await?;
+    }
+    loop {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                let _ = client.disconnect().await;
+                return Ok(());
+            }
+            event = events.poll() => match event {
+                Err(e) => bail!("cannot reach the broker at {}:{}: {e}", broker.host, broker.port),
+                Ok(Event::Incoming(Packet::Publish(p))) if !p.retain => {
+                    if let Some(text) = line(&p.topic, &p.payload) {
+                        println!("{text}");
+                    }
+                }
+                Ok(_) => {}
+            },
+        }
+    }
+}
+
+/// A probe's reading as `fiber thermometers` shows it.
+fn reading(value: &Value) -> String {
+    match value["temperature"].as_f64() {
+        Some(t) => format!("{t:.2} °C"),
+        None => "no reading".into(),
+    }
+}
+
+/// What `fiber thermometers` prints.
+pub fn thermometers_text(topics: &Retained) -> String {
+    let mut probes: Vec<(u64, &str, String)> = topics
+        .iter()
+        .filter_map(|(topic, value)| {
+            let id = topic.strip_prefix("thermometers/")?;
+            Some((value["port"].as_u64().unwrap_or(0), id, reading(value)))
+        })
+        .collect();
+    probes.sort();
+    if probes.is_empty() {
+        let buses = topics
+            .get("ports/1")
+            .is_none_or(|port| !port["thermometers"].is_null());
+        return if buses {
+            "No thermometers.\n".into()
+        } else {
+            "The 1-Wire buses were not found; see: fiber doctor\n".into()
+        };
+    }
+    probes
+        .iter()
+        .map(|(port, id, reading)| format!("{:<12}{id}  {reading}\n", format!("Port {port}")))
+        .collect()
+}
+
+/// `fiber thermometers [watch]`.
+pub fn thermometers(broker: &Broker, follow: bool) -> Result<ExitCode> {
+    let code = show(broker, thermometers_text)?;
+    if !follow || code != ExitCode::SUCCESS {
+        return Ok(code);
+    }
+    // The port of each probe, for the line that says it is gone.
+    let mut ports: BTreeMap<String, u64> = BTreeMap::new();
+    runtime()?.block_on(watch(broker, &["fiber/thermometers/+"], |topic, payload| {
+        let id = topic.strip_prefix("fiber/thermometers/")?.to_owned();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        if payload.is_empty() {
+            let port = ports
+                .remove(&id)
+                .map(|p| format!("port {p}  "))
+                .unwrap_or_default();
+            return Some(format!("{}  {port}{id}  gone", clock(now)));
+        }
+        let value: Value = serde_json::from_slice(payload).ok()?;
+        let port = value["port"].as_u64().unwrap_or(0);
+        ports.insert(id.clone(), port);
+        let at = clock(value["ts"].as_u64().unwrap_or(now));
+        Some(format!("{at}  port {port}  {id}  {}", reading(&value)))
+    }))?;
+    Ok(ExitCode::SUCCESS)
 }
 
 /// `fiber ports [on|off|cycle] [PORT...] [--seconds N]`.
@@ -347,6 +468,39 @@ pub fn firmware(broker: &Broker, flash: Option<&str>) -> Result<ExitCode> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn what_fiber_thermometers_prints() {
+        let mut topics = Retained::new();
+        topics.insert("ports/1".into(), json!({"power": true, "thermometers": []}));
+        assert_eq!(thermometers_text(&topics), "No thermometers.\n");
+        topics.insert("ports/1".into(), json!({"power": true, "thermometers": null}));
+        assert!(thermometers_text(&topics).starts_with("The 1-Wire buses were not found"));
+        topics.insert(
+            "thermometers/28-0000034a77e0".into(),
+            json!({"port": 3, "temperature": 21.5, "ts": 1}),
+        );
+        topics.insert(
+            "thermometers/28-00000b1c2d3e".into(),
+            json!({"port": 5, "temperature": null, "ts": 1}),
+        );
+        topics.insert(
+            "thermometers/28-0000034a5b1c".into(),
+            json!({"port": 3, "temperature": 21.44, "ts": 1}),
+        );
+        assert_eq!(
+            thermometers_text(&topics),
+            "Port 3      28-0000034a5b1c  21.44 °C\n\
+             Port 3      28-0000034a77e0  21.50 °C\n\
+             Port 5      28-00000b1c2d3e  no reading\n"
+        );
+    }
+
+    #[test]
+    fn the_clock() {
+        assert_eq!(clock(1_794_952_515), "21:55:15");
+        assert_eq!(clock(0), "00:00:00");
+    }
 
     #[test]
     fn the_broker() {

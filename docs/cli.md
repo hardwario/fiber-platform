@@ -35,7 +35,7 @@ $ fiber version
 `fiber version --all` adds what the build is made of: the TOWER revision its radio is compatible
 with, and the schema tag of the TOWER radio messages.
 
-## The board: `fiber agent`, `status`, `power`, `ports`, `leds`, `firmware`
+## The board: the agent and the commands that talk to it
 
 **Built on the drafts of T13, which the maintainer has yet to read (T17).** Tested in a container
 against a simulated south bridge, through Mosquitto; flashing and `fiber firmware chip` are tested
@@ -89,8 +89,8 @@ North       running 0.2.0, image 0x1a2b3c4d (the one carried)
 
 ### `fiber power`
 
-The power source and the two voltages, as `power` has them. `--follow` prints a line on every
-change, and each `power/event`, until Ctrl+C.
+The power source and the two voltages, as `power` has them. `--follow` then prints a line on
+every change, and each `power/event`, with the time in UTC, until Ctrl+C.
 
 ### `fiber ports [on|off|cycle] [PORT...] [--seconds N]`
 
@@ -110,6 +110,26 @@ Ports       1 2 3 4 5 6 7 8 on
 Without an action, how each LED is set (`auto`, or the colour a client set). With a colour
 (`off`, `green`, `red`, `amber`, `yellow`), it sets the LEDs named (`power`, `port1` to `port8`;
 all port LEDs when none is named); `auto` gives them back to the agent.
+
+### `fiber thermometers [watch]`
+
+The DS18B20 probes on the ports, as `thermometers/...` has them, one line each, by port:
+
+```
+$ fiber thermometers
+Port 3      28-0000034a5b1c  21.44 °C
+Port 3      28-0000034a77e0  21.50 °C
+Port 5      28-00000b1c2d3e  no reading
+```
+
+It prints `No thermometers.` when there are none, and says so when the 1-Wire buses were not
+found. `watch` prints a line for every change, with the time in UTC, until Ctrl+C:
+
+```
+$ fiber thermometers watch
+14:02:11  port 3  28-0000034a5b1c  21.44 °C
+14:02:51  port 5  28-00000b1c2d3e  gone
+```
 
 ### `fiber firmware [status | flash CHIP | chip CHIP]`
 

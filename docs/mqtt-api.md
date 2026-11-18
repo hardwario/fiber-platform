@@ -42,6 +42,7 @@ They are those of TOWER's gateway API, so that one client can talk to both.
 | `power` | agent | yes | [power](#power) |
 | `power/event` | agent | no | [power/event](#powerevent) |
 | `ports/{1..8}` | agent | yes | [ports/n](#portsn) |
+| `thermometers/{id}` | agent | yes (empty = gone) | [thermometers/id](#thermometersid) |
 | `firmware/south`, `firmware/north` | agent | yes | [firmware/chip](#firmwarechip) |
 | `cmd` | client | **never** | [a request](#requests) |
 | `rsp/{id}` | agent | no | [an answer](#requests) |
@@ -90,15 +91,43 @@ The source changes with a margin, so that it does not flap.
 One for each port, `ports/1` to `ports/8`:
 
 ```json
-{"power":true,"led":"auto","ts":1794952515}
+{"power":true,"led":"auto","thermometers":["28-0000034a5b1c"],"ts":1794952515}
 ```
 
 | Key | Meaning |
 |---|---|
 | `power` | Whether the port's 3.3 V is on |
 | `led` | `auto` (the agent shows the port's state) or `set` (a client set it with `leds.set`) |
+| `thermometers` | The ids of the probes on the port, as Linux lists them; `null` when the 1-Wire buses were not found (`fiber doctor` says why) |
 
-The thermometers on a port (M3) come with their own topics.
+**The port's LED, when `auto`:**
+
+- **Green:** the port's power is on, and every probe on it gives readings (also when it has none).
+- **Red:** a probe on the port gives no readings. It stays red until the probe reads again, or
+  until Linux drops it: about 100 s after it was unplugged.
+- **Off:** the port's power is off.
+
+### `thermometers/id`
+
+One for each DS18B20 on the ports. The id is the name Linux gives the probe: its family `28`,
+then its serial number in hex.
+
+```json
+{"port":3,"temperature":21.44,"ts":1794952515}
+```
+
+| Key | Meaning |
+|---|---|
+| `port` | The port it is on, 1 to 8 |
+| `temperature` | Degrees Celsius with two decimals, or `null` when it gave no reading in the last three rounds |
+
+The agent reads all probes every 10 s, the eight ports side by side. It sends a probe's topic
+when its temperature changed by 0.1 °C or more since the last one sent, and at least once a
+minute. **An empty retained message** means the probe is gone: Linux no longer lists it (about
+100 s after it was unplugged), or its port's power was switched off.
+
+What is not a reading: an empty read (Linux reads every error as empty), and 85.00 °C, the value
+a DS18B20 holds after power-on, unless the reading before it was above 75 °C.
 
 ### `firmware/chip`
 

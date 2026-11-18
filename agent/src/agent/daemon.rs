@@ -11,6 +11,7 @@ use super::mqtt::Mqtt;
 use super::notify::Notify;
 use super::run::{Agent, Stop, run, run_without_link};
 use super::state::{Settings, State};
+use super::thermometers::{Kernel, read_forever};
 use super::topics::Identity;
 use crate::board;
 use crate::paths::Paths;
@@ -55,6 +56,16 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
         );
         agent.keep_tries(paths.flash_tries());
         agent.notify = Notify::from_env();
+        // The thermometers, read on a thread of their own: a read blocks for about 750 ms. For
+        // the tests: another 1-Wire tree, made up.
+        let devices = std::env::var_os("FIBER_W1_DEVICES")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| paths.under(board::W1_DEVICES));
+        let (rounds, received) = tokio::sync::mpsc::channel(1);
+        agent.rounds = Some(received);
+        std::thread::Builder::new()
+            .name("thermometers".into())
+            .spawn(move || read_forever(Kernel::new(devices), rounds))?;
         // Held while the agent runs, so that a command run by hand keeps off the port.
         let _lock = match fiber_flasher::PortLock::take(&paths.lock_dir(), board::SOUTH_BRIDGE_UART) {
             Ok(lock) => Some(lock),

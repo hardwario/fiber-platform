@@ -203,7 +203,8 @@ platform writes `/etc/mosquitto/conf.d/fiber.conf`:
   as a bcrypt hash made by the `bcryptjs` that Node-RED brings. The platform never writes it
   again, so the owner's changes, and a changed password, stay.
 - **A flow to start from,** written only when there is no `flows.json`: a broker node on
-  `localhost:1883`, and everything under `fiber/#` in the debug panel.
+  `localhost:1883`, everything under `fiber/#` in the debug panel, and a line for each reading
+  of the thermometers.
 - Port 1880 on every interface; the editor asks for the login.
 
 Both are tested in the converge test: the login from the seed works and nothing works without it;

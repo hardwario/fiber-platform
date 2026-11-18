@@ -107,6 +107,11 @@ The managed block itself is in [`provisioning.md`](provisioning.md).
 All LEDs share a 3.3 V anode: **low = lit**. Every port's RJ12 socket carries data on pin 3,
 ground on pin 4 and switched 3.3 V (about 0.1 A limit) on pin 5.
 
+**Port k is DS2482 channel k - 1:** the DS2482's `IO0` to `IO7` (nets `DQ0` to `DQ7`, each
+through a V2F105C150Y1F protection part) reach pin 3 of `JP7` to `JP14`, the sockets that the
+switches `P0` to `P7` power. The switches (TPS22950, current limit set by `ILIM`) have no fault
+output: a short on a port's 3.3 V is limited, and nothing reports it.
+
 The schematic's `NB` assembly variant leaves the two ADC dividers unfitted.
 
 ## North bridge pins (STM32WL5MOC module)
@@ -123,6 +128,37 @@ No other pin of the module is connected: no LEDs, nothing to the south bridge.
 
 RF switch (from ST's driver for this module, matching the earlier firmware): receive = PC3, PC4,
 PC5 all high; transmit on the low-power PA = PC3 and PC4 high, PC5 low; off = all low.
+
+## The 1-Wire ports in Linux
+
+What the kernel's drivers (`ds2482`, `wire`, `w1_therm`) give, read in their source at
+`raspberrypi/linux` `rpi-6.12.y` and mainline v6.12 (2026-11-18). Not seen on a FIBER yet.
+
+- **Eight bus masters,** `/sys/devices/w1_bus_master1` and up (linked from
+  `/sys/bus/w1/devices/`). The `ds2482` driver registers one for each channel, channel 0 first,
+  each taking the lowest free number. Only when the chip answers a channel select to channel 7
+  does it register eight; otherwise one.
+- **Nothing names a master's chip or channel:** a master has no parent device, no link to the
+  I2C device `10-0018`, and no attribute that says where it comes from (`w1_master_pointer` is a
+  hashed kernel address). The agent therefore takes exactly eight masters, sorted by their
+  number, as ports 1 to 8, and reads nothing when there are more or fewer: any other 1-Wire
+  master (a `w1-gpio` overlay, a DS2490 on USB) would shift them.
+- **A probe** is `/sys/devices/w1_bus_masterN/28-xxxxxxxxxxxx` (family `28`, the DS18B20, then
+  its serial number). The kernel searches each bus every 10 s (`wire.timeout`), and drops a
+  probe after 10 searches in a row without it (`wire.slave_ttl`): about 100 s. Writing to
+  `w1_master_search` starts a search at once (root only).
+- **Reading `temperature`** starts a conversion and blocks until it is done: 750 ms at 12 bits.
+  It reads millidegrees as text (`21437`). Every error, a probe gone, a bad CRC after 5 tries,
+  reads as an empty file, not as an error code. Each master has its own lock, so the eight ports
+  can be read side by side; the probes of one port are read one after another.
+- **85 °C** is what a DS18B20 holds after power-on, before its first conversion. The driver
+  passes it on as a reading unless bit 1 of the probe's `features` is set.
+- **`therm_bulk_read`** (all probes of a bus converted at once) appears on one master only: the
+  driver keeps one counter for all buses and puts the file on the master of the first DS18B20
+  it saw. It is of no use with eight ports.
+- **The probes want the port's 3.3 V** (pin 5), not parasite power: the driver arms the
+  DS2482's strong pull-up without the chip's lock and without selecting a channel, so with
+  several busy ports it may not hold through a conversion (read in the source, not tried).
 
 ## Flashing and recovery
 

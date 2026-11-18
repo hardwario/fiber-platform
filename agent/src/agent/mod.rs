@@ -19,6 +19,7 @@ pub mod requests;
 pub mod run;
 pub mod simulator;
 pub mod state;
+pub mod thermometers;
 pub mod topics;
 
 pub use daemon::agent;

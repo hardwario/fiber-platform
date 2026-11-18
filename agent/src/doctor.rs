@@ -153,20 +153,21 @@ fn accelerometer(paths: &Paths) -> Finding {
     }
 }
 
-/// The 1-Wire bus masters, one for each port.
+/// The 1-Wire bus masters, one for each port, and no other: the agent takes them in the order of
+/// their numbers (`docs/hardware.md`, "The 1-Wire ports in Linux").
 fn one_wire(paths: &Paths) -> Finding {
-    let found = (1..=board::ONE_WIRE_PORTS)
-        .filter(|n| {
-            paths
-                .under(&format!("/sys/bus/w1/devices/w1_bus_master{n}"))
-                .exists()
-        })
-        .count();
-    if found == board::ONE_WIRE_PORTS as usize {
+    let found = crate::agent::thermometers::bus_masters(&paths.under(board::W1_DEVICES)).len();
+    let ports = board::ONE_WIRE_PORTS as usize;
+    if found == ports {
         ok(format!("{found} 1-Wire bus masters, one for each port"))
+    } else if found > ports {
+        wrong(
+            format!("{found} 1-Wire bus masters, and the board has {ports}"),
+            "another 1-Wire master (a w1-gpio overlay, a DS2490 on USB) mixes up the ports; take it away, and restart",
+        )
     } else {
         wrong(
-            format!("{found} of {} 1-Wire bus masters", board::ONE_WIRE_PORTS),
+            format!("{found} of {ports} 1-Wire bus masters"),
             "check that config.txt has the FIBER block and the fiber-ds2482 overlay is in /boot/firmware/overlays, and restart",
         )
     }
@@ -317,5 +318,15 @@ mod tests {
         );
         assert!(out.contains("FAIL  7 of 8 1-Wire bus masters\n"), "{out}");
         assert!(out.ends_with("2 of 9 not as it should be.\n"), "{out}");
+
+        // Nine: another master would shift the ports.
+        for n in [8, 9] {
+            std::fs::create_dir_all(tmp.path().join(format!("sys/bus/w1/devices/w1_bus_master{n}"))).unwrap();
+        }
+        let out = text(&check(&Paths::new(Some(tmp.path().to_path_buf()))));
+        assert!(
+            out.contains("FAIL  9 1-Wire bus masters, and the board has 8\n"),
+            "{out}"
+        );
     }
 }

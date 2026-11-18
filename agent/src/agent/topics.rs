@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 
 use super::leds::Setting;
 use super::state::{Chip, State};
+use super::thermometers::{Known, degrees};
 
 /// The schema number of the whole tree of topics and payloads.
 pub const SCHEMA: u32 = 1;
@@ -57,7 +58,17 @@ pub fn port(state: &State, port: u8, ts: u64) -> Value {
         Setting::Auto => "auto",
         Setting::Set { .. } => "set",
     };
-    json!({"power": state.port_on(port), "led": led, "ts": ts})
+    json!({
+        "power": state.port_on(port),
+        "led": led,
+        "thermometers": state.thermometers.on_port(port),
+        "ts": ts,
+    })
+}
+
+/// `thermometers/{id}`.
+pub fn thermometer(known: &Known, ts: u64) -> Value {
+    json!({"port": known.port, "temperature": known.millis.map(degrees), "ts": ts})
 }
 
 /// `firmware/{chip}`.
@@ -123,9 +134,37 @@ mod tests {
         state.ports = 0b11;
         assert_eq!(
             port(&state, 2, 5).to_string(),
-            r#"{"led":"auto","power":true,"ts":5}"#
+            r#"{"led":"auto","power":true,"thermometers":[],"ts":5}"#
         );
         assert_eq!(port(&state, 3, 5)["power"], false);
+        state.thermometers.take(
+            crate::agent::thermometers::Round {
+                ports: Some(vec![
+                    vec![],
+                    vec![crate::agent::thermometers::Probe {
+                        id: "28-0000034a5b1c".into(),
+                        millis: Some(21437),
+                    }],
+                    vec![],
+                    vec![],
+                    vec![],
+                    vec![],
+                    vec![],
+                    vec![],
+                ]),
+            },
+            state.ports,
+        );
+        assert_eq!(
+            port(&state, 2, 5)["thermometers"].to_string(),
+            r#"["28-0000034a5b1c"]"#
+        );
+        assert_eq!(
+            thermometer(&state.thermometers.known["28-0000034a5b1c"], 5).to_string(),
+            r#"{"port":2,"temperature":21.44,"ts":5}"#
+        );
+        state.thermometers.take(Default::default(), state.ports);
+        assert_eq!(port(&state, 2, 5)["thermometers"], Value::Null);
 
         assert_eq!(firmware(&state.south, 5)["state"], "silent");
         assert_eq!(firmware(&state.south, 5)["version"], Value::Null);

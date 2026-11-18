@@ -4,7 +4,7 @@
         "type": "tab",
         "label": "FIBER",
         "disabled": false,
-        "info": "Everything the FIBER says on MQTT (fiber/#) shows up in the debug panel on the right."
+        "info": "Everything the FIBER says on MQTT (fiber/#) shows up in the debug panel on the right. Below it, the thermometers on the ports, one line per reading."
     },
     {
         "id": "fiber-broker",
@@ -53,6 +53,64 @@
         "targetType": "full",
         "x": 360,
         "y": 80,
+        "wires": []
+    },
+    {
+        "id": "fiber-thermometers-in",
+        "type": "mqtt in",
+        "z": "fiber-tab",
+        "name": "fiber/thermometers/+",
+        "topic": "fiber/thermometers/+",
+        "qos": "1",
+        "datatype": "auto-detect",
+        "broker": "fiber-broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 160,
+        "wires": [
+            [
+                "fiber-thermometers-line"
+            ]
+        ]
+    },
+    {
+        "id": "fiber-thermometers-line",
+        "type": "function",
+        "z": "fiber-tab",
+        "name": "One line per reading",
+        "func": "// fiber/thermometers/<id>: {\"port\":3,\"temperature\":21.44,\"ts\":...},\n// or an empty message when the probe is gone (docs/mqtt-api.md).\nconst id = msg.topic.split(\"/\").pop();\nconst t = msg.payload;\nif (!t || typeof t !== \"object\") {\n    msg.payload = id + \": gone\";\n} else if (t.temperature === null) {\n    msg.payload = id + \" on port \" + t.port + \": no reading\";\n} else {\n    msg.payload = id + \" on port \" + t.port + \": \" + t.temperature.toFixed(2) + \" °C\";\n}\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 390,
+        "y": 160,
+        "wires": [
+            [
+                "fiber-thermometers-debug"
+            ]
+        ]
+    },
+    {
+        "id": "fiber-thermometers-debug",
+        "type": "debug",
+        "z": "fiber-tab",
+        "name": "Thermometers",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 610,
+        "y": 160,
         "wires": []
     }
 ]

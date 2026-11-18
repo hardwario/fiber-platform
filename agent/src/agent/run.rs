@@ -12,6 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use fiber_protocol::south::Message;
 use serde_json::Value;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use super::firmware::{self, Seen, Tries};
@@ -19,6 +20,7 @@ use super::link::{Event, Reader, Writer};
 use super::notify::Notify;
 use super::requests::{self, Answer, Handled, RecentIds};
 use super::state::{FirmwareState, State};
+use super::thermometers::Round;
 use super::topics::{self, Identity};
 
 /// The prefix of every topic.
@@ -32,6 +34,9 @@ pub const POWER_EVERY: Duration = Duration::from_secs(60);
 pub const NO_FIRMWARE_AFTER: Duration = Duration::from_secs(10);
 /// Frames with another schema tag, in a row, before the chip is flashed.
 pub const OTHER_SCHEMA_FRAMES: u32 = 3;
+
+/// A probe's topic is sent at least this often.
+pub const THERMOMETER_EVERY: Duration = Duration::from_secs(60);
 
 /// Why [`run`] or [`run_without_link`] returned.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,6 +91,10 @@ pub struct Agent<B: Bus> {
     flash: Option<Option<String>>,
     /// systemd's watchdog, fed on every tick.
     pub notify: Notify,
+    /// The rounds of the thermometers, from the thread that reads them; none in most tests.
+    pub rounds: Option<mpsc::Receiver<Round>>,
+    /// Each probe's last topic: its reading, and when it was sent.
+    thermometers_sent: std::collections::BTreeMap<String, (Option<i32>, u8, Instant)>,
 }
 
 /// A payload without its `ts`, to compare.
@@ -114,6 +123,8 @@ impl<B: Bus> Agent<B> {
             hello_seen: false,
             flash: None,
             notify: Notify::default(),
+            rounds: None,
+            thermometers_sent: Default::default(),
         }
     }
 
@@ -221,6 +232,57 @@ impl<B: Bus> Agent<B> {
         if force || stale || moved {
             self.power_sent = Some(Instant::now());
             self.retained("power", power, true).await;
+        }
+        self.publish_thermometers(force).await;
+    }
+
+    /// A round of the thermometers: the probes that are gone get an empty retained message.
+    async fn round(&mut self, round: Round) {
+        for id in self.state.thermometers.take(round, self.state.ports) {
+            self.thermometers_sent.remove(&id);
+            self.bus
+                .publish(format!("{PREFIX}thermometers/{id}"), String::new(), true)
+                .await;
+        }
+        self.publish_state(false).await;
+    }
+
+    /// Each probe's topic, when it moved by 0.1 °C or more, gained or lost its reading, changed
+    /// port, or is a minute old; all of them with `force`.
+    async fn publish_thermometers(&mut self, force: bool) {
+        let ts = now();
+        let due: Vec<(String, Value, Option<i32>, u8)> = self
+            .state
+            .thermometers
+            .known
+            .iter()
+            .filter(|(_, known)| known.shown())
+            .filter(|(id, known)| {
+                force
+                    || self.thermometers_sent.get(*id).is_none_or(|(millis, port, at)| {
+                        *port != known.port
+                            || at.elapsed() >= THERMOMETER_EVERY
+                            || match (millis, known.millis) {
+                                (Some(a), Some(b)) => (a - b).abs() >= 100,
+                                (a, b) => a.is_some() != b.is_some(),
+                            }
+                    })
+            })
+            .map(|(id, known)| {
+                (
+                    id.clone(),
+                    topics::thermometer(known, ts),
+                    known.millis,
+                    known.port,
+                )
+            })
+            .collect();
+        for (id, payload, millis, port) in due {
+            self.thermometers_sent
+                .insert(id.clone(), (millis, port, Instant::now()));
+            self.bus
+                .publish(format!("{PREFIX}thermometers/{id}"), payload.to_string(), true)
+                .await;
         }
     }
 
@@ -380,8 +442,18 @@ where
                 None => std::future::pending().await,
             }
         };
+        let round = async {
+            match &mut agent.rounds {
+                Some(rounds) => match rounds.recv().await {
+                    Some(round) => round,
+                    None => std::future::pending().await,
+                },
+                None => std::future::pending().await,
+            }
+        };
         tokio::select! {
             _ = tick.tick() => agent.tick(link.as_mut().map(|(_, writer)| writer)).await?,
+            round = round => agent.round(round).await,
             event = from_chip => agent.link(event?).await,
             event = agent.bus.next() => match event {
                 BusEvent::Connected => agent.publish_state(true).await,
@@ -585,6 +657,67 @@ mod tests {
             Stop::Flash {
                 request: Some("f3".into())
             }
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn thermometers_on_mqtt() {
+        use crate::agent::thermometers::{Probe, Round};
+        let published = Rc::new(RefCell::new(Vec::new()));
+        let (mut agent, _bus) = agent_with(Some(CRC), &published);
+        let (rounds, rx) = mpsc::channel(4);
+        agent.rounds = Some(rx);
+        let on_port_2 = |millis: Option<i32>| {
+            let mut ports = vec![Vec::new(); 8];
+            ports[1] = vec![Probe {
+                id: "28-a".into(),
+                millis,
+            }];
+            Round { ports: Some(ports) }
+        };
+        let topic = "fiber/thermometers/28-a";
+
+        rounds.send(on_port_2(Some(21437))).await.unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        assert_eq!(last(&published, topic).unwrap()["temperature"], 21.44);
+        assert_eq!(
+            last(&published, "fiber/ports/2").unwrap()["thermometers"][0],
+            "28-a"
+        );
+
+        // Less than 0.1 °C: not sent again; 0.1 °C or more: sent.
+        rounds.send(on_port_2(Some(21487))).await.unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        assert_eq!(count(&published, topic), 1);
+        rounds.send(on_port_2(Some(21537))).await.unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        assert_eq!(count(&published, topic), 2);
+        assert_eq!(last(&published, topic).unwrap()["temperature"], 21.54);
+
+        // A minute later it is sent again, unchanged.
+        rounds.send(on_port_2(Some(21537))).await.unwrap();
+        run_without_link(&mut agent, Duration::from_secs(61)).await;
+        assert_eq!(count(&published, topic), 3);
+
+        // Gone: an empty retained message.
+        rounds
+            .send(Round {
+                ports: Some(vec![Vec::new(); 8]),
+            })
+            .await
+            .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        let (_, payload, retained) = published
+            .borrow()
+            .iter()
+            .rev()
+            .find(|(t, _, _)| t == topic)
+            .cloned()
+            .unwrap();
+        assert_eq!((payload.as_str(), retained), ("", true));
+        assert_eq!(
+            last(&published, "fiber/ports/2").unwrap()["thermometers"],
+            serde_json::json!([])
         );
     }
 
