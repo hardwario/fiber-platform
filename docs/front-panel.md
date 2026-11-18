@@ -33,6 +33,7 @@ In the menu, *up* and *down* move, *enter* chooses, and *Back* leaves.
 - **About:** the versions: the `fiber` program, the south bridge's firmware, the pinned TOWER
   revision. Any button goes back.
 - **Restart** is not there yet: the agent has no right to restart the FIBER (D23).
+- **Set up from the phone** comes with the Bluetooth profile (T29, [`ble.md`](ble.md)).
 
 ## Over the pages
 

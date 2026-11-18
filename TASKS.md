@@ -480,7 +480,8 @@ State (2026-11-18): all but the display driver is written and tested on the comp
 (drafts), the buttons (`agent/src/agent/buttons.rs`, `tower-hmi`'s recognizer on a thread that
 waits for the lines' edges), the buzzer's patterns, the backlight through sysfs PWM with its
 dimming, the `display` topic, a message drawn into a `Frame<16, 64>` and compared with stored
-pictures, `fiber display`, `fiber buzzer beep`, `fiber buttons watch`. The unit no longer has
+pictures, `fiber display`, `fiber buzzer beep`, `fiber buttons watch` (commit `a59cf8c`, CI
+run 44213917356 green). The unit no longer has
 `ProtectKernelTunables=yes`: the backlight is written through `/sys/class/pwm`. `just check`
 and the converge test pass (it asks for a message, the backlight and a beep through the service). The display driver waits for T2 (the LCD's bus);
 nothing of this has run on a FIBER.
@@ -522,6 +523,28 @@ the converge test pass.
 
 - Needs: T20.
 - Done when: the pictures match, and on a FIBER the buttons move through the pages.
+
+### T28. The Bluetooth profile, written first (M6)
+
+State (2026-11-18): the draft of `docs/ble.md` is written; it waits for the maintainer to read
+it, and then for the people who make HARDWARIO Manager. Nothing is built on it before they
+agree. Settled for the draft: the requests and answers are the same JSON as on MQTT; a message
+goes in pieces of one header byte each (first, last, a number modulo 64), at most 4 KB; `info`
+can be read without pairing, so the app can list FIBERs; bonds are not kept.
+
+A new, small profile (D3), agreed with the people who make the app before any code.
+
+- [x] `docs/ble.md`: one service with three characteristics, `info` (read), `rpc_rx` (write)
+      and `rpc_tx` (notify). They carry the agent's requests, and only these: `device.info`,
+      `setup.state`, `wifi.scan`, `wifi.connect`, `net.status`
+- [x] Who may talk: pairing with a passkey that the FIBER shows on its LCD; the two request
+      characteristics only on a link paired that way; advertising and pairing open only after a
+      button on the FIBER was pressed
+- [x] What happens if phones pair unreliably: the same code used in a key exchange of our own,
+      above Bluetooth's (the plan only; designed if the bench needs it)
+- [ ] Agreed with the HARDWARIO Manager app
+
+- Done when: the app's side has said yes to the document.
 
 ## Tasks ahead
 
@@ -803,22 +826,6 @@ makes moving the pin a procedure and not an adventure.
 
 Done when: a phone with the updated HARDWARIO Manager puts a FIBER on Wi-Fi, and a wrong passkey
 is refused.
-
-#### T28. The Bluetooth profile, written first
-
-A new, small profile (D3), agreed with the people who make the app before any code.
-
-- [ ] `docs/ble.md`: one service with three characteristics, `info` (read), `rpc_rx` (write)
-      and `rpc_tx` (notify). They carry the agent's requests, and only these: `device.info`,
-      `setup.state`, `wifi.scan`, `wifi.connect`, `net.status`
-- [ ] Who may talk: pairing with a passkey that the FIBER shows on its LCD; the two request
-      characteristics only on a link paired that way; advertising and pairing open only after a
-      button on the FIBER was pressed
-- [ ] What happens if phones pair unreliably: the same code used in a key exchange of our own,
-      above Bluetooth's
-- [ ] Agreed with the HARDWARIO Manager app
-
-- Done when: the app's side has said yes to the document.
 
 #### T29. Wi-Fi from the phone
 
