@@ -46,6 +46,11 @@ impl Paths {
         self.under("/run/lock")
     }
 
+    /// A restart the agent asks for from its menu: `fiber-restart.path` watches for it (D23).
+    pub fn restart_request(&self) -> PathBuf {
+        self.under("/run/fiber-agent/restart")
+    }
+
     /// The releases, `current` and `previous`.
     pub fn opt_dir(&self) -> PathBuf {
         self.under("/opt/fiber")

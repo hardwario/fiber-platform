@@ -15,8 +15,26 @@ pub const PAGES: [&str; 4] = ["FIBER", "Components", "Power", "Thermometers"];
 
 /// The menu's actions.
 const ABOUT: u16 = 1;
+const RESTART: u16 = 2;
 
-static MENU: Menu = Menu::new("Menu", &[Item::action("About", ABOUT), Item::back("Back")]);
+static RESTART_MENU: Menu = Menu::new(
+    "Restart the FIBER?",
+    &[Item::back("No"), Item::action("Yes, restart", RESTART)],
+);
+static MENU: Menu = Menu::new(
+    "Menu",
+    &[
+        Item::action("About", ABOUT),
+        Item::submenu("Restart", &RESTART_MENU),
+        Item::back("Back"),
+    ],
+);
+
+/// What the screen asks the agent to do.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ask {
+    Restart,
+}
 
 /// What the pages show, as the agent gathers it once a second.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -46,6 +64,8 @@ pub enum View {
     Page(usize),
     Menu(MenuState),
     About,
+    /// The restart was asked for; the FIBER goes down soon.
+    Restarting,
 }
 
 pub struct Screen {
@@ -59,8 +79,8 @@ impl Default for Screen {
 }
 
 impl Screen {
-    /// What a gesture of the buttons does.
-    pub fn press(&mut self, event: ButtonEvent) {
+    /// What a gesture of the buttons does, and what it asks of the agent.
+    pub fn press(&mut self, event: ButtonEvent) -> Option<Ask> {
         let step = matches!(event.kind, Kind::Click | Kind::Repeat);
         match &mut self.view {
             View::Page(page) => match event.buttons {
@@ -75,17 +95,22 @@ impl Screen {
                     DOWN if step => Nav::Next,
                     ENTER if event.kind == Kind::Click => Nav::Enter,
                     ENTER if event.kind == Kind::Hold => Nav::Back,
-                    _ => return,
+                    _ => return None,
                 };
                 match menu.handle(nav, &mut Table::new([])) {
                     Some(Outcome::Exit) => self.view = View::Page(0),
                     Some(Outcome::Action(ABOUT)) => self.view = View::About,
+                    Some(Outcome::Action(RESTART)) => {
+                        self.view = View::Restarting;
+                        return Some(Ask::Restart);
+                    }
                     _ => {}
                 }
             }
             View::About if event.kind == Kind::Click => self.view = View::Menu(MenuState::new(&MENU)),
-            View::About => {}
+            View::About | View::Restarting => {}
         }
+        None
     }
 }
 
@@ -188,6 +213,10 @@ pub fn draw(screen: &mut Screen, facts: &Facts) -> Picture {
             lines(&mut canvas, &page_lines(page, facts));
         }
         View::Menu(menu) => menu.render(&mut canvas, &Table::new([]), &MenuStyle::new(&SPLEEN_6X12)),
+        View::Restarting => {
+            title(&mut canvas, "Restarting", None);
+            lines(&mut canvas, &["The FIBER restarts.".into()]);
+        }
         View::About => {
             title(&mut canvas, "About", None);
             let about: Vec<String> = facts
@@ -323,8 +352,25 @@ mod tests {
         screen.press(click(UP));
         assert!(matches!(screen.view, View::Menu(_)));
         screen.press(click(DOWN));
-        screen.press(click(ENTER));
+        screen.press(click(DOWN));
+        assert_eq!(screen.press(click(ENTER)), None);
         assert!(matches!(screen.view, View::Page(0)));
+
+        // Restart asks first: "No" is the first choice, "Yes, restart" the second.
+        screen.press(click(ENTER));
+        screen.press(click(DOWN));
+        assert_eq!(screen.press(click(ENTER)), None);
+        same_as_stored("menu-restart", &draw(&mut screen, &facts()));
+        assert_eq!(screen.press(click(ENTER)), None);
+        assert!(matches!(screen.view, View::Menu(_)));
+        screen.press(click(ENTER));
+        screen.press(click(DOWN));
+        assert_eq!(screen.press(click(ENTER)), Some(Ask::Restart));
+        assert!(matches!(screen.view, View::Restarting));
+        same_as_stored("restarting", &draw(&mut screen, &facts()));
+        // Nothing moves it any more.
+        assert_eq!(screen.press(click(ENTER)), None);
+        assert!(matches!(screen.view, View::Restarting));
     }
 
     #[test]

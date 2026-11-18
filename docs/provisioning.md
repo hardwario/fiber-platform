@@ -261,12 +261,16 @@ The `agent` role runs `fiber agent` ([`cli.md`](cli.md)) as a service:
   `/run/lock` (the lock on the south bridge's port) and `/sys` as its permissions have it (the
   backlight's PWM); of the devices only the classes `ttyAMA`, `gpiochip`, `i2c` and `spi`; no
   capabilities; IPv4, IPv6 and Unix sockets only.
+- **A restart from the front panel's menu** (D23): the agent writes `/run/fiber-agent/restart`,
+  in a directory only it may write to, and `fiber-restart.path` starts `fiber-restart.service`,
+  which restarts the FIBER as root. The agent itself keeps no right to.
 - **`/etc/fiber/agent.toml`** is written once, with every setting at its default in a comment,
   and never again: the agent needs no settings, and the owner's changes stay.
 - **A new program is started:** after an update or a rollback the role restarts the agent when
   the program it runs is not the one `/usr/local/bin/fiber` leads to.
-- **Turned off,** the service is stopped and does not start with the FIBER. Both
-  microcontrollers keep their firmware; the south bridge shows its fallback pattern after 5 s.
+- **Turned off,** the service and the restart's watch are stopped and do not start with the
+  FIBER. Both microcontrollers keep their firmware; the south bridge shows its fallback pattern
+  after 5 s.
 
 Tested in the converge test against the simulated south bridge. Not run on a FIBER yet: the
 device classes and the groups of the devices are Raspberry Pi OS's, not seen on a FIBER yet.

@@ -71,6 +71,7 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
             results: paths.platform_results(),
             status: paths.platform_status(),
             fib_trie: paths.under("/proc/net/fib_trie"),
+            restart: paths.restart_request(),
         });
         // Held while the agent runs, so that a command run by hand keeps off the port.
         let _lock = match fiber_flasher::PortLock::take(&paths.lock_dir(), board::SOUTH_BRIDGE_UART) {

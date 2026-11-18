@@ -316,6 +316,19 @@ expect 10 fiber platform apply
 rm /run/fiber/platform/restart-needed
 systemctl is-enabled --quiet fiber-agent || fail "the agent does not start with the FIBER"
 [ "$(getent passwd fiber | cut -d: -f6,7)" = /home/fiber:/bin/bash ] || fail "the agent role changed the login fiber"
+# The restart the menu asks for (D23): only the agent may ask, and the watch hands it on. A
+# drop-in in /run makes the restart a mark, as a container cannot restart.
+systemctl is-active --quiet fiber-restart.path || fail "the restart's watch does not run"
+mkdir -p /run/systemd/system/fiber-restart.service.d
+printf '[Service]\nExecStart=\nExecStart=/usr/bin/touch /run/fiber-test/restarted\n' \
+    > /run/systemd/system/fiber-restart.service.d/fiber-test.conf
+systemctl daemon-reload
+[ "$(stat -c %U:%a /run/fiber-agent)" = fiber-agent:700 ] || fail "/run/fiber-agent is not the agent's alone"
+runuser -u fiber-agent -- sh -c 'echo restart > /run/fiber-agent/restart'
+wait_for 10 test -e /run/fiber-test/restarted || fail "the restart's watch did not hand the request on"
+wait_for 5 test ! -e /run/fiber-agent/restart || fail "the restart's request was left behind"
+rm -r /run/systemd/system/fiber-restart.service.d /run/fiber-test/restarted
+systemctl daemon-reload
 # The user fiber-agent is there now: the pseudo-terminal becomes its.
 chown fiber-agent "$(readlink -f /run/fiber-test/south-agent)"
 wait_for 30 agent_answers || fail "fiber status: $(cat /tmp/status.out); the agent: $(journalctl -u fiber-agent --no-pager | tail -n 20)"
@@ -382,6 +395,7 @@ expect 10 fiber platform apply
 rm /run/fiber/platform/restart-needed
 ! systemctl is-active --quiet fiber-agent || fail "the agent still runs"
 ! systemctl is-enabled --quiet fiber-agent || fail "the agent still starts with the FIBER"
+! systemctl is-enabled --quiet fiber-restart.path || fail "the restart's watch still starts with the FIBER"
 wait_for 10 agent_gone || fail "fiber/status does not say the agent is offline"
 [ -f /etc/fiber/agent.toml ] || fail "the agent's settings are gone"
 umount /boot/firmware
@@ -408,7 +422,7 @@ say "12. An uninstall leaves only what packages own, and data"
 expect 1 fiber platform uninstall
 fiber platform uninstall --yes | tee /tmp/uninstall.out
 for gone in /opt/fiber /etc/fiber /var/lib/fiber /usr/local/bin/fiber /etc/systemd/system/fiber-platform-apply.service \
-    /etc/systemd/system/fiber-agent.service; do
+    /etc/systemd/system/fiber-agent.service /etc/systemd/system/fiber-restart.path; do
     [ ! -e "$gone" ] || fail "$gone is still there"
 done
 grep -q '^  sudo apt purge ' /tmp/uninstall.out || fail "the uninstall did not print how to purge the packages"

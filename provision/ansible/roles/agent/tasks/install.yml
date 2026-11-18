@@ -37,8 +37,22 @@
     mode: "0644"
   notify: Restart the agent
 
+- name: The restart the agent may ask for (D23)
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [fiber-restart.path, fiber-restart.service]
+
 - name: The agent starts with the FIBER
   ansible.builtin.systemd_service:
     name: fiber-agent
     enabled: true
     daemon_reload: true
+
+- name: The restart's watch starts with the FIBER
+  ansible.builtin.systemd_service:
+    name: fiber-restart.path
+    enabled: true

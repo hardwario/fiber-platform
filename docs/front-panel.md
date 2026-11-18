@@ -32,8 +32,9 @@ In the menu, *up* and *down* move, *enter* chooses, and *Back* leaves.
 
 - **About:** the versions: the `fiber` program, the south bridge's firmware, the pinned TOWER
   revision. Any button goes back.
-- **Restart** is not there yet. The agent has no right to restart the FIBER; it will ask a
-  path unit that does (D23, T21).
+- **Restart** asks first ("No" is the first choice), then restarts the FIBER. The agent has no
+  right to do that itself: it writes `/run/fiber-agent/restart`, and `fiber-restart.path` has
+  the system restart (D23).
 - **Set up from the phone** comes with the Bluetooth profile (T29, [`ble.md`](ble.md)).
 
 ## Over the pages

@@ -1,0 +1,13 @@
+# Restarts the FIBER when the agent asks, from its front panel's menu (D23). The agent runs
+# without the right to restart; it writes /run/fiber-agent/restart, a directory only it may write
+# to, and this starts fiber-restart.service, which runs as root.
+# Written by the FIBER platform (the agent role).
+[Unit]
+Description=FIBER agent: a restart asked for from the front panel
+
+[Path]
+PathExists=/run/fiber-agent/restart
+Unit=fiber-restart.service
+
+[Install]
+WantedBy=paths.target

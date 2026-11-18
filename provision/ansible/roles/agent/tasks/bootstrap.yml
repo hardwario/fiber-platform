@@ -9,6 +9,11 @@
     state: started
   register: agent_service
 
+- name: The restart's watch runs
+  ansible.builtin.systemd_service:
+    name: fiber-restart.path
+    state: started
+
 # After an update or a rollback, /usr/local/bin/fiber leads to another program than the one the
 # agent was started from.
 - name: The program the agent runs

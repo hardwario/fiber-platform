@@ -1,0 +1,10 @@
+# Restarts the FIBER, as the agent asked (fiber-restart.path, D23).
+# Written by the FIBER platform (the agent role).
+[Unit]
+Description=FIBER agent: restart the FIBER, as the front panel asked
+
+[Service]
+Type=oneshot
+# The request goes first, so that it cannot start this again if the restart does not happen.
+ExecStartPre=/usr/bin/rm -f /run/fiber-agent/restart
+ExecStart=/usr/bin/systemctl --no-block reboot

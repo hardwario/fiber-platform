@@ -24,7 +24,7 @@ use super::link::{Event, Reader, Writer};
 use super::notify::Notify;
 use super::power::Source;
 use super::requests::{self, Answer, Handled, RecentIds};
-use super::screen::{self, Facts, Screen};
+use super::screen::{self, Ask, Facts, Screen};
 use super::state::{FirmwareState, State};
 use super::thermometers::Round;
 use super::topics::{self, Identity};
@@ -123,11 +123,13 @@ pub struct Agent<B: Bus> {
     pub sources: Option<Sources>,
 }
 
-/// The files the pages read: the apply's results and progress, and the addresses.
+/// The files the pages read (the apply's results and progress, and the addresses), and the one
+/// the menu writes to ask for a restart.
 pub struct Sources {
     pub results: std::path::PathBuf,
     pub status: std::path::PathBuf,
     pub fib_trie: std::path::PathBuf,
+    pub restart: std::path::PathBuf,
 }
 
 /// A payload without its `ts`, to compare.
@@ -290,6 +292,17 @@ impl<B: Bus> Agent<B> {
         }
     }
 
+    /// Asks for a restart: `fiber-restart.path` restarts the FIBER as root (D23).
+    fn restart(&self) {
+        let Some(sources) = &self.sources else {
+            return;
+        };
+        match std::fs::write(&sources.restart, "restart\n") {
+            Ok(()) => eprintln!("a restart asked for from the front panel"),
+            Err(e) => eprintln!("cannot ask for a restart ({}): {e}", sources.restart.display()),
+        }
+    }
+
     /// What the pages show now.
     fn facts(&self) -> Facts {
         let read = |path: &std::path::Path| std::fs::read_to_string(path).unwrap_or_default();
@@ -364,8 +377,8 @@ impl<B: Bus> Agent<B> {
         let dimmed = self.state.display.duty(at) < self.state.display.backlight;
         self.state.display.last_press = at;
         self.light();
-        if !dimmed {
-            self.screen.press(event);
+        if !dimmed && self.screen.press(event) == Some(Ask::Restart) {
+            self.restart();
         }
         self.draw();
         if let Some(gesture) = buttons::gesture(event.kind) {

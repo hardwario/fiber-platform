@@ -20,6 +20,10 @@ RestartSec=5s
 # /run/lock the agent runs on, unlocked).
 StateDirectory=fiber/agent
 StateDirectoryMode=0750
+# /run/fiber-agent, for the agent alone: a restart asked for from the menu goes there
+# (fiber-restart.path).
+RuntimeDirectory=fiber-agent
+RuntimeDirectoryMode=0700
 ReadWritePaths=-/run/lock
 
 # The board's devices, by class: the serial ports, the GPIO lines, I2C and SPI. Nothing else.
