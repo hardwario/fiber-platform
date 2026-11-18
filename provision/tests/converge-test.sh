@@ -18,8 +18,12 @@
 #   9. ChirpStack: at no moment does its API answer to admin/admin; the seed's login works; Redis
 #      on loopback; the API key kept; the concentrator daemon and its udev rule there; a second
 #      apply changes nothing
-#  10. the footprint: every path the platform added is a package's, its own, or listed
-#  11. an update to a test release, a rollback, and an update to the current release
+#  10. the agent's service with the base, against the simulated south bridge: it runs as the
+#      user fiber without capabilities, holds the port, feeds its watchdog, and a second apply
+#      changes nothing; then the footprint: every path the platform added is a package's, its
+#      own, or listed
+#  11. an update to a test release, a rollback, and an update to the current release; the agent
+#      is restarted on each new program; turning it off takes fiber/status offline
 #  12. an uninstall leaves only what packages own, and data
 set -euo pipefail
 
@@ -276,18 +280,48 @@ say "9b. Apply again: nothing changes"
 fiber platform apply | tee /tmp/apply.out
 grep -q '^chirpstack: up, nothing changed$' /tmp/apply.out || fail "the second apply changed ChirpStack"
 
-say "10. The footprint: every path the platform added is a package's, its own, or listed"
+say "10. The agent's service, with the base, against a simulated south bridge"
 mount -o loop /tmp/boot.img /boot/firmware
-fiber platform enable base
+# The simulated south bridge on a pseudo-terminal, and a drop-in in /run that points the service
+# at it and allows it (a pseudo-terminal is no device class the unit allows). A watchdog of 3 s,
+# so that a loop that does not feed it shows.
+mkdir -p /run/fiber-test
+socat pty,raw,echo=0,link=/run/fiber-test/south-sim pty,raw,echo=0,link=/run/fiber-test/south-agent &
+socat_pid=$!
+wait_for 10 test -e /run/fiber-test/south-agent || fail "socat made no pseudo-terminals"
+fiber south-simulator /run/fiber-test/south-sim &
+simulator_pid=$!
+mkdir -p /run/systemd/system/fiber-agent.service.d
+cat > /run/systemd/system/fiber-agent.service.d/fiber-test.conf << 'UNIT'
+[Service]
+Environment=FIBER_SOUTH_PORT=/run/fiber-test/south-agent
+DeviceAllow=char-pts rw
+WatchdogSec=3s
+UNIT
+systemctl daemon-reload
+fiber platform enable agent
 expect 10 fiber platform apply
 rm /run/fiber/platform/restart-needed
+systemctl is-enabled --quiet fiber-agent || fail "the agent does not start with the FIBER"
+# The user fiber is there now: the pseudo-terminal becomes its.
+chown fiber "$(readlink -f /run/fiber-test/south-agent)"
+wait_for 30 agent_answers || fail "fiber status: $(cat /tmp/status.out); the agent: $(journalctl -u fiber-agent --no-pager | tail -n 20)"
+cat /tmp/status.out
+agent_pid=$(systemctl show -p MainPID --value fiber-agent)
+[ "$(stat -c %U "/proc/$agent_pid")" = fiber ] || fail "the agent does not run as the user fiber"
+grep -q '^CapEff:[[:space:]]*0000000000000000$' "/proc/$agent_pid/status" || fail "the agent has capabilities"
+[ -f /etc/fiber/agent.toml ] || fail "the agent's settings file is not there"
+fiber firmware chip south 2> /tmp/chip.err && fail "fiber firmware chip ran beside the agent"
+grep -q 'is in use by another program' /tmp/chip.err || fail "fiber firmware chip does not see the agent's lock: $(cat /tmp/chip.err)"
+sleep 8
+[ "$(systemctl show -p MainPID --value fiber-agent)" = "$agent_pid" ] || fail "the agent was restarted (by its watchdog?)"
+fiber platform apply | tee /tmp/apply.out
+grep -q '^agent: up, nothing changed$' /tmp/apply.out || fail "the second apply changed the agent"
+
+say "10b. The footprint: every path the platform added is a package's, its own, or listed"
 snapshot > /root/after.txt
 python3 /tests/footprint-check.py /root/before.txt /root/after.txt /opt/fiber/current/provision/footprint.yaml ${FOOTPRINT_REPORT:+--report} ||
     fail "the platform wrote paths that the footprint does not list"
-fiber platform disable base
-expect 10 fiber platform apply
-rm /run/fiber/platform/restart-needed
-umount /boot/firmware
 
 say "11. An update to a test release, and a rollback"
 export FIBER_RELEASES_URL=http://127.0.0.1:8000/test/releases
@@ -296,12 +330,30 @@ FIBER_NO_REBOOT=1 fiber platform update | tee /tmp/update.out
 [ "$(readlink /opt/fiber/previous)" = "releases/$VERSION" ] || fail "the release before is not previous"
 grep -q "^Updating from release $VERSION to $VERSION-update-test" /tmp/update.out || fail "the update did not say what it does"
 fiber platform status | grep -q "^Release  $VERSION-update-test, " || fail "status does not show the test release"
+agent_program() { readlink "/proc/$(systemctl show -p MainPID --value fiber-agent)/exe"; }
+[ "$(agent_program)" = "/opt/fiber/releases/$VERSION-update-test/bin/fiber" ] ||
+    fail "the agent does not run the new program, but $(agent_program)"
 FIBER_NO_REBOOT=1 fiber platform rollback | tee /tmp/rollback.out
 [ "$(readlink /opt/fiber/current)" = "releases/$VERSION" ] || fail "the rollback did not go back"
 [ "$(readlink /opt/fiber/previous)" = "releases/$VERSION-update-test" ] || fail "the rollback did not keep the other release"
 grep -q '^Done' /tmp/rollback.out || fail "the rollback did not apply"
+[ "$(agent_program)" = "/opt/fiber/releases/$VERSION/bin/fiber" ] ||
+    fail "the agent does not run the program it was rolled back to, but $(agent_program)"
 fiber platform update --to "$VERSION" | grep -q "is the current one already" || fail "an update to the current release did something"
 unset FIBER_RELEASES_URL
+
+say "Turning the agent and the base off: the agent stops, and its last will says so"
+fiber platform disable agent base
+expect 10 fiber platform apply
+rm /run/fiber/platform/restart-needed
+! systemctl is-active --quiet fiber-agent || fail "the agent still runs"
+! systemctl is-enabled --quiet fiber-agent || fail "the agent still starts with the FIBER"
+wait_for 10 agent_gone || fail "fiber/status does not say the agent is offline"
+[ -f /etc/fiber/agent.toml ] || fail "the agent's settings are gone"
+umount /boot/firmware
+kill "$simulator_pid" "$socat_pid" 2> /dev/null || true
+rm -r /run/systemd/system/fiber-agent.service.d /run/fiber-test
+systemctl daemon-reload
 
 say "Turning ChirpStack, Node-RED and Mosquitto off stops them, and keeps their settings"
 fiber platform disable chirpstack node-red mosquitto
@@ -318,10 +370,12 @@ expect 0 fiber platform apply
 say "12. An uninstall leaves only what packages own, and data"
 expect 1 fiber platform uninstall
 fiber platform uninstall --yes | tee /tmp/uninstall.out
-for gone in /opt/fiber /etc/fiber /var/lib/fiber /usr/local/bin/fiber /etc/systemd/system/fiber-platform-apply.service; do
+for gone in /opt/fiber /etc/fiber /var/lib/fiber /usr/local/bin/fiber /etc/systemd/system/fiber-platform-apply.service \
+    /etc/systemd/system/fiber-agent.service; do
     [ ! -e "$gone" ] || fail "$gone is still there"
 done
 grep -q '^  sudo apt purge ' /tmp/uninstall.out || fail "the uninstall did not print how to purge the packages"
+grep -q '^  sudo userdel fiber$' /tmp/uninstall.out || fail "the uninstall did not say how to take the user fiber off"
 snapshot > /root/uninstalled.txt
 python3 /tests/footprint-check.py /root/before.txt /root/uninstalled.txt /footprint.yaml --uninstalled ||
     fail "the uninstall left paths behind"

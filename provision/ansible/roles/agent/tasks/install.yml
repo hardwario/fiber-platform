@@ -1,0 +1,43 @@
+---
+# The user, the unit and the settings. Nothing here needs the service running, so it works in a
+# chroot.
+- name: The groups of the board's devices
+  ansible.builtin.group:
+    name: "{{ item }}"
+    system: true
+  loop: [gpio, i2c, spi]
+
+- name: The user fiber, in the groups of the serial ports, GPIO, I2C and SPI
+  ansible.builtin.user:
+    name: fiber
+    system: true
+    home: /var/lib/fiber/agent
+    create_home: false
+    shell: /usr/sbin/nologin
+    groups: [dialout, gpio, i2c, spi]
+    append: true
+  notify: Restart the agent
+
+- name: The agent's settings, written once, with the defaults in comments
+  ansible.builtin.copy:
+    src: agent.toml
+    dest: /etc/fiber/agent.toml
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+
+- name: The service fiber-agent
+  ansible.builtin.copy:
+    src: fiber-agent.service
+    dest: /etc/systemd/system/fiber-agent.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart the agent
+
+- name: The agent starts with the FIBER
+  ansible.builtin.systemd_service:
+    name: fiber-agent
+    enabled: true
+    daemon_reload: true

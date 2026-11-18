@@ -1,4 +1,7 @@
 ---
-- name: The agent role is not written yet
-  ansible.builtin.fail:
-    msg: "the agent role is not written yet (TASKS.md, T18)"
+# Bring the agent up: install, then bootstrap (the shape of every role, docs/provisioning.md).
+- name: Install
+  ansible.builtin.import_tasks: install.yml
+
+- name: Bootstrap
+  ansible.builtin.import_tasks: bootstrap.yml

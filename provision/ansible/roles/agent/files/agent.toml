@@ -1,0 +1,12 @@
+# The FIBER agent's settings (docs/cli.md, "fiber agent"). The agent needs none: each line below
+# is a default, in a comment. To change one, take the "# " off its line and off its section's,
+# then: sudo systemctl restart fiber-agent
+#
+# Written once by the FIBER platform (the agent role), and never again.
+
+# [mqtt]
+# host = "127.0.0.1"   # the broker on the FIBER itself
+# port = 1883
+
+# [board]
+# dividers = true      # false on the board variant without the two voltage dividers

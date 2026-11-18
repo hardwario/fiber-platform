@@ -8,7 +8,8 @@ use tokio_serial::SerialPortBuilderExt;
 
 use super::config::Config;
 use super::mqtt::Mqtt;
-use super::run::{Agent, Stop, run};
+use super::notify::Notify;
+use super::run::{Agent, Stop, run, run_without_link};
 use super::state::{Settings, State};
 use super::topics::Identity;
 use crate::board;
@@ -16,6 +17,10 @@ use crate::paths::Paths;
 
 /// How long to wait before opening the south bridge's port again.
 const REOPEN: Duration = Duration::from_secs(5);
+
+/// How often the watchdog is fed while the agent flashes, and its loop does not run. Well inside
+/// the unit's `WatchdogSec=` (30 s).
+const BEAT: Duration = Duration::from_secs(1);
 
 /// The FIBER's identity, as `fiber/status` shows it.
 fn identity(paths: &Paths) -> Identity {
@@ -49,6 +54,7 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
             identity(paths),
         );
         agent.keep_tries(paths.flash_tries());
+        agent.notify = Notify::from_env();
         // Held while the agent runs, so that a command run by hand keeps off the port.
         let _lock = match fiber_flasher::PortLock::take(&paths.lock_dir(), board::SOUTH_BRIDGE_UART) {
             Ok(lock) => Some(lock),
@@ -62,27 +68,45 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
             env!("CARGO_PKG_VERSION"),
             board::SOUTH_BRIDGE_UART
         );
+        agent.notify.send("READY=1");
         // For the tests: another serial port, a pseudo-terminal to the simulated south bridge.
         let port = std::env::var("FIBER_SOUTH_PORT").unwrap_or_else(|_| board::SOUTH_BRIDGE_UART.to_owned());
+        // The last error with the port, said once and not every 5 s.
+        let mut said: Option<String> = None;
         loop {
-            match tokio_serial::new(&port, 115_200).open_native_async() {
+            let stop = match tokio_serial::new(&port, 115_200).open_native_async() {
                 Ok(stream) => {
+                    if said.take().is_some() {
+                        eprintln!("opened {port}");
+                    }
                     let (reader, writer) = tokio::io::split(stream);
                     match run(&mut agent, reader, writer).await {
-                        Ok(Stop::Flash { request }) => {
-                            // The link's port is closed again before the flasher opens it.
-                            flash(&mut agent, request).await;
-                            continue;
+                        Ok(stop) => stop,
+                        Err(error) => {
+                            say(&mut said, format!("the south link: {error}"));
+                            run_without_link(&mut agent, REOPEN).await
                         }
-                        Err(error) => eprintln!("the south link: {error}"),
                     }
                 }
-                Err(error) => eprintln!("cannot open {port}: {error}"),
+                Err(error) => {
+                    say(&mut said, format!("cannot open {port}: {error}"));
+                    run_without_link(&mut agent, REOPEN).await
+                }
+            };
+            // The link's port is closed again before the flasher opens it.
+            if let Stop::Flash { request } = stop {
+                flash(&mut agent, request).await;
             }
-            agent.state.south_silent();
-            tokio::time::sleep(REOPEN).await;
         }
     })
+}
+
+/// Prints `message` when it is not the one printed last.
+fn say(said: &mut Option<String>, message: String) {
+    if said.as_deref() != Some(message.as_str()) {
+        eprintln!("{message}");
+        *said = Some(message);
+    }
 }
 
 /// Flashes the south bridge with the image the program carries, off the agent's loop.
@@ -92,9 +116,16 @@ async fn flash<B: super::run::Bus>(agent: &mut Agent<B>, request: Option<String>
     };
     eprintln!("flashing the south bridge ({} bytes)", image.len());
     agent.begin_flash().await;
-    let result = tokio::task::spawn_blocking(move || super::hardware::flash_south(image))
-        .await
-        .unwrap_or_else(|e| Err(format!("the flasher stopped: {e}")));
+    let mut flashing = tokio::task::spawn_blocking(move || super::hardware::flash_south(image));
+    // The flasher gives up on a chip that does not answer, so this ends.
+    let result = loop {
+        tokio::select! {
+            done = &mut flashing => {
+                break done.unwrap_or_else(|e| Err(format!("the flasher stopped: {e}")));
+            }
+            _ = tokio::time::sleep(BEAT) => agent.notify.send("WATCHDOG=1"),
+        }
+    };
     match &result {
         Ok(()) => eprintln!("flashed the south bridge"),
         Err(e) => eprintln!("flashing the south bridge failed: {e}"),

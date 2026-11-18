@@ -483,7 +483,19 @@ impl PortLock {
     pub fn take(dir: &std::path::Path, port: &str) -> io::Result<PortLock> {
         let name = port.rsplit('/').next().unwrap_or(port);
         std::fs::create_dir_all(dir)?;
-        let file = std::fs::File::create(dir.join(format!("fiber-{name}.lock")))?;
+        let path = dir.join(format!("fiber-{name}.lock"));
+        // Read-only and without O_CREAT when it is there: the file may be another user's (the
+        // agent runs as `fiber`, a command by hand as root), and `/run/lock` is sticky, where the
+        // kernel refuses O_CREAT on another user's file (`fs.protected_regular`).
+        let file = match std::fs::File::open(&path) {
+            Ok(file) => file,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(&path)?,
+            Err(e) => return Err(e),
+        };
         match file.try_lock() {
             Ok(()) => Ok(PortLock { _file: file }),
             Err(std::fs::TryLockError::WouldBlock) => Err(io::Error::new(

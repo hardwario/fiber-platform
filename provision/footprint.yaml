@@ -29,6 +29,10 @@ paths:
   - {path: /etc/mosquitto/conf.d/fiber.conf, by: mosquitto}
   - {path: /etc/mosquitto/fiber-passwd, by: mosquitto}
 
+  # agent. The user `fiber` stays after an uninstall, as Node-RED's user does.
+  - {path: /etc/systemd/system/fiber-agent.service, by: agent}
+  - {path: /etc/systemd/system/multi-user.target.wants/fiber-agent.service, by: agent}
+
   # node-red. Node-RED itself is npm's, in /usr/lib/node_modules, not a Debian package's; its
   # unit is named as Node-RED's own installer names it.
   - {path: /etc/apt/keyrings/fiber-nodesource.asc, by: node-red}

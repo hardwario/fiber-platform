@@ -3,11 +3,12 @@
 How a vanilla Raspberry Pi OS becomes a FIBER: what is installed, how the choice is stored, and how
 it is applied again later.
 
-**Status: partly built** (`TASKS.md`, T4 to T12). Built so far: `provision/components.yaml`; the
-`fiber platform` commands that read and change `/etc/fiber/platform.yaml` and take the seed
-([`cli.md`](cli.md)); the release archive and the installer. No role installs anything yet. The package sources and versions below were checked against the
-upstream documentation and repositories on 2026-11-17; check them again when each role is
-written.
+**Status: partly built** (`TASKS.md`, T4 to T12, T18). Built so far: `provision/components.yaml`;
+the `fiber platform` commands that read and change `/etc/fiber/platform.yaml` and take the seed
+([`cli.md`](cli.md)); the release archive and the installer; the roles `base`, `mosquitto`,
+`node_red`, `chirpstack` and `agent`, tested in containers and not run on a FIBER yet. The
+package sources and versions below were checked against the upstream documentation and
+repositories on 2026-11-17; check them again when each role is changed.
 
 ## The idea
 
@@ -245,6 +246,28 @@ the mini-PCIe slot:
   not this card alone.
 
 Tested in the converge test, without a card. Not run on a FIBER yet.
+
+### The agent
+
+The `agent` role runs `fiber agent` ([`cli.md`](cli.md)) as a service:
+
+- **The user `fiber`,** a system user without a login, in the groups `dialout`, `gpio`, `i2c`
+  and `spi`: the serial ports, the GPIO lines, the I2C and SPI buses.
+- **`fiber-agent.service`,** the role's own unit. `Type=notify`: the agent tells systemd when it
+  runs, and its loop feeds a watchdog of 30 s, also while the south bridge's port is missing and
+  while it flashes. When the loop stops, systemd restarts it after 5 s.
+- **What the unit allows:** the system read-only but for `/var/lib/fiber/agent` (the flash tries)
+  and `/run/lock` (the lock on the south bridge's port); of the devices only the classes
+  `ttyAMA`, `gpiochip`, `i2c` and `spi`; no capabilities; IPv4, IPv6 and Unix sockets only.
+- **`/etc/fiber/agent.toml`** is written once, with every setting at its default in a comment,
+  and never again: the agent needs no settings, and the owner's changes stay.
+- **A new program is started:** after an update or a rollback the role restarts the agent when
+  the program it runs is not the one `/usr/local/bin/fiber` leads to.
+- **Turned off,** the service is stopped and does not start with the FIBER. Both
+  microcontrollers keep their firmware; the south bridge shows its fallback pattern after 5 s.
+
+Tested in the converge test against the simulated south bridge. Not run on a FIBER yet: the
+device classes and the groups of the devices are Raspberry Pi OS's, not seen on a FIBER yet.
 
 ### Sources (checked 2026-11-17)
 

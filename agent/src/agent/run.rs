@@ -16,6 +16,7 @@ use tokio::time::Instant;
 
 use super::firmware::{self, Seen, Tries};
 use super::link::{Event, Reader, Writer};
+use super::notify::Notify;
 use super::requests::{self, Answer, Handled, RecentIds};
 use super::state::{FirmwareState, State};
 use super::topics::{self, Identity};
@@ -32,11 +33,13 @@ pub const NO_FIRMWARE_AFTER: Duration = Duration::from_secs(10);
 /// Frames with another schema tag, in a row, before the chip is flashed.
 pub const OTHER_SCHEMA_FRAMES: u32 = 3;
 
-/// Why [`run`] returned with the link still whole.
+/// Why [`run`] or [`run_without_link`] returned.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Stop {
     /// The south bridge is to be flashed; `request` is the id of a `firmware.flash` to answer.
     Flash { request: Option<String> },
+    /// The time without the link is over: try to open the port again.
+    Reopen,
 }
 
 /// What comes from the broker.
@@ -81,6 +84,8 @@ pub struct Agent<B: Bus> {
     other_schema: u32,
     hello_seen: bool,
     flash: Option<Option<String>>,
+    /// systemd's watchdog, fed on every tick.
+    pub notify: Notify,
 }
 
 /// A payload without its `ts`, to compare.
@@ -108,6 +113,7 @@ impl<B: Bus> Agent<B> {
             other_schema: 0,
             hello_seen: false,
             flash: None,
+            notify: Notify::default(),
         }
     }
 
@@ -225,7 +231,10 @@ impl<B: Bus> Agent<B> {
     }
 
     /// Once a second: cycles that are due, silence, the next `Desired`.
-    async fn tick<W: AsyncWrite + Unpin>(&mut self, writer: &mut Writer<W>) -> io::Result<()> {
+    /// Once a second. Without the link (`writer` is `None`) the south bridge counts as silent
+    /// and nothing is sent to it, and the rest goes on: the watchdog, the cycles, MQTT.
+    async fn tick<W: AsyncWrite + Unpin>(&mut self, writer: Option<&mut Writer<W>>) -> io::Result<()> {
+        self.notify.send("WATCHDOG=1");
         let now = Instant::now();
         let due: Vec<_> = self
             .cycles
@@ -239,14 +248,19 @@ impl<B: Bus> Agent<B> {
             let data = requests::ports_data(&self.state);
             self.answer(Answer::ok(&id, Some(data))).await;
         }
-        let last = self.last_status.unwrap_or(self.started);
-        if last.elapsed() > SILENT_AFTER {
-            self.state.south_silent();
+        match writer {
+            Some(writer) => {
+                let last = self.last_status.unwrap_or(self.started);
+                if last.elapsed() > SILENT_AFTER {
+                    self.state.south_silent();
+                }
+                if !self.hello_seen && self.started.elapsed() > NO_FIRMWARE_AFTER {
+                    self.consider_flash(Seen::Silent);
+                }
+                writer.send(&Message::Desired(self.state.desired())).await?;
+            }
+            None => self.state.south_silent(),
         }
-        if !self.hello_seen && self.started.elapsed() > NO_FIRMWARE_AFTER {
-            self.consider_flash(Seen::Silent);
-        }
-        writer.send(&Message::Desired(self.state.desired())).await?;
         self.publish_state(false).await;
         Ok(())
     }
@@ -313,26 +327,67 @@ impl<B: Bus> Agent<B> {
     }
 }
 
-/// Runs the agent on a south link until the link ends or breaks, or the south bridge is to be
-/// flashed.
+/// The loop on the south bridge's link: a `Desired` every second, what the chip sends, and
+/// MQTT. It returns when the chip is to be flashed, or with the link's error.
 pub async fn run<R, W, B>(agent: &mut Agent<B>, reader: R, writer: W) -> io::Result<Stop>
 where
     R: AsyncRead + Unpin,
     W: AsyncWrite + Unpin,
     B: Bus,
 {
-    let mut reader = Reader::new(reader);
-    let mut writer = Writer::new(writer);
-    writer.send(&Message::HelloRequest).await?;
+    serve(agent, Some((Reader::new(reader), Writer::new(writer))), None).await
+}
+
+/// The loop without the link, while the south bridge's port cannot be opened: MQTT, the
+/// requests and the watchdog go on, and the chip counts as silent. It returns after `wait`, to
+/// open the port again, or when the chip is to be flashed.
+pub async fn run_without_link<B: Bus>(agent: &mut Agent<B>, wait: Duration) -> Stop {
+    let link: Option<(Reader<tokio::io::Empty>, Writer<tokio::io::Sink>)> = None;
+    // Without a link there is nothing to fail.
+    serve(agent, link, Some(Instant::now() + wait))
+        .await
+        .unwrap_or(Stop::Reopen)
+}
+
+async fn serve<R, W, B>(
+    agent: &mut Agent<B>,
+    mut link: Option<(Reader<R>, Writer<W>)>,
+    until: Option<Instant>,
+) -> io::Result<Stop>
+where
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
+    B: Bus,
+{
+    if let Some((_, writer)) = &mut link {
+        // A new link: the chip has 10 s from now to say who it is.
+        agent.started = Instant::now();
+        agent.hello_seen = false;
+        agent.last_status = None;
+        writer.send(&Message::HelloRequest).await?;
+    }
     let mut tick = tokio::time::interval(Duration::from_secs(1));
     loop {
+        let from_chip = async {
+            match &mut link {
+                Some((reader, _)) => reader.next().await,
+                None => std::future::pending().await,
+            }
+        };
+        let over = async {
+            match until {
+                Some(until) => tokio::time::sleep_until(until).await,
+                None => std::future::pending().await,
+            }
+        };
         tokio::select! {
-            _ = tick.tick() => agent.tick(&mut writer).await?,
-            event = reader.next() => agent.link(event?).await,
+            _ = tick.tick() => agent.tick(link.as_mut().map(|(_, writer)| writer)).await?,
+            event = from_chip => agent.link(event?).await,
             event = agent.bus.next() => match event {
                 BusEvent::Connected => agent.publish_state(true).await,
                 BusEvent::Request(payload) => agent.request(&payload).await,
             },
+            () = over => return Ok(Stop::Reopen),
         }
         if let Some(request) = agent.flash.take() {
             return Ok(Stop::Flash { request });
@@ -494,6 +549,43 @@ mod tests {
             Agent::new(State::new(Settings { dividers: true }, carried), bus, identity),
             bus_tx,
         )
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn without_the_link_mqtt_goes_on() {
+        let published = Rc::new(RefCell::new(Vec::new()));
+        let (mut agent, bus) = agent_with(Some(CRC), &published);
+        bus.send(BusEvent::Connected).unwrap();
+        bus.send(BusEvent::Request(
+            br#"{"id":"p1","op":"ports.power","params":{"port":3,"power":false}}"#.to_vec(),
+        ))
+        .unwrap();
+        let started = Instant::now();
+        assert_eq!(
+            run_without_link(&mut agent, Duration::from_secs(5)).await,
+            Stop::Reopen
+        );
+        assert!(started.elapsed() >= Duration::from_secs(5));
+        assert_eq!(last(&published, "fiber/status").unwrap()["state"], "online");
+        assert_eq!(
+            last(&published, "fiber/firmware/south").unwrap()["state"],
+            "silent"
+        );
+        assert_eq!(last(&published, "fiber/power").unwrap()["source"], "unknown");
+        assert_eq!(last(&published, "fiber/rsp/p1").unwrap()["ok"], true);
+        assert_eq!(last(&published, "fiber/ports/3").unwrap()["power"], false);
+
+        // Not flashed on its own without a port, but when asked.
+        bus.send(BusEvent::Request(
+            br#"{"id":"f3","op":"firmware.flash","params":{"chip":"south"}}"#.to_vec(),
+        ))
+        .unwrap();
+        assert_eq!(
+            run_without_link(&mut agent, Duration::from_secs(60)).await,
+            Stop::Flash {
+                request: Some("f3".into())
+            }
+        );
     }
 
     #[tokio::test(start_paused = true)]

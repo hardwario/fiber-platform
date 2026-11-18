@@ -1,0 +1,54 @@
+# The FIBER agent: the one process that owns the board (docs/provisioning.md, "The agent").
+# Written by the FIBER platform (the agent role); change it with a drop-in in
+# /etc/systemd/system/fiber-agent.service.d/.
+[Unit]
+Description=FIBER agent: the board on MQTT
+Documentation=https://github.com/hardwario/fiber-platform/blob/main/docs/cli.md
+Wants=mosquitto.service
+After=mosquitto.service
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/fiber agent
+User=fiber
+Group=fiber
+# The agent's loop feeds the watchdog once a second; a loop that stops is restarted.
+WatchdogSec=30s
+Restart=always
+RestartSec=5s
+# The flash tries, kept across restarts; and the lock on the south bridge's port (without
+# /run/lock the agent runs on, unlocked).
+StateDirectory=fiber/agent
+StateDirectoryMode=0750
+ReadWritePaths=-/run/lock
+
+# The board's devices, by class: the serial ports, the GPIO lines, I2C and SPI. Nothing else.
+DevicePolicy=closed
+DeviceAllow=char-ttyAMA rw
+DeviceAllow=char-gpiochip rw
+DeviceAllow=char-i2c rw
+DeviceAllow=char-spi rw
+
+# No capabilities, and the rest of the system read-only.
+CapabilityBoundingSet=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

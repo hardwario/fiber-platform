@@ -13,6 +13,7 @@ pub mod images;
 pub mod leds;
 pub mod link;
 pub mod mqtt;
+pub mod notify;
 pub mod power;
 pub mod requests;
 pub mod run;

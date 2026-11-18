@@ -350,20 +350,22 @@ costs 82 bytes.
 
 ### T17. The agent's core (M2)
 
-State (2026-11-18, 02:05): everything that needs no board is written and tested (`just check`
-and the converge test pass on the computer). `fiber agent` runs: the core's logic (`agent/src/agent/`), the loop around it (the south link
-every second, MQTT, requests, port cycles), MQTT through rumqttc without TLS, `agent.toml` with
-defaults. The agent carries the south bridge's image (`just build-fiber` builds it in) and flashes
-the chip through the flasher's adapters to the real port and GPIO lines; tested against the loop
-with a fake bus, not against a chip. The command line's clients are written: `status`, `power`,
-`ports`, `leds`, `firmware status` and `firmware flash` through MQTT, `firmware chip` on the
-bootloader directly (tested against the simulated one). The converge test runs the agent through
-Mosquitto against `fiber south-simulator` on a pseudo-terminal (step 8d). Next: the service
-(with T18, whose role installs it). Not done: the mini-PCIe lines (they wait for T2's
-levels); anything on a FIBER. Settled: `Hello` carries `VREFINT_CAL`; a board without dividers is a
-setting (`[board] dividers`); rumqttc's loop runs in a task of its own, and a publish while the
-broker is down is dropped (every retained topic is sent again after the reconnect); the simulator
-says it runs the image the program carries, so that the agent leaves it alone.
+State (2026-11-18, 03:50): everything that needs no board is written and tested (`just check` and
+the converge test pass on the computer; commit `b8f038d`, CI run 44206746581 green). `fiber agent`
+runs: the core's logic (`agent/src/agent/`), the loop around it (the south link every second, MQTT,
+requests, port cycles), MQTT through rumqttc without TLS, `agent.toml` with defaults. The agent
+carries the south bridge's image (`just build-fiber` builds it in) and flashes the chip through the
+flasher's adapters to the real port and GPIO lines; tested against the loop with a fake bus, not
+against a chip. The command line's clients are written: `status`, `power`, `ports`, `leds`,
+`firmware status` and `firmware flash` through MQTT, `firmware chip` on the bootloader directly
+(tested against the simulated one); `power --follow` is not (T19 builds it). The converge test runs
+the agent through Mosquitto against `fiber south-simulator` on a pseudo-terminal (step 8d); the
+service came with T18. Not done: the mini-PCIe lines (they wait for T2's levels); anything on a
+FIBER. Settled: `Hello` carries `VREFINT_CAL`; a board without dividers is a setting (`[board]
+dividers`); rumqttc's loop runs in a task of its own, and a publish while the broker is down is
+dropped (every retained topic is sent again after the reconnect); the simulator says it runs the
+image the program carries, so that the agent leaves it alone; without the south bridge's port the
+agent goes on with MQTT (found by T18).
 
 The one program that owns the board. This task gives it the south bridge and its first topics.
 
@@ -387,8 +389,8 @@ The one program that owns the board. This task gives it the south bridge and its
 - [x] The command line as a client of MQTT: `status`, `power`, `ports`, `leds`, `firmware
       status`, `firmware flash` (through the agent). `firmware chip` talks to the bootloader
       itself and refuses while the agent holds the port; `doctor` only reads
-- [ ] The service: the user `fiber`, read-only system directories, only the devices it needs, no
-      capabilities, a watchdog. It is written with T18, whose role installs it
+- [x] The service: the user `fiber`, read-only system directories, only the devices it needs, no
+      capabilities, a watchdog. Written with T18, whose role installs it
 - [x] Tests without a board: against the south bridge simulator, the simulated bootloader, and
       a broker inside the test (Mosquitto in the converge test, step 8d)
 
@@ -400,26 +402,72 @@ board the two voltages read nothing useful, and `power` has to say so.
 
 ### T18. The `agent` role (M2)
 
-State (2026-11-18, 01:55): started; the steps below are new. Waits for nothing to begin; the last
-step waits for a FIBER (T2).
+State (2026-11-18, 03:50): everything that needs no board is done and checked: `just check`, and
+the converge test with the service in it (the agent runs as `fiber` without capabilities, holds
+the port, feeds a watchdog of 3 s, is restarted on the new program by an update and a rollback,
+and goes offline when turned off). On the way the converge test found that the agent served
+nothing on MQTT without the south bridge's port; fixed (`run_without_link`). The port lock is
+taken read-only when its file is there (another user's file in the sticky `/run/lock`). Waits for
+a FIBER (T2) for the last step.
 
-- [ ] `docs/provisioning.md` first: the agent role (the user, its groups, the unit, the settings
+- [x] `docs/provisioning.md` first: the agent role (the user, its groups, the unit, the settings
       file), and the unit's lines in `docs/architecture.md`
-- [ ] `fiber-agent.service`: the user `fiber`; `Type=notify` with a watchdog that the agent's
+- [x] `fiber-agent.service`: the user `fiber`; `Type=notify` with a watchdog that the agent's
       loop feeds (also while the port is missing and while it flashes); the system read-only
       but for `/var/lib/fiber/agent` and `/run/lock`; only the device classes it needs; no
       capabilities
-- [ ] The role: the user and its groups, the unit, `/etc/fiber/agent.toml` written once with the
+- [x] The role: the user and its groups, the unit, `/etc/fiber/agent.toml` written once with the
       defaults in comments, enabled and started; restarted when the program changed (an update
       or a rollback)
-- [ ] Turning it off stops and disables the service; both microcontrollers keep their firmware
-- [ ] In the converge test: the service against the south bridge simulator; it runs as `fiber`,
+- [x] Turning it off stops and disables the service; both microcontrollers keep their firmware
+- [x] In the converge test: the service against the south bridge simulator; it runs as `fiber`,
       holds the port (`fiber firmware chip` refuses), its watchdog does not fire, an update
       restarts it on the new program, and turning it off takes `fiber/status` offline
 - [ ] On a FIBER: `fiber platform enable agent` brings up `fiber/status`
 
 - Needs: T6, T17.
 - Done when: `fiber platform enable agent` on a FIBER brings up `fiber/status`.
+
+### T19. Thermometers (M3)
+
+State (2026-11-18, 03:35): the docs are written (drafts, like T13's: the maintainer has not read
+them). The kernel's source was read for them (rpi-6.12.y and v6.12): nothing in sysfs ties a
+1-Wire bus master to the DS2482 or to its channel, so the masters are taken by their order. The
+schematic says port k is DS2482 channel k - 1, and a shorted port is not reported by any part.
+Next: the code, after T18's commit.
+
+The first thing most users will plug in: a DS18B20 on one of the eight ports.
+
+- [x] `docs/` first: what the kernel gives (`docs/hardware.md`, "The 1-Wire ports in Linux"),
+      the topics and the port lights (`docs/mqtt-api.md`), `fiber thermometers` (`docs/cli.md`)
+- [ ] Thermometers behind a trait. The first implementation reads the kernel's 1-Wire tree. The
+      bus masters are `/sys/devices/w1_bus_masterN`, with nothing that names their chip or
+      channel; the DS2482 registers its eight one after another, channel 0 first, so: exactly
+      eight masters, sorted by number, the k-th is port k (more or fewer is said, and nothing is
+      read). The eight ports read side by side (each master has its own lock), the probes of a
+      port one after another (a read blocks for about 750 ms); off the main task
+- [ ] What is not a reading: an empty read (every error in the kernel's driver reads empty); the
+      85 °C a probe reports right after power-on; a probe that is gone (the kernel keeps it for
+      10 missed searches, about 100 s)
+- [ ] The port lights: what green, red and off mean for a port, written in `docs/mqtt-api.md`
+      first
+- [ ] `thermometers/{id}` (retained; an empty message when a probe is gone) and the probes of
+      each port in `ports/{n}`; `fiber thermometers` and `fiber thermometers watch`
+      (`fiber ports cycle` came with T17), and with the same loop `fiber power --follow`, which
+      `docs/cli.md` has had since T13 and T17 did not build
+- [ ] Tests against a made-up 1-Wire tree under a root that the tests set
+- [ ] The Node-RED starter flow shows the thermometers
+- [ ] On a FIBER: plug a probe in and out; short a port; eight ports with probes; check that the
+      k-th master is port k, by switching one port on at a time
+
+Watch out: if plugging in feels slow (the kernel searches a bus only every ten seconds), the
+other implementation is a driver of our own for the DS2482 over `i2c-dev`, about 700 lines. The
+trait is there so that this is a swap (D17). `therm_bulk_read` (all probes converted at once)
+cannot be used: the driver puts it on one master only, the master of the first DS18B20 it saw.
+
+- Needs: T7, T17.
+- Done when: a DS18B20 shows up on `fiber/thermometers/...` and in the starter flow; plugging a
+  probe in and out, and a shorted port, behave.
 
 ## Tasks ahead
 
@@ -524,32 +572,7 @@ Its tasks, T13 to T18, are all in progress.
 
 ### M3. Thermometers
 
-#### T19. Thermometers
-
-The first thing most users will plug in: a DS18B20 on one of the eight ports.
-
-- [ ] Thermometers behind a trait. The first implementation reads the kernel's 1-Wire tree: one
-      bus master for each port, found under the DS2482's own device and not by its number
-      (numbers follow the order of registration); all probes converted at once; the reads kept
-      off the main task (one read blocks for about 750 ms)
-- [ ] What is not a reading: an empty read, the 85 °C a probe reports right after power-on, a
-      probe that is gone (the kernel notices slowly)
-- [ ] The port lights: what green, red and off mean for a port, written in `docs/mqtt-api.md`
-      first
-- [ ] `thermometers/{rom}` (retained; an empty message when a probe is gone) and the probes of
-      each port in `ports/{n}`; `fiber thermometers` and `fiber thermometers watch`;
-      `fiber ports cycle N` switches a port off and on
-- [ ] Tests against a made-up 1-Wire tree under a root that the tests set
-- [ ] The Node-RED starter flow shows the thermometers
-- [ ] On a FIBER: plug a probe in and out; short a port; eight ports with probes
-
-Watch out: if plugging in feels slow (the kernel searches a bus only every ten seconds), the
-other implementation is a driver of our own for the DS2482 over `i2c-dev`, about 700 lines. The
-trait is there so that this is a swap (D17).
-
-- Needs: T7, T17.
-- Done when: a DS18B20 shows up on `fiber/thermometers/...` and in the starter flow; plugging a
-  probe in and out, and a shorted port, behave.
+Its one task, T19, is in progress.
 
 ### M4. The front panel
 

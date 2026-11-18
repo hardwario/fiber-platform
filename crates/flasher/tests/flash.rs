@@ -220,5 +220,12 @@ fn a_port_held_by_another() {
     );
     drop(first);
     PortLock::take(&dir, "/dev/ttyAMA4").unwrap();
+    // A lock file that cannot be written to (another user's) is still a lock.
+    use std::os::unix::fs::PermissionsExt;
+    let path = dir.join("fiber-ttyAMA4.lock");
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
+    let first = PortLock::take(&dir, "/dev/ttyAMA4").unwrap();
+    assert!(PortLock::take(&dir, "/dev/ttyAMA4").is_err());
+    drop(first);
     let _ = std::fs::remove_dir_all(dir);
 }

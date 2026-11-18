@@ -4,9 +4,10 @@ The agent shows the board on MQTT, and takes requests there. This page is the re
 anyone who talks to a FIBER through its broker: a Node-RED flow, a program of your own, and the
 `fiber` command line itself, which is a client of exactly these topics (D19).
 
-**Status: a draft for the maintainer to read (T13).** Nothing of it is built yet. This first
-part covers the agent's core and the south bridge (M2); the thermometers (M3), the front panel
-(M4) and the radio (M5) add their topics with their tasks.
+**Status: a draft for the maintainer to read (T13).** Built in the agent (T17) and tested against
+a simulated south bridge through Mosquitto; not run on a FIBER yet. This first part covers the
+agent's core and the south bridge (M2); the thermometers (M3), the front panel (M4) and the radio
+(M5) add their topics with their tasks.
 
 ## The rules
 

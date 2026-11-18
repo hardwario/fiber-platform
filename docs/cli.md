@@ -55,9 +55,10 @@ Their exit statuses, beside the ones at the top of this page:
 
 ### `fiber agent`
 
-The agent itself: the one process that owns the board. `fiber-agent.service` runs it (the `agent`
-component, T18); it is not meant to be started by hand while the service runs. It needs no
-settings; `/etc/fiber/agent.toml` changes the defaults:
+The agent itself: the one process that owns the board. `fiber-agent.service` runs it, as the user
+`fiber` (the `agent` component, [`provisioning.md`](provisioning.md), "The agent"); it is not
+meant to be started by hand while the service runs. It needs no settings; `/etc/fiber/agent.toml`
+changes the defaults (the role writes it once, with each default in a comment):
 
 ```toml
 [mqtt]
@@ -305,9 +306,9 @@ releases change places, so a second rollback goes forward again. Exit status: th
 Takes the FIBER platform off the system: every component is turned off (each role's `disable`),
 then every file of the footprint ([`provisioning.md`](provisioning.md)), `/etc/fiber` with the
 login, `/var/lib/fiber`, `/var/log/fiber`, `/usr/local/bin/fiber` and `/opt/fiber` are removed.
-The services' data stays; the command lists it, and prints, without running them, the commands
-that would take the packages from other sources and their data off too. Without `--yes` it only
-says what it would do.
+The services' data and the users the roles made (`fiber`, `nodered`) stay; the command lists the
+data, and prints, without running them, the commands that would take the packages from other
+sources, their data and the users off too. Without `--yes` it only says what it would do.
 
 ### `fiber platform seed <file>`
 

@@ -1,0 +1,37 @@
+---
+# What needs the running service.
+- name: A changed unit or user takes effect first
+  ansible.builtin.meta: flush_handlers
+
+- name: The agent runs
+  ansible.builtin.systemd_service:
+    name: fiber-agent
+    state: started
+  register: agent_service
+
+# After an update or a rollback, /usr/local/bin/fiber leads to another program than the one the
+# agent was started from.
+- name: The program the agent runs
+  ansible.builtin.stat:
+    path: "/proc/{{ agent_service.status.MainPID }}/exe"
+  register: agent_running
+
+- name: The program of this release
+  ansible.builtin.stat:
+    path: /usr/local/bin/fiber
+  register: agent_release
+
+- name: The agent restarted on the program of this release
+  ansible.builtin.systemd_service:
+    name: fiber-agent
+    state: restarted
+  when: agent_running.stat.lnk_source | default('') != agent_release.stat.lnk_source | default('')
+
+- name: The agent answers on MQTT
+  ansible.builtin.command:
+    argv: [/usr/local/bin/fiber, status]
+  register: agent_status
+  changed_when: false
+  retries: 15
+  delay: 2
+  until: agent_status.rc == 0

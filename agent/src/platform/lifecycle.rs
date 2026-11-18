@@ -257,18 +257,39 @@ pub fn uninstall(paths: &Paths, yes: bool) -> Result<ExitCode> {
             println!("  {path}");
         }
     }
+    let passwd = std::fs::read_to_string(paths.under("/etc/passwd")).unwrap_or_default();
     println!(
         "The packages from other sources are still installed. To take them off too, with their data:\n  \
          sudo apt purge mosquitto mosquitto-clients nodejs chirpstack-sqlite chirpstack-mqtt-forwarder \
-         redis-server\n  sudo rm -rf{}",
-        kept.iter().map(|p| format!(" {p}")).collect::<String>()
+         redis-server\n  sudo rm -rf{}{}",
+        kept.iter().map(|p| format!(" {p}")).collect::<String>(),
+        users_left(&passwd)
+            .iter()
+            .map(|user| format!("\n  sudo userdel {user}"))
+            .collect::<String>()
     );
     Ok(ExitCode::SUCCESS)
+}
+
+/// The users the roles made that are still there: an uninstall leaves them, as a package does.
+fn users_left(passwd: &str) -> Vec<&'static str> {
+    ["fiber", "nodered"]
+        .into_iter()
+        .filter(|user| passwd.lines().any(|line| line.split(':').next() == Some(*user)))
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_users_left_are_named() {
+        let passwd = "root:x:0:0::/root:/bin/bash\nnodered:x:998:998::/var/lib/node-red:/usr/sbin/nologin\n\
+                      fiberish:x:997:997::/:/bin/sh\n";
+        assert_eq!(users_left(passwd), ["nodered"]);
+        assert!(users_left("").is_empty());
+    }
 
     #[test]
     fn what_a_release_says() {
