@@ -2,9 +2,9 @@
 # NodeSource, npm, ChirpStack), as a new FIBER would today, and check the package sources' keys
 # that the roles carry. A source that breaks shows up here before it shows up on a FIBER.
 #
-# A failed run is shown on the Actions page and mailed to whoever last changed this schedule.
-# Opening an issue for it needs a job with write rights, which no workflow here has yet:
-# TASKS.md, D22.
+# A failed scheduled run opens an issue, or comments on the one still open: the `report` job, the
+# only one here with rights to write (TASKS.md, D22). A run started by hand only fails on the
+# Actions page, where the person who started it looks.
 
 name: Canary
 
@@ -50,3 +50,28 @@ jobs:
         run: just check-keys
       - name: just check-converge
         run: just check-converge
+
+  # The only job of this workflow that may write (D22).
+  report:
+    name: Open an issue when it failed
+    needs: converge
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: An issue, or a comment on the one still open
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Canary: a package source or a key broke"
+          number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" \
+            --json number,title --jq "map(select(.title == \"$title\")) | .[0].number // empty")"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "Failed again: $RUN_URL"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$(printf '%s\n\n%s\n' \
+              "The weekly canary failed: $RUN_URL" \
+              "A component did not converge against the live package sources, or a key the roles carry expires within 60 days. Close this issue once it is fixed.")"
+          fi

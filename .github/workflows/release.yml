@@ -6,8 +6,10 @@
 # nothing. A tag cannot be moved, so a build that fails after tagging uses up its version: run it
 # by hand first after any change to the build.
 #
-# Publishing (a release on GitHub, uploaded to a draft first, with a provenance attestation) needs
-# a job with write rights, which no workflow here has yet: TASKS.md, D22.
+# Publishing is the `publish` job, the only one with rights to write (TASKS.md, D22), and it runs
+# only on a tag that passed the gate: a provenance attestation of every file in SHA256SUMS, a draft
+# release with the files, then the release published. With the repository's "immutable releases"
+# setting on, a published release and its tag cannot be changed afterwards.
 
 name: Release
 
@@ -128,3 +130,47 @@ jobs:
             dist/install.sh
             dist/SHA256SUMS
           if-no-files-found: error
+
+  # The only job of this workflow that may write (D22): only on a tag that passed the gate, and
+  # only with what the build job tried.
+  publish:
+    name: Publish the release
+    needs: [verify, build]
+    if: github.ref_type == 'tag' && needs.verify.result == 'success' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the release and its files
+      id-token: write # the attestation's signature
+      attestations: write # the attestation itself
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: fiber-platform-release
+          path: dist
+      - name: The files are the ones SHA256SUMS names
+        working-directory: dist
+        run: sha256sum --check --strict SHA256SUMS
+      - name: Provenance of every file in SHA256SUMS
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: dist/SHA256SUMS
+      # Everything goes to a draft first: an immutable release cannot take a file once published.
+      - name: A draft with the files, then published
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          {
+            echo "FIBER Platform $version."
+            echo
+            echo "Installed by FIBER Setup, or on a FIBER by hand:"
+            echo
+            echo '```sh'
+            echo "curl -fsSL https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/install.sh | sudo bash"
+            echo '```'
+            echo
+            echo "Check the files: \`gh attestation verify <file> --repo ${GITHUB_REPOSITORY}\`."
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+            --title "FIBER Platform $version" --notes-file notes.md dist/*
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest

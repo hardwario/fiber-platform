@@ -3,9 +3,8 @@
 How a release is made. What a release holds and how the installer uses it is in
 [`provisioning.md`](provisioning.md), "The release archive and the installer".
 
-**Status:** the build and the checks are written (`.github/workflows/release.yml`); publishing
-is not written yet. D22 says how: one job of its own with the rights to write. No release has
-been made yet.
+**Status:** written (`.github/workflows/release.yml`); the publishing has not run yet, as no
+release has been made. The repository's *immutable releases* setting is still off (step 0).
 
 ## What a release is
 
@@ -17,6 +16,9 @@ version.
 
 ## The steps
 
+0. **Once:** turn on *immutable releases* in the repository's settings (Settings > General >
+   Releases), so that a published release and its tag cannot be changed.
+
 1. **On `main`, with green CI,** set the version in `agent/Cargo.toml` (and the lock file:
    `cargo update -p fiber-agent`), and commit: "FIBER Platform 0.2.0".
 2. **Dry run:** Actions > Release > Run workflow, on `main`. It builds the release, builds it a
@@ -26,8 +28,10 @@ version.
 3. **Tag:** `git tag v0.2.0 && git push origin v0.2.0`. The workflow checks that the tag is the
    version, that the commit is on `main` and that its CI went green, then builds and tries it
    all again.
-4. **Publish:** not written yet. One job of the workflow, the only one with the rights to write
-   (D22), uploads everything to a draft release, then publishes it.
+4. **Publish:** the workflow's `publish` job does it, the only job with rights to write (D22),
+   and only after the gate and the build passed. It checks the files against `SHA256SUMS`, makes a
+   provenance attestation of each, uploads them to a draft release, and publishes it as the
+   latest. Anyone can check a file: `gh attestation verify <file> --repo hardwario/fiber-platform`.
 5. **FIBER Setup** names the new installer by its version and sha256 in its catalog (T12), so a
    new FIBER installs it only with a release of FIBER Setup (D18).
 
@@ -35,5 +39,8 @@ version.
 
 `.github/workflows/canary.yml` runs every Monday, and by hand: it converges every component
 against the live package sources, as a new FIBER would today, and checks that the keys the
-roles carry can sign for 60 more days (`just check-keys`). A failed run shows on the Actions page
-and is mailed to whoever last changed its schedule. Not run yet.
+roles carry can sign for 60 more days (`just check-keys`). When a Monday's run fails, its
+`report` job, the only one with rights to write (D22), opens the issue "Canary: a package source
+or a key broke", or comments on it while it is still open; close it once the cause is fixed. A
+run started by hand fails only on the Actions page. It ran by hand once and passed (44200466387);
+the `report` job has not run yet.

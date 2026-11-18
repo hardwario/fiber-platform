@@ -88,15 +88,16 @@ which probe the same I2C bus as the board's own chips.
 
 ### T8. The `mosquitto` and `node-red` roles (M1)
 
-State (2026-11-18): waiting for a FIBER (T2); D20 is answered (the dashboard, yes), so its step is
-next. Everything else that needs no FIBER is done, commit `14e348f`, and its CI run (44194596621) is
-green: the network listener with the seed's login; a password the owner changes stays; Node-RED
-behind the login, with the flow to start from; a second apply with nothing changed; only ports 1880,
-1883 on loopback and 1884 listening. Settled: the password file is `/etc/mosquitto/fiber-passwd`,
-made once by `mosquitto_passwd` (the file is its own stamp); Node-RED's `settings.js` is written
-once, when there is none, with the login's bcrypt hash made by the `bcryptjs` Node-RED brings; the
-NodeSource key is vendored in the role (fingerprint checked 2026-11-17). Found on the way: the
-converge test's network test took the default route away with the link; it puts it back now.
+State (2026-11-18): waiting for a FIBER (T2). The dashboard (D20) is in, checked by the converge
+test on the computer. Everything else that needs no FIBER is done, commit `14e348f`, and its CI run
+(44194596621) is green: the network listener with the seed's login; a password the owner changes
+stays; Node-RED behind the login, with the flow to start from; a second apply with nothing changed;
+only ports 1880, 1883 on loopback and 1884 listening. Settled: the password file is
+`/etc/mosquitto/fiber-passwd`, made once by `mosquitto_passwd` (the file is its own stamp);
+Node-RED's `settings.js` is written once, when there is none, with the login's bcrypt hash made by
+the `bcryptjs` Node-RED brings; the NodeSource key is vendored in the role (fingerprint checked
+2026-11-17). Found on the way: the converge test's network test took the default route away with the
+link; it puts it back now.
 
 The broker everything else talks through, and the first thing a user sees working.
 
@@ -124,8 +125,10 @@ Node-RED:
       before the first start
 - [x] The starter flow, copied only when there is none: a broker node on `localhost:1883` and a
       debug node on `fiber/#`
-- [ ] The dashboard nodes (D20): `@flowfuse/node-red-dashboard`, pinned, and a page with the
-      thermometers in the starter flow
+- [x] The dashboard nodes (D20): `@flowfuse/node-red-dashboard`, pinned, and a page with the
+      thermometers in the starter flow. Version 1.34.1, behind the same login as the editor
+      (`httpNodeAuth`); the converge test checks the version, the page in the flow, and the
+      login. Not looked at in a browser yet
 - [x] In CI: after a converge only the expected ports listen; the editor asks for the login; a
       second apply changes nothing
 
@@ -186,23 +189,24 @@ The card is fed from the battery rail and goes away when the battery is low.
 
 ### T11. Releases and the weekly canary (M1)
 
-State (2026-11-18): D22 is answered (one job with the rights in each workflow), so the publishing,
-the attestation and the canary's issue are next; the "Done when" is met. A dry run of `release.yml`
-passed (44200461354): the release built, built a second time and compared, the program and the
-installer tried in containers, the files kept as an artifact. The canary ran once and passed
-(44200466387): every component converged against the live sources, and the keys checked (`just
-check-keys`). `docs/release.md` is written.
+State (2026-11-18): the publishing and the canary's issue are written, as D22 says, and pass
+`actionlint`; neither has run yet (nothing is tagged, and the canary has not failed). Left for the
+maintainer: the repository's *immutable releases* setting. The "Done when" is met: a dry run of
+`release.yml` passed (44200461354), the canary ran once and passed (44200466387).
 
-- [ ] `.github/workflows/release.yml`: on a tag `vX.Y.Z` that matches the version, on a commit
+- [x] `.github/workflows/release.yml`: on a tag `vX.Y.Z` that matches the version, on a commit
       of `main` with green CI. It builds the static `fiber`, the archive, the stamped
       `install.sh`, `SHA256SUMS` and a provenance attestation, tries the archive in a container,
       and publishes a release that cannot be changed afterwards (everything is uploaded to a
-      draft first). Written without the publishing and the attestation; D22 says how: one
-      job with `contents`, `id-token` and `attestations: write`
+      draft first). The `publish` job (D22) checks the files against `SHA256SUMS`, attests them
+      with `actions/attest`, and publishes; not run yet, as nothing is tagged
+- [ ] The repository's *immutable releases* setting turned on (the maintainer: a setting of the
+      repository; it is off today)
 - [x] The same workflow run by hand builds everything and publishes nothing
-- [ ] `.github/workflows/canary.yml`, weekly: converge every component against the live package
+- [x] `.github/workflows/canary.yml`, weekly: converge every component against the live package
       sources, open an issue when one breaks (one job with `issues: write`, D22), and warn when
-      a key we carry is about to expire
+      a key we carry is about to expire. The `report` job has not run yet: it runs only when a
+      Monday's run fails
 - [x] `docs/release.md`: the steps of a release
 
 Watch out: a tag cannot be moved, so a release whose build fails uses up its version. Run the
@@ -511,7 +515,9 @@ State (2026-11-18): written and tested on the computer: `docs/front-panel.md` (a
 client's message over the pages, the addresses from `/proc/net/fib_trie`), the agent drawing the
 picture every second and on every gesture, the first press after the backlight dimmed only
 lighting it; a stored picture of every page. The picture goes nowhere until T20's driver. The
-menu's "Restart" is next: D23 says through a path unit in the agent role. `just check` and
+menu's "Restart" is written as D23 says: a confirmation, then `/run/fiber-agent/restart`, which
+`fiber-restart.path` hands to `fiber-restart.service`; the converge test checks the chain, with
+the restart made a mark, and passes. `just check` and
 the converge test pass on the computer (commit `ab9671d`). Its CI run 44215459393 failed in the
 converge test's cleanup, not in the agent: `rm -r /run/fiber-test` raced with `socat` taking its
 links away as it ended. The next run, on `5d3fbad` with the same code (44215720443), is green.
@@ -521,8 +527,9 @@ green).
 - [x] `docs/front-panel.md` first: the pages, what the buttons do, the menu, what covers the pages
 - [x] The pages: the name, the addresses and the time; the components and their state; the power
       source and the voltages; the thermometers. The radio's page comes with T26
-- [ ] The menu, with `tower-hmi`'s menus: about (the versions), done; restart (D23:
-      `fiber-restart.path` and `.service` in the agent role); later pairing and setup from the phone
+- [x] The menu, with `tower-hmi`'s menus: about (the versions); restart (D23:
+      `fiber-restart.path` and `.service` in the agent role). Pairing comes with T26, setup from
+      the phone with T29
 - [x] While an apply runs, its progress (from `/run/fiber/platform/status.json`); a client's
       message over the pages
 - [x] A stored picture of every page, compared in the tests
@@ -552,23 +559,6 @@ A new, small profile (D3), agreed with the people who make the app before any co
 - [ ] Agreed with the HARDWARIO Manager app
 
 - Done when: the app's side has said yes to the document.
-
-### T35. The Rust toolchain off Dependabot's list (D21) (M0)
-
-State (2026-11-18): `.github/dependabot.yml` changed; next, the pull request is closed.
-
-The toolchain moves with the TOWER pin and nothing else (D21).
-
-- [x] `.github/dependabot.yml`: the `rust-toolchain` entry taken out, and its comment says why
-- [ ] Pull request #1 (1.99.1 to 1.100.0) closed, with a comment that names D21
-
-- Needs: nothing.
-- Done when: Dependabot no longer opens pull requests for the toolchain, and #1 is closed.
-
-## Tasks ahead
-
-In the order of the plan. Every task has its steps already; when a task starts, they are read
-again and brought up to date before the first one is ticked.
 
 ### M0. Foundations and bench checks
 
@@ -1199,6 +1189,23 @@ T17 to T21 (`54cb19e..ab9671d`) for defects that show at run time. It found nine
 - [x] **`firmware/north` was listed but is never sent:** the docs say it comes with T26
 - [x] The converge test and CI pass with the fixes
 
+
+### T35. The Rust toolchain off Dependabot's list (D21) (M0)
+
+Done 2026-11-18, commit `1998121`. Checked: its CI run (44239942412) is green, and Dependabot ran
+twice under the new settings, green (44239953437, 44239953577), with no run for the toolchain.
+Pull request #1 is closed with a comment that names D21, and its branch deleted.
+
+The toolchain moves with the TOWER pin and nothing else (D21).
+
+- [x] `.github/dependabot.yml`: the `rust-toolchain` entry taken out, and its comment says why
+- [x] Pull request #1 (1.99.1 to 1.100.0) closed, with a comment that names D21
+
+
+## Tasks ahead
+
+In the order of the plan. Every task has its steps already; when a task starts, they are read
+again and brought up to date before the first one is ticked.
 
 ## Decisions ahead
 
