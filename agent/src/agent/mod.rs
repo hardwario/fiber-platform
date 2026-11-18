@@ -21,6 +21,7 @@ pub mod notify;
 pub mod power;
 pub mod requests;
 pub mod run;
+pub mod screen;
 pub mod simulator;
 pub mod state;
 pub mod thermometers;

@@ -500,6 +500,29 @@ nothing of this has run on a FIBER.
 - Needs: T2 (the LCD's bus), T17.
 - Done when: `fiber display`, `fiber buzzer beep` and `fiber buttons watch` work on a FIBER.
 
+### T21. Pages and the menu (M4)
+
+State (2026-11-18): written and tested on the computer: `docs/front-panel.md` (a draft),
+`agent/src/agent/screen.rs` (the four pages, the menu with About, the apply's progress and a
+client's message over the pages, the addresses from `/proc/net/fib_trie`), the agent drawing the
+picture every second and on every gesture, the first press after the backlight dimmed only
+lighting it; a stored picture of every page. The picture goes nowhere until T20's driver. The
+menu's "Restart" waits for D23: the agent has no right to restart the FIBER. `just check` and
+the converge test pass.
+
+- [x] `docs/front-panel.md` first: the pages, what the buttons do, the menu, what covers the pages
+- [x] The pages: the name, the addresses and the time; the components and their state; the power
+      source and the voltages; the thermometers. The radio's page comes with T26
+- [ ] The menu, with `tower-hmi`'s menus: about (the versions), done; restart (waits for D23);
+      later pairing and setup from the phone
+- [x] While an apply runs, its progress (from `/run/fiber/platform/status.json`); a client's
+      message over the pages
+- [x] A stored picture of every page, compared in the tests
+- [ ] On a FIBER, with T20's driver: the buttons move through the pages
+
+- Needs: T20.
+- Done when: the pictures match, and on a FIBER the buttons move through the pages.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -610,17 +633,7 @@ Its one task, T19, is in progress.
 Done when: the LCD shows the name and the address after the start, and the buttons move through
 the pages.
 
-#### T21. Pages and the menu
-
-- [ ] The pages: the name, the addresses and the time; the components and their state; the power
-      source and the voltages; the thermometers; the radio
-- [ ] The menu, with `tower-hmi`'s menus: restart, about (the versions), and later pairing and
-      setup from the phone
-- [ ] While an apply runs, its progress (from `/run/fiber/platform/status.json`)
-- [ ] A stored picture of every page, compared in the tests
-
-- Needs: T20.
-- Done when: the pictures match, and on a FIBER the buttons move through the pages.
+Its tasks, T20 and T21, are in progress.
 
 ### M5. The north bridge
 
@@ -1192,6 +1205,20 @@ opening an issue when a package source breaks (`issues: write`).
   (`gh release create`), and reads the canary's failures on the Actions page.
 
 Recommendation: (a). Blocks the last step of T11. Everything else of T11 is written read-only.
+
+### D23. How does the agent restart the FIBER from the front panel's menu?
+
+The agent runs as the user `fiber`, without capabilities (T18), so it cannot restart the system
+itself, and T21's menu has a "Restart".
+
+- (a) A path unit in the agent role: `fiber-restart.path` watches a file that only the agent may
+  write (in its own `/run/fiber-agent/`), and starts `fiber-restart.service`, which runs
+  `systemctl reboot` as root. Two small units, nothing else to install.
+- (b) A polkit rule that lets the user `fiber` ask logind for a restart, and the agent runs
+  `systemctl reboot`. Needs polkit on the FIBER and a rule file in `/etc/polkit-1/rules.d/`.
+- (c) No restart in the menu: the power button cuts the power.
+
+Recommendation: (a). Blocks one item of T21's menu, nothing else.
 
 ## Decisions done
 

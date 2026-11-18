@@ -67,6 +67,11 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
             .name("thermometers".into())
             .spawn(move || read_forever(Kernel::new(devices), rounds))?;
         front_panel(&mut agent, paths)?;
+        agent.sources = Some(super::run::Sources {
+            results: paths.platform_results(),
+            status: paths.platform_status(),
+            fib_trie: paths.under("/proc/net/fib_trie"),
+        });
         // Held while the agent runs, so that a command run by hand keeps off the port.
         let _lock = match fiber_flasher::PortLock::take(&paths.lock_dir(), board::SOUTH_BRIDGE_UART) {
             Ok(lock) => Some(lock),

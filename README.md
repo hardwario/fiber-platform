@@ -43,9 +43,10 @@ that is already wired together, and that you can read and change.
 **Not ready to use yet.** The plan, the design and the map of the board are written, and the
 foundations are in place: the repository's rules, its checks, a `fiber` program that chooses
 components and applies them (`fiber platform list`, `status`, `enable`, `disable`, `apply`),
-`fiber doctor`, and the installer. Basic system configuration, Mosquitto, Node-RED and ChirpStack
-install, and are tested in containers; the FIBER agent is not written yet. Nothing has been tried
-on a real board.
+`fiber doctor`, and the installer. Basic system configuration, Mosquitto, Node-RED, ChirpStack and
+the FIBER agent install, and are tested in containers. The agent shows the south bridge, the
+thermometers and the front panel's buttons on MQTT, against simulated hardware; the LCD and the
+radio are not written yet. Nothing has been tried on a real board.
 
 [`TASKS.md`](TASKS.md) lists every task, what is in progress and what is done.
 

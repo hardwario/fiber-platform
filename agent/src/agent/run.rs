@@ -18,10 +18,13 @@ use tower_hmi::input::ButtonEvent;
 
 use super::buttons;
 use super::buzzer::Pattern;
+use super::display::Picture;
 use super::firmware::{self, Seen, Tries};
 use super::link::{Event, Reader, Writer};
 use super::notify::Notify;
+use super::power::Source;
 use super::requests::{self, Answer, Handled, RecentIds};
+use super::screen::{self, Facts, Screen};
 use super::state::{FirmwareState, State};
 use super::thermometers::Round;
 use super::topics::{self, Identity};
@@ -105,6 +108,18 @@ pub struct Agent<B: Bus> {
     /// The backlight's duty cycle, 0 to 100 %; none without it.
     pub backlight: Option<mpsc::UnboundedSender<u8>>,
     backlight_sent: Option<u8>,
+    /// The front panel's pages and menu, and the picture they make for the LCD.
+    pub screen: Screen,
+    pub picture: Picture,
+    /// Where the pages find what is not in the state; none in the tests.
+    pub sources: Option<Sources>,
+}
+
+/// The files the pages read: the apply's results and progress, and the addresses.
+pub struct Sources {
+    pub results: std::path::PathBuf,
+    pub status: std::path::PathBuf,
+    pub fib_trie: std::path::PathBuf,
 }
 
 /// A payload without its `ts`, to compare.
@@ -139,6 +154,9 @@ impl<B: Bus> Agent<B> {
             buzzer: None,
             backlight: None,
             backlight_sent: None,
+            screen: Screen::default(),
+            picture: Picture::new(),
+            sources: None,
         }
     }
 
@@ -263,10 +281,79 @@ impl<B: Bus> Agent<B> {
         }
     }
 
-    /// A gesture of the buttons: on MQTT, and the backlight lit.
+    /// What the pages show now.
+    fn facts(&self) -> Facts {
+        let read = |path: &std::path::Path| std::fs::read_to_string(path).unwrap_or_default();
+        let mut facts = Facts {
+            name: self.identity.name.clone(),
+            ts: now(),
+            source: match self.state.power.source {
+                Source::Poe => "PoE",
+                Source::Battery => "Battery",
+                Source::Unknown => "Power not known",
+            }
+            .into(),
+            volts: self.state.power.volts.map(|v| (v.input, v.battery)),
+            thermometers: {
+                let mut probes: Vec<_> = self
+                    .state
+                    .thermometers
+                    .known
+                    .iter()
+                    .map(|(id, known)| (known.port, id.clone(), known.millis))
+                    .collect();
+                probes.sort();
+                probes
+            },
+            message: self.state.display.message.clone(),
+            versions: vec![
+                ("fiber", self.identity.version.clone()),
+                (
+                    "south",
+                    self.state.south.hello.map_or("not known".into(), |h| {
+                        format!("{}.{}.{}", h.version[0], h.version[1], h.version[2])
+                    }),
+                ),
+                ("tower", env!("FIBER_TOWER_REV").chars().take(7).collect()),
+            ],
+            ..Facts::default()
+        };
+        if let Some(sources) = &self.sources {
+            facts.addresses = screen::local_addresses(&read(&sources.fib_trie));
+            if let Ok(results) = crate::platform::results::Results::read(&sources.results) {
+                facts.components = results
+                    .components
+                    .into_iter()
+                    .filter(|(_, r)| r.wanted == crate::platform::results::Wanted::On)
+                    .map(|(name, r)| (name, format!("{:?}", r.result).to_lowercase()))
+                    .collect();
+            }
+            if let Ok(status) = serde_json::from_str::<crate::platform::apply::Status>(&read(&sources.status))
+                && status.state == crate::platform::apply::ApplyState::Running
+            {
+                facts.apply = Some((status.component.unwrap_or_default(), status.step, status.steps));
+            }
+        }
+        facts
+    }
+
+    /// Draws the picture again.
+    fn draw(&mut self) {
+        let facts = self.facts();
+        self.picture = screen::draw(&mut self.screen, &facts);
+    }
+
+    /// A gesture of the buttons: on MQTT, and the backlight lit. When it had dimmed, the press
+    /// only lights it.
     async fn gesture(&mut self, event: ButtonEvent) {
-        self.state.display.last_press = Instant::now();
+        let at = Instant::now();
+        let dimmed = self.state.display.duty(at) < self.state.display.backlight;
+        self.state.display.last_press = at;
         self.light();
+        if !dimmed {
+            self.screen.press(event);
+        }
+        self.draw();
         if let Some(gesture) = buttons::gesture(event.kind) {
             let payload = topics::button_event(event.buttons, gesture, now());
             self.bus
@@ -338,6 +425,7 @@ impl<B: Bus> Agent<B> {
         self.notify.send("WATCHDOG=1");
         self.state.display.expire(Instant::now());
         self.light();
+        self.draw();
         let now = Instant::now();
         let due: Vec<_> = self
             .cycles
@@ -834,6 +922,25 @@ mod tests {
         assert_eq!(event["buttons"], serde_json::json!(["enter"]));
         assert_eq!(event["gesture"], "click");
         assert_eq!(duty.try_recv().unwrap(), 80);
+        // The backlight had dimmed: that press only lit it. The next one opens the menu.
+        assert!(matches!(agent.screen.view, crate::agent::screen::View::Page(0)));
+        gestures
+            .send(ButtonEvent {
+                buttons: ENTER,
+                kind: Kind::Click,
+            })
+            .await
+            .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        assert!(matches!(agent.screen.view, crate::agent::screen::View::Menu(_)));
+        assert_eq!(
+            crate::agent::display::as_text(&agent.picture),
+            std::fs::read_to_string(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/src/agent/pictures/menu.txt"
+            ))
+            .unwrap()
+        );
     }
 
     #[tokio::test(start_paused = true)]

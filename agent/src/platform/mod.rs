@@ -2,7 +2,7 @@
 //!
 //! The commands are written down in `docs/cli.md`.
 
-mod apply;
+pub mod apply;
 pub mod catalog;
 mod edit;
 pub mod file;
