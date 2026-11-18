@@ -531,6 +531,11 @@ A new, small profile (D3), agreed with the people who make the app before any co
 
 - Done when: the app's side has said yes to the document.
 
+## Tasks ahead
+
+In the order of the plan. Every task has its steps already; when a task starts, they are read
+again and brought up to date before the first one is ticked.
+
 ### M0. Foundations and bench checks
 
 #### T2. Bench checks on a FIBER
@@ -1154,7 +1159,6 @@ the first time; run the workflow by hand on `main` before it.
 Watch out: a tag cannot be moved, so a release whose build fails uses up its version. Run the
 workflow by hand first after any change to the build.
 
-
 ### T34. Review of the night's code (M2 to M4)
 
 Done 2026-11-18, commit `2a04dff`. Checked: `just check`, the roles' lint and the converge test
@@ -1187,7 +1191,6 @@ T17 to T21 (`54cb19e..ab9671d`) for defects that show at run time. It found nine
 - [x] **`firmware/north` was listed but is never sent:** the docs say it comes with T26
 - [x] The converge test and CI pass with the fixes
 
-
 ### T35. The Rust toolchain off Dependabot's list (D21) (M0)
 
 Done 2026-11-18, commit `1998121`. Checked: its CI run (44239942412) is green, and Dependabot ran
@@ -1198,12 +1201,6 @@ The toolchain moves with the TOWER pin and nothing else (D21).
 
 - [x] `.github/dependabot.yml`: the `rust-toolchain` entry taken out, and its comment says why
 - [x] Pull request #1 (1.99.1 to 1.100.0) closed, with a comment that names D21
-
-
-## Tasks ahead
-
-In the order of the plan. Every task has its steps already; when a task starts, they are read
-again and brought up to date before the first one is ticked.
 
 ## Decisions ahead
 
