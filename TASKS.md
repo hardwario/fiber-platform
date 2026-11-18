@@ -191,8 +191,10 @@ The card is fed from the battery rail and goes away when the battery is low.
 
 State (2026-11-18): everything that needs neither the first release nor a FIBER is done, in FIBER
 Setup's commit `83d372a`, which is on this computer only: its catalog names the installer built here
-from `0257447`, marked as not published. Left: the first release (D24), then the catalog's version and
-sha256 and the copy of `components.yaml` taken from it, FIBER Setup's push and its CI; then the bench.
+from `0257447`, marked as not published. Waits for the bench (T2), as D24 says: the platform runs on a
+FIBER from a release built by hand first; then the first release is tagged, FIBER Setup's catalog
+takes its version and sha256 and the copy of `components.yaml` from it, and FIBER Setup's commits are
+pushed and its CI watched.
 Checked: FIBER Setup's `cargo test` (100), clippy, `npm run check`, `npm test` (26), the build; the
 views walked in the browser preview with one FIBER and with two, in English and in Czech (the picker,
 nothing ticked, each stage of the first start, the links on the last step). Tried in the platform's
@@ -226,9 +228,9 @@ In `../fiber-setup`. The one place where a user makes the choice.
       kind of character FIBER Setup escapes, written as FIBER Setup writes it
 - [ ] `catalog.rs`: the installer by its version and sha256, as the system image is, in place
       of an address on a `main` branch. `fiber-install.sh` fetches it and checks it; the test
-      that keeps the two in step stays. Built and tested; what it names waits for D24: the first
-      release's version and sha256, and `image/components.yaml` copied from it. Then FIBER
-      Setup's commits are pushed and its CI watched
+      that keeps the two in step stays. Built and tested; what it names waits for the first
+      release, after the bench (D24): its version and sha256, and `image/components.yaml` copied
+      from it. Then FIBER Setup's commits are pushed and its CI watched
 - [x] The clock: take the date over plain HTTP before anything over HTTPS, and only ever move
       the clock forward
 - [x] `fiber-install.service` tries again after a failure without waiting for a restart: written
@@ -266,7 +268,7 @@ that blocks NTP, TLS then fails, the script says "no internet", and its clock fa
 HTTPS) is never reached. The password field is pre-filled with `fiber`, and from now on that
 password also opens services on the network. ChirpStack's user is `admin` (T9), not the login's.
 
-- Needs: T5 to T8 (a release to point at: D24). D11: the `base` role alone writes the
+- Needs: T5 to T8; T2 and then the first release (D24). D11: the `base` role alone writes the
   `config.txt` block, so FIBER Setup does not.
 - Done when: a FIBER written by the new FIBER Setup comes up with the chosen components, and the
   last step shows a link for each.
@@ -1246,13 +1248,7 @@ The toolchain moves with the TOWER pin and nothing else (D21).
 
 ## Decisions ahead
 
-- **D24. When is the first release made, for FIBER Setup to pin?** FIBER Setup names the
-  installer by its version and sha256 (D18), and nothing is tagged yet; `agent/Cargo.toml` says
-  0.1.0. Choices: (a) tag `v0.1.0` from `main` now, after a dry run of `release.yml`, and pin it in
-  FIBER Setup; the bench then installs a real release, and what it finds goes into 0.1.1 or 0.2.0;
-  (b) wait until the bench (T2) has run the platform from a release built by hand, and tag then.
-  Recommended: (a). A release cannot be changed, but a version is cheap, and FIBER Setup's work
-  on T12 cannot be pushed before it points at a release that exists (T12).
+None open.
 
 ## Decisions done
 
@@ -1333,3 +1329,7 @@ The toolchain moves with the TOWER pin and nothing else (D21).
   `fiber-restart.path` in the agent role watches a file that only the agent may write, and
   starts `fiber-restart.service`, which runs `systemctl reboot` as root. Nothing else is
   installed, and the agent keeps no right of its own (T21).
+- **D24. When is the first release made, for FIBER Setup to pin?** After the bench (2026-11-18):
+  no tag until T2 has run the platform on a FIBER from a release built by hand (`just release`,
+  served to it). Until then FIBER Setup's work on T12 stays on this computer, as its catalog names
+  an installer that is not published (T12).
