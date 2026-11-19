@@ -5,10 +5,10 @@ and the buzzer. The agent drives them. A program of your own sees the buttons an
 message on the display through MQTT ([`mqtt-api.md`](mqtt-api.md)).
 
 **Status: a draft (T20, T21).** The pages are drawn and compared with stored pictures in the
-tests. The driver that sends them to the LCD is written (`agent/src/agent/lcd.rs`), and on a
-FIBER the pages show (2026-11-19). The panel is mounted upside down, so the driver turns the
-picture by 180 degrees; that the pages are upright with it waits for a last look. The buttons
-have not been pressed.
+tests. On a FIBER (2026-11-19) the pages show on the LCD, upright, the buttons move through them,
+the backlight lights and the buzzer sounds. The panel is mounted upside down, so the driver
+(`agent/src/agent/lcd.rs`) turns the picture by 180 degrees. Not looked at yet: the backlight's
+dimming after 60 s.
 
 ## The pages
 

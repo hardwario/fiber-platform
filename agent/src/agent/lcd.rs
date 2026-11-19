@@ -12,7 +12,7 @@
 //! the screen in its first 128 columns, the bottom half in the next 128. Only the rows that
 //! changed are sent. The panel is mounted upside down on the display board, so the picture is
 //! turned by 180 degrees on the way, as the earlier software did. Seen on a FIBER (2026-11-19):
-//! sent as drawn, the pages are upside down.
+//! sent as drawn the pages are upside down, turned they are upright.
 
 use std::io;
 use std::time::Duration;

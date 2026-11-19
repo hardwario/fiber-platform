@@ -4,7 +4,7 @@ Six questions that documents cannot answer. Each takes minutes on a real FIBER a
 risk from the plan, so they come before the work that depends on them (`TASKS.md`: T2 for checks
 1 to 3 and 6, T22 for check 4, T3 for check 5).
 
-**Status: checks 5 (2026-11-17) and 1 (2026-11-19) are answered; checks 2, 4 and 6 in part (2026-11-19); 3 has not been run yet.** Fill in the
+**Status: checks 5 (2026-11-17), 1 and 2 (2026-11-19) are answered; checks 4 and 6 in part (2026-11-19); 3 has not been run yet.** Fill in the
 result and the date as they are answered.
 
 What is needed: a FIBER-R2 rev 2.1 reachable over SSH, written by FIBER Setup with the FIBER
@@ -56,15 +56,15 @@ Add `dtoverlay=spi6-1cs` and check that `/dev/spidev6.0` appears and that the di
 with chip select on GPIO18 (through the inverter). The earlier software drove GPIO12 by hand; on
 rev 2.1 that link is not fitted. Also confirm that nothing objects to the overlay claiming GPIO19.
 
-**Result (2026-11-19): the LCD shows the agent's pages.** `/dev/spidev6.0` appears, GPIO18 becomes its chip select
+**Result (2026-11-19): yes, the LCD shows the agent's pages.** `/dev/spidev6.0` appears, GPIO18 becomes its chip select
 and GPIO19 to 21 its pins (`SPI6_MISO`, `SPI6_MOSI`, `SPI6_SCLK`), and nothing in the kernel's log
 objects. A test pattern was sent as an ST7920 takes it (SPI mode 3, 400 kHz, `0xF8` before a
 command, `0xFA` before data, reset on GPIO16): four lines of text from the controller's own font
 and a frame with a checkerboard. Since then the agent's driver sends its pages, without an error.
 The maintainer looked: the pages show, so the bus, the mode, the speed and the packets are right.
 Sent as drawn they are upside down: the panel is mounted upside down, and the agent turns the
-picture by 180 degrees, as the earlier software did. (For one build the turn was taken out, on a
-misreading of the first look.) That the pages are upright with it: waiting for a last look.
+picture by 180 degrees, as the earlier software did; turned, they are upright. (For one build the
+turn was taken out, on a misreading of the first look.)
 
 ## 3. Which level does the RAK5146 USB card need on mini-PCIe pin 22?
 
@@ -185,8 +185,8 @@ Quick looks while the FIBER is on the bench, each against [`hardware.md`](hardwa
 |---|---|---|
 | The I2C bus | `i2cdetect -y 10` (after `dtparam=i2c_vc=on`) shows 0x18, 0x19 and 0x51. The schematic leaves the bus's pull-up resistors unfitted | **Yes** (2026-11-19): all three answer, at 97.5 kHz. The LIS2DH12 answers `0x33` to `WHO_AM_I`, the DS2482 reads `0x18` after a reset, the PCF85063A holds the right time in UTC with its oscillator flag clear. With the platform's block, 0x18 and 0x51 show `UU` (taken by their drivers) |
 | The backlight | `dtoverlay=pwm,pin=13,func=4`, then PWM channel 1 dims it | **Yes** (2026-11-19): `pwmchip0` with two channels; channel 1 on GPIO13 (`PWM0_1`), set to 80 % by the agent, and the backlight lights (the maintainer looked), with `dtparam=audio=on` still in the file. The dimming to a fifth: not looked at |
-| The buttons | GPIO23, 24 and 25 read low while pressed | Half (2026-11-19): all three read high, not pressed, against the CM4's own pull-downs, so the board's pull-ups are there. Pressed: not tried, nobody at the bench |
-| The buzzer | GPIO17 low sounds it. Listen at power-on too: until `config.txt` sets the line, only the Raspberry Pi's weak pull-down holds it | Half (2026-11-19): on a plain Raspberry Pi OS the line reads high at start, against the CM4's pull-down, so the driver's pull-up keeps it quiet before `config.txt` sets it. Not heard, nobody at the bench |
+| The buttons | GPIO23, 24 and 25 read low while pressed | **Yes** (2026-11-19): all three read high, not pressed, against the CM4's own pull-downs, so the board's pull-ups are there; pressed, the agent's pages follow them (the maintainer) |
+| The buzzer | GPIO17 low sounds it. Listen at power-on too: until `config.txt` sets the line, only the Raspberry Pi's weak pull-down holds it | **Yes** (2026-11-19): it sounds (the maintainer heard the agent's beeps). On a plain Raspberry Pi OS the line reads high at start, against the CM4's pull-down, so the driver's pull-up should keep it quiet before `config.txt` sets it; at power-on: not listened to yet |
 
 More that the bench showed (2026-11-19), with the platform installed:
 

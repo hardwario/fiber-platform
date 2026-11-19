@@ -23,7 +23,7 @@ to tell that it is done. The facts it works with are in the documents: the board
 | M1 | Provisioning | T4 to T12 | A FIBER written with every box ticked comes up by itself; a second apply changes nothing |
 | M2 | The agent's core and the south bridge | T13 to T18 | The agent flashes the south bridge on its own and shows the board on MQTT |
 | M3 | Thermometers | T19 | A DS18B20 shows up on MQTT and in a Node-RED flow |
-| M4 | The front panel | T20, T21 | The LCD shows the name and the address; the buttons move through the pages |
+| M4 | The front panel | T20, T21 | The LCD shows the name and the address; the buttons move through the pages (held on a FIBER, 2026-11-19) |
 | M5 | The north bridge | T22 to T27 | TOWER nodes pair with the FIBER and their events arrive on MQTT |
 | M6 | Bluetooth | T28, T29 | A phone puts a FIBER on Wi-Fi |
 | M7 | Documentation and polish | T30 to T33 | A new user gets from the box to a thermometer in a flow with the documentation alone |
@@ -48,9 +48,9 @@ next power-on. The firmware runs; a new one would have to go through the J-Link.
 `/dev/spidev6.0` and PWM channel 1 (check 2 and 6 in part, all in `docs/bench-checks.md`). The
 earlier software's LCD driver was read: ST7920, mode 3, 400 kHz, and the picture turned by 180
 degrees. The maintainer looked: the agent's pages show, and the panel is mounted upside down, so
-the turn stays (T20). The backlight lights. Left, for someone at the bench: a last look that the
-pages are upright; press each button; listen to the buzzer, also
-at power-on; a RAK5146 card in the slot; a second unit; then a power cycle, after which `sudo
+the turn stays (T20). The maintainer saw the pages upright, the backlight lit, the buttons and the
+buzzer working. Left, for someone at the bench: listen to the buzzer at power-on; a RAK5146 card in
+the slot; a second unit; then a power cycle, after which `sudo
 fiber firmware chip south` should answer again (with the agent stopped). The test pattern is
 `hil/lcd_test.py` (a copy is in the home directory of `fiber` on the unit; stop the agent first,
 it drives the LCD).
@@ -78,9 +78,11 @@ these answers, and each takes minutes ([`docs/bench-checks.md`](docs/bench-check
       the overlay taking GPIO19 (2026-11-19: the agent's pages show, sent that way)
 - [x] The backlight on PWM channel 1 (`dtoverlay=pwm,pin=13,func=4`): it lights, at the 80 % the
       agent sets (the maintainer, 2026-11-19); the dimming not looked at
-- [ ] The buttons on GPIO23, 24 and 25 read low while pressed
-- [ ] The buzzer sounds with GPIO17 low. Listen at power-on too: until `config.txt` sets the
-      line, only the Raspberry Pi's weak pull-down holds it
+- [x] The buttons on GPIO23, 24 and 25 read low while pressed (2026-11-19: they read high when not
+      pressed, and the agent's pages follow them)
+- [x] The buzzer sounds with GPIO17 low (2026-11-19, heard)
+- [ ] Listen at power-on too: until `config.txt` sets the line, only the Raspberry Pi's weak
+      pull-down holds it (the line reads high then, against that pull-down; not heard yet)
 - [ ] With a RAK5146 USB card in the mini-PCIe slot: which level on GPIO11 (pin 22) lets the
       card appear on USB (`0483:5740`)
 - [ ] Write every result, with the date, into `docs/bench-checks.md`, and correct
@@ -565,77 +567,6 @@ cannot be used: the driver puts it on one master only, the master of the first D
 - Done when: a DS18B20 shows up on `fiber/thermometers/...` and in the starter flow; plugging a
   probe in and out, and a shorted port, behave.
 
-### T20. LCD, backlight, buttons, buzzer (M4)
-
-State (2026-11-19): the LCD shows the agent's pages, so the bus, the mode, the speed and the
-packets are right. Sent as drawn they are upside down (the maintainer's second look): the panel
-is mounted upside down, and the picture is turned by 180 degrees, as the earlier software did.
-The first look ("the lcd module view is flipped") said that already; it was misread as the turned
-picture being wrong, and the turn was taken out for one build (`20bdbb2`). It goes back in, and
-the build goes on the FIBER for a last look.
-The display driver (`agent/src/agent/lcd.rs`): ST7920 packets over `/dev/spidev6.0` in mode 3 at
-400 kHz, reset on GPIO16, only the rows that changed, the controller set up again after an
-error. The backlight lights, at the 80 % the agent sets (the maintainer looked; its first write
-races udev and is tried again a second later; the dimming after 60 s not looked at). `fiber
-display message` works through MQTT. Left, at the bench: see the pages, hear `fiber buzzer beep`,
-press the buttons with `fiber buttons watch`.
-Earlier (2026-11-18): all but the display driver is written and tested on the computer: the docs
-(drafts), the buttons (`agent/src/agent/buttons.rs`, `tower-hmi`'s recognizer on a thread that waits
-for the lines' edges), the buzzer's patterns, the backlight through sysfs PWM with its dimming, the
-`display` topic, a message drawn into a `Frame<16, 64>` and compared with stored pictures, `fiber
-display`, `fiber buzzer beep`, `fiber buttons watch` (commit `a59cf8c`, CI run 44213917356 green).
-The unit no longer has `ProtectKernelTunables=yes`: the backlight is written through
-`/sys/class/pwm`. `just check` and the converge test pass (it asks for a message, the backlight and
-a beep through the service). The display driver waits for T2 (the LCD's bus); nothing of this has
-run on a FIBER.
-
-- [x] `docs/mqtt-api.md` and `docs/cli.md` first: `buttons/event`, `display`, and the methods
-      `buzzer.beep`, `display.message`, `display.backlight`
-- [x] The display driver over `/dev/spidev6.0`, with what T2 found (the mode, the speed, the
-      bytes before a command and before data), reset on GPIO16. Seen on the LCD (2026-11-19);
-      the picture turned by 180 degrees, as the panel is mounted upside down
-- [x] The picture is a `tower_hmi::Frame<16, 64>`; only the rows that changed are sent
-- [x] The backlight on PWM channel 1, with a brightness and a time after which it dims; the unit
-      leaves `/sys` writable as its permissions have it
-- [x] The buttons on GPIO23, 24 and 25 through `gpiocdev`, with the pull-ups and the kernel's
-      debounce; click, hold and repeat from `tower-hmi`
-- [x] The buzzer on GPIO17 (low = sound): a beep, and a few patterns
-- [x] Tests: the frames a drawing produces, compared with stored ones; made-up button presses
-
-- Needs: T2 (the LCD's bus), T17.
-- Done when: `fiber display`, `fiber buzzer beep` and `fiber buttons watch` work on a FIBER.
-
-### T21. Pages and the menu (M4)
-
-State (2026-11-19): the pictures go to the LCD now (T20's driver), on the FIBER too; not seen, and
-the buttons not pressed.
-Earlier (2026-11-18): written and tested on the computer: `docs/front-panel.md` (a draft),
-`agent/src/agent/screen.rs` (the four pages, the menu with About, the apply's progress and a
-client's message over the pages, the addresses from `/proc/net/fib_trie`), the agent drawing the
-picture every second and on every gesture, the first press after the backlight dimmed only lighting
-it; a stored picture of every page. The picture goes nowhere until T20's driver. The menu's
-"Restart" is written as D23 says: a confirmation, then `/run/fiber-agent/restart`, which
-`fiber-restart.path` hands to `fiber-restart.service`; the converge test checks the chain, with the
-restart made a mark, and passes (commit `b9c9bbb`, CI run 44241706037 green). `just check` and the
-converge test pass on the computer (commit `ab9671d`). Its CI run 44215459393 failed in the converge
-test's cleanup, not in the agent: `rm -r /run/fiber-test` raced with `socat` taking its links away
-as it ended. The next run, on `5d3fbad` with the same code (44215720443), is green. The test now
-waits for `socat` first; pushed with T34's fixes (`2a04dff`, CI run 44219055224 green).
-
-- [x] `docs/front-panel.md` first: the pages, what the buttons do, the menu, what covers the pages
-- [x] The pages: the name, the addresses and the time; the components and their state; the power
-      source and the voltages; the thermometers. The radio's page comes with T26
-- [x] The menu, with `tower-hmi`'s menus: about (the versions); restart (D23:
-      `fiber-restart.path` and `.service` in the agent role). Pairing comes with T26, setup from
-      the phone with T29
-- [x] While an apply runs, its progress (from `/run/fiber/platform/status.json`); a client's
-      message over the pages
-- [x] A stored picture of every page, compared in the tests
-- [ ] On a FIBER, with T20's driver: the buttons move through the pages
-
-- Needs: T20.
-- Done when: the pictures match, and on a FIBER the buttons move through the pages.
-
 ### T28. The Bluetooth profile, written first (M6)
 
 State (2026-11-18): the draft of `docs/ble.md` is written; it waits for the maintainer to read
@@ -663,8 +594,8 @@ A new, small profile (D3), agreed with the people who make the app before any co
 State (2026-11-19): on a FIBER, against the real agent: `request.sh` (a message, a port cycled, seen
 on `ports/3`) and `request.py` (an LED set and back to auto) were answered `ok`; `thermometers.py`
 and the Rust example connect and wait (no probe plugged in); both flows import into the FIBER's
-Node-RED and connect, and stay there (the button flow beeps on a hold of *enter*). Not on the
-FIBER: a beep (nobody to hear it), a reading, the alarm. Left: those, and the TOWER flow (T26).
+Node-RED and connect, and stay there; the button flow beeped on a hold of *enter* (the maintainer
+heard it). Not on the FIBER: a reading, the alarm (no probe). Left: those, and the TOWER flow (T26).
 Earlier (2026-11-18): everything that runs without a FIBER is done and checked, commit `877ce39`, CI
 run 44262065157 green (the converge test with the examples in it, on the arm64 runner): `just check`
 (with `check-examples` and the example's lock file in `audit`) and the converge test pass. In step 10c, against the agent's service: `request.sh` and `request.py` put a message on
@@ -813,9 +744,7 @@ Its one task, T19, is in progress.
 ### M4. The front panel
 
 Done when: the LCD shows the name and the address after the start, and the buttons move through
-the pages.
-
-Its tasks, T20 and T21, are in progress.
+the pages. Held on a FIBER (2026-11-19); its tasks, T20 and T21, are done.
 
 ### M5. The north bridge
 
@@ -1381,6 +1310,75 @@ in the sticky `/run/lock`). Waits for a FIBER (T2) for the last step.
 
 - Needs: T6, T17.
 - Done when: `fiber platform enable agent` on a FIBER brings up `fiber/status`.
+
+### T20. LCD, backlight, buttons, buzzer (M4)
+
+Done 2026-11-19, on a FIBER, seen and heard by the maintainer: the LCD shows the agent's pages,
+upright; the backlight lights; the buttons work; the buzzer sounds (a hold of *enter* through the
+example flow, then `fiber buzzer beep`); `fiber display` answers. The panel is mounted upside
+down, so the driver turns the picture by 180 degrees, as the earlier software did; the first look
+("the lcd module view is flipped") said so and was misread, and for one build (`20bdbb2`) the turn
+was out. The driver (`agent/src/agent/lcd.rs`): ST7920 packets over `/dev/spidev6.0` in mode 3 at
+400 kHz, reset on GPIO16, only the rows that changed, set up again after an error. Not looked at:
+the backlight's dimming after 60 s; `fiber buttons watch` itself (the flow read the same
+`buttons/event`). Commits `f68b657`, `20bdbb2`, `7cb8657`, on this computer only; `just check` and
+the converge test passed with the driver.
+Earlier (2026-11-18): all but the display driver is written and tested on the computer: the docs
+(drafts), the buttons (`agent/src/agent/buttons.rs`, `tower-hmi`'s recognizer on a thread that waits
+for the lines' edges), the buzzer's patterns, the backlight through sysfs PWM with its dimming, the
+`display` topic, a message drawn into a `Frame<16, 64>` and compared with stored pictures, `fiber
+display`, `fiber buzzer beep`, `fiber buttons watch` (commit `a59cf8c`, CI run 44213917356 green).
+The unit no longer has `ProtectKernelTunables=yes`: the backlight is written through
+`/sys/class/pwm`. `just check` and the converge test pass (it asks for a message, the backlight and
+a beep through the service). The display driver waits for T2 (the LCD's bus); nothing of this has
+run on a FIBER.
+
+- [x] `docs/mqtt-api.md` and `docs/cli.md` first: `buttons/event`, `display`, and the methods
+      `buzzer.beep`, `display.message`, `display.backlight`
+- [x] The display driver over `/dev/spidev6.0`, with what T2 found (the mode, the speed, the
+      bytes before a command and before data), reset on GPIO16. Seen on the LCD (2026-11-19);
+      the picture turned by 180 degrees, as the panel is mounted upside down
+- [x] The picture is a `tower_hmi::Frame<16, 64>`; only the rows that changed are sent
+- [x] The backlight on PWM channel 1, with a brightness and a time after which it dims; the unit
+      leaves `/sys` writable as its permissions have it
+- [x] The buttons on GPIO23, 24 and 25 through `gpiocdev`, with the pull-ups and the kernel's
+      debounce; click, hold and repeat from `tower-hmi`
+- [x] The buzzer on GPIO17 (low = sound): a beep, and a few patterns
+- [x] Tests: the frames a drawing produces, compared with stored ones; made-up button presses
+
+- Needs: T2 (the LCD's bus), T17.
+- Done when: `fiber display`, `fiber buzzer beep` and `fiber buttons watch` work on a FIBER.
+
+### T21. Pages and the menu (M4)
+
+Done 2026-11-19, on a FIBER: the pages show on the LCD and the buttons move through them (the
+maintainer). The stored pictures match in the tests.
+Earlier (2026-11-18): written and tested on the computer: `docs/front-panel.md` (a draft),
+`agent/src/agent/screen.rs` (the four pages, the menu with About, the apply's progress and a
+client's message over the pages, the addresses from `/proc/net/fib_trie`), the agent drawing the
+picture every second and on every gesture, the first press after the backlight dimmed only lighting
+it; a stored picture of every page. The picture goes nowhere until T20's driver. The menu's
+"Restart" is written as D23 says: a confirmation, then `/run/fiber-agent/restart`, which
+`fiber-restart.path` hands to `fiber-restart.service`; the converge test checks the chain, with the
+restart made a mark, and passes (commit `b9c9bbb`, CI run 44241706037 green). `just check` and the
+converge test pass on the computer (commit `ab9671d`). Its CI run 44215459393 failed in the converge
+test's cleanup, not in the agent: `rm -r /run/fiber-test` raced with `socat` taking its links away
+as it ended. The next run, on `5d3fbad` with the same code (44215720443), is green. The test now
+waits for `socat` first; pushed with T34's fixes (`2a04dff`, CI run 44219055224 green).
+
+- [x] `docs/front-panel.md` first: the pages, what the buttons do, the menu, what covers the pages
+- [x] The pages: the name, the addresses and the time; the components and their state; the power
+      source and the voltages; the thermometers. The radio's page comes with T26
+- [x] The menu, with `tower-hmi`'s menus: about (the versions); restart (D23:
+      `fiber-restart.path` and `.service` in the agent role). Pairing comes with T26, setup from
+      the phone with T29
+- [x] While an apply runs, its progress (from `/run/fiber/platform/status.json`); a client's
+      message over the pages
+- [x] A stored picture of every page, compared in the tests
+- [x] On a FIBER, with T20's driver: the buttons move through the pages (2026-11-19)
+
+- Needs: T20.
+- Done when: the pictures match, and on a FIBER the buttons move through the pages.
 
 ### T34. Review of the night's code (M2 to M4)
 

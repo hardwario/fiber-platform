@@ -190,8 +190,9 @@ held: it is a hardware switch that no GPIO reads.
 
 - The LCD's controller chip (the interface says ST7920 style). Driven as an ST7920 (SPI mode 3 at
   400 kHz, `0xF8` before a command and `0xFA` before data), it shows the agent's pages
-  (2026-11-19). **The panel is mounted upside down:** sent as drawn, the picture is upside down,
-  so the agent turns it by 180 degrees, as the earlier software did (`bench-checks.md`, check 2).
+  (2026-11-19). **The panel is mounted upside down:** sent as drawn, the picture is upside down;
+  the agent turns it by 180 degrees, as the earlier software did, and then it is upright
+  (`bench-checks.md`, check 2).
 - Whether the RAK5146 USB card needs mini-PCIe pin 22 high or low (it is PERST#, active-low, on the
   modem; RAK's SPI variants use it as an active-high reset).
 - The radio's frequency band is not marked: it is set by software.

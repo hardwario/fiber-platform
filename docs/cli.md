@@ -42,8 +42,8 @@ with, and the schema tag of the TOWER radio messages.
 **Built on the drafts of T13, which the maintainer has yet to read (T17).** Tested in a container
 against a simulated south bridge, through Mosquitto; flashing and `fiber firmware chip` are tested
 against a simulated bootloader. On a FIBER (2026-11-19): `status`, `power`, `ports`, `leds`,
-`display`, `firmware status`, `firmware flash` and `firmware chip`; not `buzzer`, `buttons` and
-`thermometers` with something to see (nobody at the bench, no probe). These commands, but for `fiber firmware
+`display`, `buzzer beep`, `firmware status`, `firmware flash` and `firmware chip`; not `buttons
+watch` itself (the buttons work, read by a Node-RED flow) and not `thermometers` with a probe. These commands, but for `fiber firmware
 chip`, are clients of the agent's MQTT API ([`mqtt-api.md`](mqtt-api.md)): each one reads its
 retained topics or sends a request on `fiber/cmd`, so whatever they do, a program of your own can
 do too. They connect to
