@@ -1481,6 +1481,24 @@ slowness was mostly that a click is recognized on the release: the page turns on
 - Done when: the pictures match, and on the FIBER the pages look right and turn as the button
   goes down.
 
+### T40. `heapless` 0.9.4: the advisories of 2026-11-18 (M0)
+
+State (2026-11-19): started, on the maintainer's word. RustSec published four "unsound" advisories
+against `heapless` 0.9.3 on 2026-11-18 (RUSTSEC-2026-0576, -0578, -0579, -0581: `IndexMap::truncate`,
+`SortedLinkedList::zeroize`, `Deque` from `TryFrom`, `Deque::make_contiguous`). It comes in through
+`cobs`, `postcard` and TOWER's crates; the audit lets such warnings pass, and 0.9.4 is out.
+Moved, checked on the computer; waiting for CI. The south bridge's image changed with it
+(`0x66695049` to `0x71f9caeb`, still 16224 bytes): a FIBER that gets this agent writes it to its
+south bridge. Not installed on the bench's FIBER, whose south bridge the CM4 cannot reach until
+its power cycle (T2): install it there after that.
+
+- [x] Every lock file that has `heapless` 0.9.3 moved to 0.9.4, and nothing else moved (the
+      host workspace's and the south bridge's; the examples and the radio spike have none)
+- [x] `cargo audit` names it no more; `just check` passes, with the south bridge's size
+- [ ] CI
+
+- Done when: the audit is clean of these four, and CI passes.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
