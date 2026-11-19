@@ -43,6 +43,47 @@ the packet's last byte the radio is put in standby, the packet read from the buf
 (`packet::decode`), and it listens again. So it is ready for the next packet as soon as this one
 ends, and not 106 ms later. Seen working on the bench (`hil/radio-spike`, receive mode).
 
+## The gateway's flow
+
+What TOWER's gateway does inside its firmware (`firmware/src/radio/net/mod.rs` and
+`firmware/apps/radio_gateway.rs` at the pinned revision), written again over the north bridge's
+radio in `crates/tower-air` (`gateway`, T24). Every accept or refuse is a `tower-net` kernel; the
+radio, the clock and the storage are ours. Tested on the computer against a made-up radio; not
+run on a FIBER yet.
+
+- **The frame:** `fmt_type | flags | src | dest | counter | payload | tag`, the header
+  authenticated, the payload encrypted under the node's key (AES-128-CCM; the nonce from `src`
+  and `counter`), at most 74 bytes of payload (`fiber_tower_air::frame`).
+- **Known nodes only:** a frame from a node the gateway has no key for is dropped on its clear
+  header, before any decryption and without an acknowledgement. The agent gives the north bridge
+  each node: its address, its key and the last counter seen from it (D8: the firmware keeps no
+  registry, and the agent sees the counter of every uplink).
+- **The replay rule** (`tower_net::replay`): a counter above the last one seen is new: it is
+  delivered, and acknowledged when the node asked for it. The same counter again is a
+  retransmission (the acknowledgement was lost): acknowledged again, at most 9 times, and not
+  delivered twice. A lower counter is a replay: dropped.
+- **The acknowledgement:** 20 ms after the frame (the node turns from sending to receiving), an
+  `Ack` frame with the gateway's own next counter. Its 6 bytes: the counter it answers (4, little
+  endian), the signal strength the gateway heard (dBm, clamped to -128 to 127), and a flag when a
+  downlink waits for the node.
+- **A waiting downlink:** one for each node. The flag rides on every acknowledgement to that node;
+  20 ms after the node's next uplink the gateway sends it, confirmed, with 2 tries, while the node
+  listens. The agent learns whether it arrived.
+- **Sending to a node that listens:** a confirmed frame waits 200 ms for its acknowledgement and
+  goes again, the same bytes, after 0 to 100 ms at random, up to the tries asked (1 to 10). Frames
+  heard in the window that are not the acknowledgement are passed over (`tower_net::ack`).
+- **The transmit counter** (`tower_net::txctr`): every frame the gateway sends, acknowledgements
+  too, takes the next counter, before anything is sent. A watermark 1024 counters ahead is kept in
+  the north bridge's own flash (T25); after a reset the counter starts there, or at the agent's
+  number when that is higher. When the watermark cannot be written, the gateway sends nothing: a
+  counter used twice under one key breaks the encryption.
+- **The duty cycle** (`tower_radio::DutyGovernor`): in EU 868 at most 1 % of the time on air, a
+  bucket of 36 s refilled at 1 %; every frame counts, acknowledgements too. A frame that does not
+  fit is not sent, and a node whose acknowledgement did not fit sends again.
+- **Payloads pass through:** what the nodes send (`Info`, `Report`, `Event`) and what they are
+  sent (`Set`, `Time`, `Describe`) are bytes to the gateway; the agent reads them.
+- **Not yet:** pairing over the air (T47), frequency hopping (US 915), bulk transfer.
+
 ## How the STM32WL is set
 
 From RM0453 (the STM32WL reference manual, section 5), as the spike sets it:

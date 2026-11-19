@@ -24,7 +24,7 @@ to tell that it is done. The facts it works with are in the documents: the board
 | M2 | The agent's core and the south bridge | T13 to T18 | The agent flashes the south bridge on its own and shows the board on MQTT |
 | M3 | Thermometers | T19 | A DS18B20 shows up on MQTT and in a Node-RED flow |
 | M4 | The front panel | T20, T21 | The LCD shows the name and the address; the buttons move through the pages (held on a FIBER, 2026-11-19) |
-| M5 | The north bridge | T22 to T27 | TOWER nodes pair with the FIBER and their events arrive on MQTT |
+| M5 | The north bridge | T22 to T27, T47 | TOWER nodes pair with the FIBER and their events arrive on MQTT |
 | M6 | Bluetooth | T28, T29 | A phone puts a FIBER on Wi-Fi |
 | M7 | Documentation and polish | T30 to T33 | A new user gets from the box to a thermometer in a flow with the documentation alone |
 
@@ -673,61 +673,6 @@ the receive filter has to be wide enough for both crystals' error.
 - Needs: T2 (the bootloader answers, to write the test firmware); a TOWER Core Module.
 - Done when: frames go both ways, and the captures are in the repository.
 
-### T24. The frame codec and the gateway's flow (M5)
-
-State (2026-11-19): the frame codec and its vectors are done (`8ec3c7b`, `17ca877`), pushed; the
-first CI run failed in `check-hil` (the spike's own lock file was stale after `fiber-tower-air` got
-`aes` and `tower-protocol`), fixed in `ad022bd`, CI run 44556434962 green. The gateway's flow is
-next, and not begun. The codec: TOWER's `frame.rs` written again in
-`crates/tower-air` (`frame`), over `tower_radio::ccm::Ccm` and `SoftAes` (RustCrypto's `aes` 0.9, as
-TOWER's own host tests use; the STM32WL's AES engine can come later through the same `AesBlock`).
-The vectors: 32 frames of TOWER's `net_confirmed` (the node on the r2, which still runs it) through
-the spike's receive mode, each opening under the example's key.
-
-For the flow, read first TOWER's `firmware/src/radio/net/mod.rs` (`recv`, `send`, `await_ack`,
-`send_ack`, `add_peer`, `set_pending`, `alloc_counter`) and `pairing.rs`, and the `tower-net` kernels
-they call (`replay`, `txctr`, `ack`, `pairing`, `handshake`). To settle before writing it:
-- time: TOWER waits a turnaround before an acknowledgement and an acknowledgement window with
-  Embassy's timers; `tower-air` has none. A small timer trait beside `Radio` (sleep, and a
-  deadline on `receive`), so that the tests run on a made-up clock;
-- the peers: a fixed table (address, key, replay lane, one waiting downlink), filled by the agent
-  after every `Hello` (D8: the firmware keeps no registry);
-- the transmit counter: `tower_net::txctr` with its reserve, its watermark the one thing the
-  north bridge keeps (T25), started from the higher of its own and the agent's;
-- the tests: an executor of a few lines (a no-op waker) and a made-up radio that hands over
-  frames sealed by the same codec; the three cases of "Done when".
-
-What TOWER's own gateway does inside its firmware, written again over our radio. Every decision
-about security stays TOWER's code (D1).
-
-- [x] The frame, as TOWER's `firmware/src/radio/frame.rs` has it: `fmt_type | flags | src(4) |
-      dest(4) | counter(4) | [bulk_idx(3)] | payload | tag(8)`; the clear header is
-      authenticated, the payload encrypted; the nonce from `tower-net`; AES-128-CCM from
-      `tower-radio`, over an AES in software (`fiber_tower_air::frame`, `SoftAes` over `aes` 0.9;
-      RFC 3610's packet vector 1 passes through it; the 74-byte MTU checked against
-      `tower_protocol` at compile time)
-- [x] The vectors: frames of `net_confirmed` from a real Core Module, captured, opened with its
-      known key (32 frames, 2026-11-19, `crates/tower-air/tests/net-confirmed-2026-11-19.txt`):
-      each opens, `msg NNN\0`, the counters one after another from 0xB801, each message sent 3
-      times as the same frame (no acknowledgement); none opens under another key
-- [ ] The gateway's flow over `tower-net`: only nodes it knows; the replay rule; confirmed
-      delivery with an acknowledgement (the counter it answers, the signal strength, the
-      "more waiting" flag); the transmit counter with its reserve; one waiting message for each
-      sleeping node, sent when the node next speaks; pairing over the air (the key agreement,
-      the commitment round, the six-digit code)
-- [ ] The duty-cycle budget for EU 868 from `tower-radio`; the band and the channel as settings
-- [ ] Messages to nodes (`Set`, `Time`, `Describe`) and from them (`Info`, `Report`, `Event`)
-      pass through untouched: the agent reads them, the firmware does not
-- [ ] Tests on the computer: the flow against a made-up radio (a lost acknowledgement, a replay,
-      pairing again)
-
-Watch out: the parts copied in spirit from TOWER (`radio/frame.rs`, `radio/net/mod.rs`,
-`radio/net/pairing.rs`) are what the drift report of T27 watches. Left for later: frequency
-hopping (US 915), the remote shell, bulk transfer.
-
-- Needs: T23.
-- Done when: the vectors pass, and the flow tests cover the three cases above.
-
 ### T42. A press sends a client's message away (D26) (M4)
 
 State (2026-11-19): written and tested on the computer, `just check` passes, commit `1fc485b`, CI run
@@ -837,6 +782,23 @@ replays are refused after a restart of either side; 24 hours pass without a faul
 - Done when: the firmware runs on a FIBER, says `Hello`, and takes its settings from a test
   program.
 
+#### T47. Pairing over the air
+
+Split off from T24 (2026-11-19). TOWER's `firmware/src/radio/net/pairing.rs` written again over
+the gateway of T24: the window the agent opens, the X25519 key agreement, the commitment round,
+the six-digit code, and the keyed join of a known node. Every decision stays `tower-net`'s
+(`pairing`, `handshake`).
+
+- [ ] Read `pairing.rs` and `tower-net`'s `pairing` and `handshake`; write the flow into
+      `docs/firmware/radio.md` first
+- [ ] The pairing host over the T24 gateway; the random numbers from the STM32WL's generator
+      through a trait
+- [ ] Tests: a node joins against a made-up radio; a wrong code; pairing again (a new key, the
+      lane started again)
+
+- Needs: T24.
+- Done when: the tests pass, and later (T26) a real Core Module pairs with a FIBER.
+
 #### T26. The agent's radio service
 
 - [ ] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
@@ -860,7 +822,7 @@ replays are refused after a restart of either side; 24 hours pass without a faul
 - [ ] `fiber radio status | config | nodes | pair | watch`
 - [ ] Tests against the north bridge simulator
 
-- Needs: T17, T25; T21 for the code on the LCD.
+- Needs: T17, T25, T47; T21 for the code on the LCD.
 - Done when: the lines under "M5" hold with one Core Module.
 
 #### T27. Keeping the two radio stacks together
@@ -1705,6 +1667,53 @@ the buzzer started at once.
 - [x] On the FIBER: the alarm's message and its beep together
 
 - Done when: the test passes, and on the FIBER the message comes with the beep.
+
+### T24. The frame codec and the gateway's flow (M5)
+
+Done 2026-11-19 (the frame codec `8ec3c7b`, `17ca877`; the flow in the commit that closes it).
+Checked: `just check`, the 11 flow tests and the 32 frames of a real Core Module through the
+gateway (each message taken in once, each copy answered). Not run on a FIBER: that needs the
+north bridge's firmware (T25). Pairing over the air is T47. Settled on the way: `recv` receives
+until its deadline and passes over what it does not take in (TOWER's takes one frame a call); a
+`Clock` trait beside `Radio`, a receive with a deadline being a race of the two; the watermark
+behind a `Watermark` trait (T25 keeps it in flash); the counter locked until the agent gives the
+floor the firmware last reported (no other record is kept on the north bridge, so a lost
+watermark looks like a first start); the agent adds each node with its key and last counter
+(D8).
+
+What TOWER's own gateway does inside its firmware, written again over our radio. Every decision
+about security stays TOWER's code (D1).
+
+- [x] The frame, as TOWER's `firmware/src/radio/frame.rs` has it: `fmt_type | flags | src(4) |
+      dest(4) | counter(4) | [bulk_idx(3)] | payload | tag(8)`; the clear header is
+      authenticated, the payload encrypted; the nonce from `tower-net`; AES-128-CCM from
+      `tower-radio`, over an AES in software (`fiber_tower_air::frame`, `SoftAes` over `aes` 0.9;
+      RFC 3610's packet vector 1 passes through it; the 74-byte MTU checked against
+      `tower_protocol` at compile time)
+- [x] The vectors: frames of `net_confirmed` from a real Core Module, captured, opened with its
+      known key (32 frames, 2026-11-19, `crates/tower-air/tests/net-confirmed-2026-11-19.txt`):
+      each opens, `msg NNN\0`, the counters one after another from 0xB801, each message sent 3
+      times as the same frame (no acknowledgement); none opens under another key
+- [x] `docs/firmware/radio.md`: the gateway's flow, before its code
+- [x] The gateway's flow over `tower-net` (`fiber_tower_air::gateway`): only nodes it knows; the
+      replay rule; confirmed delivery with an acknowledgement (the counter it answers, the signal
+      strength, the "more waiting" flag); the transmit counter with its reserve, locked until the
+      agent's floor; one waiting message for each sleeping node, sent when the node next speaks
+- [x] The duty-cycle budget for EU 868 from `tower-radio`; the channel as a setting (the band is
+      EU 868 only: US 915 needs hopping, not planned)
+- [x] Messages to nodes (`Set`, `Time`, `Describe`) and from them (`Info`, `Report`, `Event`)
+      pass through untouched: the agent reads them, the firmware does not
+- [x] Tests on the computer (`crates/tower-air/tests/gateway.rs`, 11): the flow against a made-up
+      radio and clock sharing one time (a lost acknowledgement, a replay, a node the agent keys
+      again, unknown and forged frames, a waiting downlink heard and not heard, the watermark,
+      the duty cycle), and the 32 captured `net_confirmed` frames through it
+
+Watch out: the parts copied in spirit from TOWER (`radio/frame.rs`, `radio/net/mod.rs`,
+`radio/net/pairing.rs`) are what the drift report of T27 watches. Left for later: frequency
+hopping (US 915), the remote shell, bulk transfer.
+
+- Needs: T23.
+- Done when: the vectors pass, and the flow tests cover the three cases above.
 
 ## Decisions ahead
 
