@@ -170,5 +170,13 @@ More that the bench showed (2026-11-19), with the platform installed:
 - **The south bridge's `VREFINT_CAL` is at 0x1FFF 756A,** not 0x1FFF 7568 as the firmware first
   read it (that is `TS_CAL1`, the temperature sensor's): 1662 and 1048 on this chip, read through
   its bootloader. The first firmware's voltages were 1.59 times too low.
+- **The south bridge's pins follow `Desired`,** read over SWD with a J-Link while the firmware
+  ran (the output registers of GPIOA, GPIOB and GPIOD): the ports, the LEDs set by the agent and
+  by a client, and the fallback 5 s after the agent stopped (the LEDs dark but the power LED's
+  yellow, briefly once a second; the ports as they were). Not seen by eye.
+- **After SWD the CM4 cannot reach the south bridge's bootloader:** `fiber firmware chip south`
+  got `0x00` where the bootloader's ACK should be, and the firmware started instead. It stays so
+  until the next power-on (to be checked). Keep a debug probe off the south bridge on a FIBER
+  whose firmware the agent should still be able to write.
 - **The voltages** with that fixed: input 13.6 V, battery 1.7 V (no cell fitted, by the look of
   it). The input's readings spread over 0.13 V. Not checked with a meter.

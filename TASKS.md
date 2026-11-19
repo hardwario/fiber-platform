@@ -41,14 +41,16 @@ State (2026-11-19): everything that needs no eyes, ears or hands is answered, on
 left needs someone at the bench. The FIBER (reachable over SSH as `fiber`, sudo with FIBER Setup's
 default password) is a plain Raspberry Pi OS of 2026-10-06 (trixie, kernel 6.18.60) on a CM4 rev
 1.1 with 1 GB (`a03141`), written by FIBER Setup 1.2.0; the platform is installed on it since
-(see T12). A J-Link on the computer is wired to the south bridge's SWD header and has not been
-used: after SWD an STM32C0 keeps BOOT0 low until the next power-on, which would cut the agent's
-flashing off. Answered: both bootloaders (check 1); the I2C bus and its three chips; the clock;
+(see T12). A J-Link on the computer is wired to the south bridge's SWD header; it was used last,
+to read the south bridge's pins (T16), and that confirmed the warning below: since then the CM4
+cannot reach the south bridge's bootloader (`fiber firmware chip south` gets `0x00`), until the
+next power-on. The firmware runs; a new one would have to go through the J-Link. Answered: both bootloaders (check 1); the I2C bus and its three chips; the clock;
 `/dev/spidev6.0` and PWM channel 1 (check 2 and 6 in part, all in `docs/bench-checks.md`). The
 earlier software's LCD driver was read: ST7920, mode 3, 400 kHz, and the picture turned by 180
 degrees, which T20's driver does too. Left, for someone at the bench: look at the LCD (does it
 show the agent's pages, upright?) and the backlight; press each button; listen to the buzzer, also
-at power-on; a RAK5146 card in the slot; a second unit. The test pattern script is
+at power-on; a RAK5146 card in the slot; a second unit; then a power cycle, after which `sudo
+fiber firmware chip south` should answer again (with the agent stopped). The test pattern script is
 `lcd_test.py` in the home directory of `fiber` on the unit.
 
 What only a real board answers. Flashing, recovery, the LCD and the ChirpStack role all rest on
@@ -399,8 +401,12 @@ State (2026-11-19): runs on a FIBER, flashed there by the agent: its `Hello` nam
 `Status` comes every second, the agent's `Desired` goes in (a port cycled and its LED set through
 MQTT were answered). One fix from the bench: `VREFINT_CAL` is at 0x1FFF 756A, not 0x1FFF 7568
 (`TS_CAL1`), so the first build's voltages were 1.59 times too low (T36). This unit's option
-bytes have `nBOOT_SEL` = 0 already, so the one-time write did not run. Not seen: the LEDs and the
-port power themselves (nobody at the bench; the J-Link could read the pins, see T2).
+bytes have `nBOOT_SEL` = 0 already, so the one-time write did not run. The pins follow `Desired`,
+read over SWD while it ran (the output registers of GPIOA, B and D): all ports on and every LED
+green as the agent asked; port 3 off (PB7 low, its LED dark); port 1's LED red; with the agent
+stopped, after 5 s, every LED dark but the power LED's yellow line, low for about 150 ms once a
+second, and the ports as they were. Not seen by eye: that the LEDs light (low = lit, by the
+schematic). It stays in progress with T13's drafts.
 Earlier (2026-11-18): built on the draft of `docs/firmware/south-link.md`: `crates/south-core` (6 tests) and `firmware/south`, 16224 bytes of
 flash (15.8 KB of the 24 KB), with fmt, clippy, rustdoc and the size in `just check-south` and a CI
 job, green since `30fb908` (44202681510). Not run on a chip: not the LEDs, not the ports, not the
@@ -447,11 +453,14 @@ costs 82 bytes.
 
 State (2026-11-19): on a FIBER: the agent flashed the south bridge, which had the earlier firmware,
 on its own at its first start (M2's first line), and again after an update; a flash stopped hard
-recovered by itself (the power cut proper is left, T15); `fiber status`, `power`, `ports`, `leds`,
+recovered by itself (the power cut proper is left, T15); stopping the agent gives the fallback
+pattern on the south bridge's pins, read over SWD (M2's third line, T16); `fiber status`,
+`power`, `ports`, `leds`,
 `firmware status` and `firmware flash` work through MQTT. The voltages were too low until the
 firmware's fix (T36), and a single reading was too noisy for the 0.05 V rule: 38 messages on
-`power` in 2 minutes, so the agent averages 8 readings now (T36). Left: the fallback pattern seen
-when the agent stops (eyes), the power cut, the mini-PCIe lines (a card). Open: with no cell the
+`power` in 2 minutes, so the agent averages 8 readings now (T36). Left: the power cut, the
+mini-PCIe lines (a card). After the agent restarts, the ports are all on and the LEDs automatic
+again, whatever a client had set: as the code has it, not written in `docs/mqtt-api.md`. Open: with no cell the
 battery reads 1.7 V and is shown as a voltage; perhaps `power` should say there is no battery.
 Earlier (2026-11-18): everything that needs no board is written and tested (`just check` and
 the converge test pass on the computer; commit `b8f038d`, CI run 44206746581 green). `fiber agent`
