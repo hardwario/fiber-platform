@@ -639,7 +639,18 @@ the north bridge now and only listens. It is plain registers, not Embassy: `emba
 a section of shared memory to start on the dual-core WL55, and the spike needs nothing of the
 HAL. Results in `docs/bench-checks.md`, check 4: the radio up without a device error, the noise
 floor at -114 to -118 dBm, no sync word heard on any of TOWER's three channels (about 5 minutes
-of listening, after the survey). Next, with a Core Module running `radio_beacon`: the captures.
+of listening, after the survey). Then a Core Module r1 on the maintainer's computer, running
+TOWER's `radio_beacon` at the pinned revision as the node (a 16-byte frame every second on channel
+0, `[seq:4 LE][0xA5 x 12]`), flashed with TOWER's own `just fw flash` (the `tower` repository is
+only built, not changed). **The north bridge receives it**, and 56 captures settled the air format
+(`docs/bench-checks.md`, check 4): the sync word goes on air byte-reversed (`15 47 62 DB`); the
+whitening is PN9 from all ones, least significant bit first, over the length byte, the payload and
+the CRC; the CRC is CRC-16/CCITT-FALSE (`0x1021`, from `0xFFFF`) over the length byte and the
+payload. The captures are test vectors in `crates/tower-air`. Watch out: the beacon was built
+without `core-module-r1`, so it has no USB console (the r1's console is the STM32's own USB); to
+flash it again the module must be put into DFU by hand (hold BOOT, press RESET). Next: the
+sniffer role on the Core Module (built with `core-module-r1`), and frames sent from the north
+bridge to it.
 
 TOWER nodes use a SPIRIT1 radio; the north bridge has another one. Whether the two understand
 each other is the biggest unknown of the plan, so it is answered before anything is built on it
@@ -655,12 +666,15 @@ each other is the biggest unknown of the plan, so it is answered before anything
       19 200), 19.8 kHz deviation, BT 1, sync word `0xDB624715`, a preamble detector of 16 bits,
       117, 156 and 187 kHz receive bandwidth. Set, and the radio receives; not proven against a
       node
-- [ ] Receive raw: fixed length, the radio's own whitening and CRC off, an interrupt at the sync
-      word. Capture the bytes after the sync word from a Core Module that runs TOWER's
-      `radio_beacon` at the pinned revision
-- [ ] From the captures settle the whitening (a 9-bit sequence that starts with all ones; in
+- [x] Receive raw: fixed length, the radio's own whitening and CRC off. Capture the bytes from a
+      Core Module that runs TOWER's `radio_beacon` at the pinned revision. Without a sync word
+      (the radio takes the bytes after the preamble), as the sync word in TOWER's register order
+      matched nothing: on air it is byte-reversed. The IRQ is polled, not taken
+- [x] From the captures settle the whitening (a 9-bit sequence that starts with all ones; in
       which order its bits fall into a byte) and the CRC-16 (polynomial `0x1021`; its start
-      value; what it covers). Keep the captures as test vectors
+      value; what it covers). Keep the captures as test vectors: PN9 from all ones, least
+      significant bit first, from the length byte to the CRC; CRC-16/CCITT-FALSE over the
+      length byte and the payload (56 of 56 frames)
 - [ ] Try the shorter way too: the radio's own variable length and whitening, with a correction
       in software. It loses the two CRC bytes; every frame still carries an 8-byte tag
 - [ ] Send frames built in software to the Core Module, and read the frequency offset it

@@ -87,8 +87,29 @@ The spike that opens the north bridge work (T22). With a Core Module running TOW
 3. Measure the packet error rate at 117, 156 and 187 kHz receive bandwidth, at several signal
    levels.
 
-**Result (2026-11-19): the radio is up; nothing heard from TOWER yet, as no Core Module was at
-hand.** A bench firmware (`hil/radio-spike/`, plain registers), written to the north bridge
+**Result (2026-11-19): the north bridge hears a TOWER Core Module, and the air format is settled
+from the captures.** The Core Module (r1) ran TOWER's `radio_beacon` at the pinned revision as the
+node, about a metre from the FIBER: a 16-byte frame every second on channel 0, `[seq:4 LE][0xA5 x
+12]`. With TOWER's sync word in its register order (`DB 62 47 15`) nothing matched, while the
+preamble detector fired once a second; without a sync word the radio handed over the 64 bytes after
+each preamble, and in them:
+
+- **The sync word is byte-reversed on air:** `15 47 62 DB` (the SPIRIT1 sends `SYNC1` first).
+- **The whitening is PN9** (x^9 + x^5 + 1, from all ones), **least significant bit first** in each
+  byte, over the length byte, the payload and the CRC. The radio's own whitening packs it the other
+  way, as the documents said.
+- **The CRC is CRC-16/CCITT-FALSE:** polynomial `0x1021`, from `0xFFFF`, not reflected, over the
+  length byte and the payload, sent high byte first.
+- **The length byte counts the payload only** (16).
+
+All 56 strong frames of a 70-second capture agree, at -74 to -76 dBm (156 and 187.2 kHz filters,
+the boosted gain): sequence numbers 142 to 198 with one missed. Weaker frames of something else on
+the channel (-80 to -97 dBm) came too. The captures are kept as test vectors
+(`crates/tower-air/tests/`). Not done yet: frames sent the other way, the frequency offset, the
+error rates at the four levels.
+
+Before the Core Module (the same day): the radio up, the noise floor, and no TOWER traffic in the
+office. A bench firmware (`hil/radio-spike/`, plain registers), written to the north bridge
 through its bootloader with `hil/north_flash.py` after a copy of its earlier firmware was read out
 (256 KB, sha256 `1690ce2d...`, kept on the FIBER and on the maintainer's computer). On the radio,
 from RM0453: the TCXO at 1.7 V and every calibration (the image one for 863 to 870 MHz) without a
@@ -119,7 +140,7 @@ sync word on any. On 868.1 and 868.5 MHz short spikes up to -81 dBm and a few pr
 are also LoRaWAN's three default channels in EU 868: the spikes are probably LoRa traffic nearby
 (not checked). The preamble detector of 16 bits also fires on noise now and then. What this does not answer: the receiver's
 sensitivity (the earlier firmware measured a weak one; that takes a known signal), and everything
-that needs a Core Module (the whitening, the CRC, frames both ways, the error rates).
+that needed a Core Module (answered above, but frames sent the other way and the error rates).
 
 ## 5. Does the south bridge firmware fit?
 

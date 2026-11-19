@@ -2,7 +2,7 @@
 //!
 //! On the STM32WL55's M4 core, with plain registers. It brings the radio up (the TCXO at 1.7 V,
 //! the calibrations for 863 to 870 MHz, the RF switch to receive), sets GFSK as TOWER sends it
-//! (19 216.6 bit/s, 19.8 kHz deviation, BT 1, sync word 0xDB624715) on EU 868 channel 0
+//! (19 216.6 bit/s, 19.8 kHz deviation, BT 1, sync word `15 47 62 DB` on air) on EU 868 channel 0
 //! (868.1 MHz), and receives raw: fixed length, the radio's own whitening and CRC off. After one
 //! round of the noise floor it listens on TOWER's three channels in turn (868.1, 868.3 and 868.5
 //! MHz). It reports on USART1 (PA9, 115200 baud, 8N1), one line at a time:
@@ -280,9 +280,15 @@ fn bring_up() {
     step("errors cleared");
 }
 
+/// The sync word as it goes on air: TOWER's SYNC4 to SYNC1 (`0xDB624715`,
+/// `firmware/src/radio/config.rs`) byte-reversed, as the captures showed (the SPIRIT1 sends SYNC1
+/// first).
+const SYNC: [u8; 4] = [0x15, 0x47, 0x62, 0xDB];
+
 /// GFSK as TOWER sends it, raw, on `frequency`; `bandwidth` is the radio's code for the receive
-/// filter.
-fn gfsk(frequency: u64, bandwidth: u8) {
+/// filter. With no `sync` the radio takes the bytes right after the preamble, wherever in it it
+/// stood: the sync word is then looked for in those bytes.
+fn gfsk(frequency: u64, bandwidth: u8, sync: &[u8]) {
     set(0x8A, &[0x00]); // GFSK
     let f = (frequency << 25) / XTAL;
     set(0x86, &(f as u32).to_be_bytes());
@@ -296,10 +302,16 @@ fn gfsk(frequency: u64, bandwidth: u8) {
         0x8B,
         &[br[1], br[2], br[3], 0x0B, bandwidth, fdev[1], fdev[2], fdev[3]],
     );
-    // A preamble of 32 bits (for sending), a detector of 16 bits, a sync word of 32 bits, no
+    // A preamble of 32 bits (for sending), a detector of 16 bits, the sync word's bits, no
     // address, fixed length, FRAME bytes, no CRC, no whitening.
-    set(0x8C, &[0x00, 0x20, 0x05, 0x20, 0x00, 0x00, FRAME, 0x01, 0x00]);
-    write_register(0x06C0, &[0xDB, 0x62, 0x47, 0x15]);
+    let sync_bits = (sync.len() * 8) as u8;
+    set(
+        0x8C,
+        &[0x00, 0x20, 0x05, sync_bits, 0x00, 0x00, FRAME, 0x01, 0x00],
+    );
+    if !sync.is_empty() {
+        write_register(0x06C0, sync);
+    }
     set(0x8F, &[0x00, 0x00]); // both buffers from 0
     // IRQs: rx done, preamble, sync word, CRC error, timeout.
     set(0x08, &[0x02, 0x4E, 0x02, 0x4E, 0x00, 0x00, 0x00, 0x00]);
@@ -417,12 +429,35 @@ fn listen() -> Heard {
 }
 
 /// Standby, the regulator, GFSK, receive, the gain: one setting.
-fn tune(frequency: u64, bandwidth: u8, regulator: u8, gain: u8) {
+fn tune(frequency: u64, bandwidth: u8, regulator: u8, gain: u8, sync: &[u8]) {
     set(0x80, &[0x00]);
     set(0x96, &[regulator]);
-    gfsk(frequency, bandwidth);
+    gfsk(frequency, bandwidth, sync);
     receive();
     write_register(0x08AC, &[gain]);
+}
+
+/// The survey of the noise floor and the three channels (true), or the capture of what follows
+/// any preamble on channel 0 (false).
+const SURVEY: bool = false;
+
+/// Captures: channel 0, the 187.2 kHz filter (room for both crystals' error), the linear
+/// regulator, the boosted gain, no sync word; every FRAME bytes after a preamble are printed.
+fn capture() -> ! {
+    say!("capture: channel 0, 187.2 kHz, boosted, no sync word, {FRAME} bytes after each preamble");
+    tune(CHANNELS[0], 0x12, 0x00, 0x96, &[]);
+    let mut round = 0u32;
+    loop {
+        let h = listen();
+        say!(
+            "capture round {round}: rssi min {} avg {} max {} dBm, preambles {}",
+            h.min,
+            h.avg,
+            h.max,
+            h.preambles
+        );
+        round += 1;
+    }
 }
 
 #[entry]
@@ -430,9 +465,12 @@ fn main() -> ! {
     clocks();
     say!("fiber-radio-spike: north bridge, EU 868 channels 0 to 2");
     bring_up();
+    if !SURVEY {
+        capture();
+    }
     for (bw_hz, bw) in BANDWIDTHS {
         for (regulator, reg_code, gain, gain_code) in SETTINGS {
-            tune(CHANNELS[0], bw, reg_code, gain_code);
+            tune(CHANNELS[0], bw, reg_code, gain_code, &SYNC);
             let h = listen();
             say!(
                 "floor bw {bw_hz} {regulator} {gain}: rssi min {} avg {} max {} dBm, gain register 0x{:02x}, \
@@ -450,7 +488,7 @@ fn main() -> ! {
     let mut round = 0u32;
     loop {
         for (channel, frequency) in CHANNELS.iter().enumerate() {
-            tune(*frequency, 0x1A, 0x00, 0x96);
+            tune(*frequency, 0x1A, 0x00, 0x96, &SYNC);
             let h = listen();
             say!(
                 "listen round {round} channel {channel} ({frequency} Hz, 156.2 kHz, boosted): rssi min {} avg {} \
