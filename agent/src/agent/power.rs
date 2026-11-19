@@ -13,6 +13,12 @@ const CAL_SUPPLY: f64 = 3.0;
 pub const POE_ABOVE: f64 = 10.5;
 pub const BATTERY_BELOW: f64 = 9.0;
 
+/// How many readings are averaged (one a second). One count on the input's divider is about
+/// 5 mV, and on a FIBER the input spread over 0.13 V (28 counts) from reading to reading
+/// (2026-11-19), so a single reading moved by more than 0.05 V every few seconds. With 8, losing
+/// PoE still shows within 3 readings.
+pub const AVERAGED: usize = 8;
+
 /// The two voltages, in volts.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Volts {
@@ -33,6 +39,32 @@ pub fn volts(status: &Status, vrefint_cal: u16) -> Option<Volts> {
         input: pin(status.vin) * 398.0 / 68.0,
         battery: pin(status.vbat) * 2.0,
     })
+}
+
+/// The last [`AVERAGED`] readings.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Average {
+    readings: [Option<Volts>; AVERAGED],
+    next: usize,
+}
+
+impl Average {
+    /// Takes a reading; returns the average of the ones kept.
+    pub fn add(&mut self, volts: Volts) -> Volts {
+        self.readings[self.next] = Some(volts);
+        self.next = (self.next + 1) % AVERAGED;
+        let kept: Vec<Volts> = self.readings.iter().flatten().copied().collect();
+        let n = kept.len() as f64;
+        Volts {
+            input: kept.iter().map(|v| v.input).sum::<f64>() / n,
+            battery: kept.iter().map(|v| v.battery).sum::<f64>() / n,
+        }
+    }
+
+    /// Forgets the readings: the next one starts afresh.
+    pub fn clear(&mut self) {
+        *self = Average::default();
+    }
 }
 
 /// Where the power comes from.
@@ -147,6 +179,31 @@ mod tests {
         assert_eq!(power.update(input(11.0)), Some(Source::Poe));
         assert_eq!(power.update(None), None);
         assert_eq!(power.source, Source::Unknown);
+    }
+
+    #[test]
+    fn readings_are_averaged() {
+        let mut average = Average::default();
+        let at = |input| Volts { input, battery: 4.0 };
+        assert_eq!(average.add(at(13.0)).input, 13.0);
+        assert!((average.add(at(13.2)).input - 13.1).abs() < 1e-9);
+        // Noise of 0.13 V around 13.6 V moves the average by less than 0.05 V.
+        let mut average = Average::default();
+        let mut power = Power::default();
+        power.update(Some(average.add(at(13.6))));
+        for i in 0..40 {
+            let noisy = 13.6 + if i % 2 == 0 { 0.065 } else { -0.065 };
+            let shown = average.add(at(noisy));
+            assert!(!power.moved(Some(shown)), "reading {i}: {shown:?}");
+        }
+        // PoE gone: the battery shows within 3 readings.
+        let mut events = Vec::new();
+        for _ in 0..3 {
+            events.extend(power.update(Some(average.add(at(0.0)))));
+        }
+        assert_eq!(events, [Source::Battery]);
+        average.clear();
+        assert_eq!(average.add(at(4.0)).input, 4.0);
     }
 
     #[test]

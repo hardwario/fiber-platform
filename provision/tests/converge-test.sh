@@ -217,6 +217,10 @@ dashboard() { curl -s -o /dev/null -w '%{http_code}' "$@" http://127.0.0.1:1880/
 wait_for 30 test "$(dashboard -u 'pi:a secret')" = 200 || fail "the dashboard does not answer with the login: $(dashboard -u 'pi:a secret')"
 [ "$(dashboard)" = 401 ] || fail "the dashboard answers without the login: $(dashboard)"
 [ "$(dashboard -u pi:fiber)" = 401 ] || fail "the dashboard takes another password"
+# npm's downloads are not kept (217 MB on a FIBER, 2026-11-19).
+for cache in /var/lib/fiber/platform/npm-cache /var/lib/node-red/.fiber-npm-cache /var/lib/node-red/.npm /root/.npm; do
+    [ ! -e "$cache" ] || fail "npm's cache was left in $cache ($(du -sh "$cache" | cut -f 1))"
+done
 
 say "8b. Apply again: nothing changes"
 fiber platform apply | tee /tmp/apply.out
@@ -271,7 +275,18 @@ rm -f /tmp/default-login-answered /tmp/watch-stop
     done
 ) &
 watcher=$!
+# A password shorter than 8 characters, as FIBER Setup suggests one: ChirpStack refuses it, and
+# the component fails with a message that says what to do. Nothing has started ChirpStack yet.
+cp /etc/fiber/secrets/login.json /tmp/login.json
+printf '{"user": "pi", "password": "fiber"}' > /etc/fiber/secrets/login.json
 fiber platform enable chirpstack
+code=0
+fiber platform apply > /tmp/apply.out 2>&1 || code=$?
+[ "$code" -eq 20 ] || fail "an apply with a short password ended with $code, not 20: $(cat /tmp/apply.out)"
+grep -q '^chirpstack: failed: ChirpStack needs a password of at least 8 characters' /tmp/apply.out ||
+    fail "a short password did not say so: $(cat /tmp/apply.out)"
+! systemctl is-active --quiet chirpstack-sqlite || fail "ChirpStack started without its password"
+cp /tmp/login.json /etc/fiber/secrets/login.json
 expect 0 fiber platform apply
 seed_login_works() { [ "$(login admin "a secret")" = ok ]; }
 wait_for 60 seed_login_works || fail "ChirpStack does not take the login from the seed"

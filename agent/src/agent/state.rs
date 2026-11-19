@@ -55,6 +55,8 @@ pub struct State {
     /// The nine LEDs: the power LED, then ports 1 to 8.
     pub leds: [Setting; 9],
     pub power: Power,
+    /// The last readings of the two voltages, averaged before they are shown.
+    pub readings: power::Average,
     pub south: Chip,
     pub last_status: Option<Status>,
     pub thermometers: Probes,
@@ -68,6 +70,7 @@ impl State {
             ports: 0xFF,
             leds: [Setting::Auto; 9],
             power: Power::default(),
+            readings: power::Average::default(),
             south: Chip {
                 state: FirmwareState::Silent,
                 hello: None,
@@ -122,6 +125,13 @@ impl State {
             (true, Some(hello)) => power::volts(&status, hello.vrefint_cal),
             _ => None,
         };
+        let volts = match volts {
+            Some(volts) => Some(self.readings.add(volts)),
+            None => {
+                self.readings.clear();
+                None
+            }
+        };
         self.power.update(volts)
     }
 
@@ -131,6 +141,7 @@ impl State {
             self.south.state = FirmwareState::Silent;
         }
         self.last_status = None;
+        self.readings.clear();
         self.power.update(None);
     }
 }

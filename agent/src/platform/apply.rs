@@ -12,6 +12,7 @@
 
 use std::fs::File;
 use std::io::Write;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -603,8 +604,22 @@ pub fn foreground(paths: &Paths) -> Result<ExitCode> {
         let code = apply_once(paths, &request)?;
         let now = read_trimmed(&paths.platform_pending());
         match now {
-            // A new request came while this one ran: run again for it.
-            Some(now) if now != request => continue,
+            // A new request came while this one ran: run again for it, with the release that is
+            // current now. After an update, that is not this program's release, and its roles
+            // must not run (seen on a FIBER, 2026-11-19): the current release's program takes
+            // over this process. The lock is closed on the way, and taken again by it.
+            Some(now) if now != request => {
+                if paths.is_real()
+                    && let Some(current) = taking_over(paths, Release::of_this_program().as_ref())
+                {
+                    drop(lock);
+                    let error = Command::new(current.dir.join("bin/fiber"))
+                        .args(["platform", "apply", "--foreground"])
+                        .exec();
+                    bail!("cannot start the apply of release {}: {error}", current.version);
+                }
+                continue;
+            }
             Some(_) if code != EXIT_PARTLY => {
                 let _ = std::fs::remove_file(paths.platform_pending());
             }
@@ -612,6 +627,13 @@ pub fn foreground(paths: &Paths) -> Result<ExitCode> {
         }
         return Ok(ExitCode::from(code));
     }
+}
+
+/// The release `/opt/fiber/current` points at, when it is another one than `mine`.
+fn taking_over(paths: &Paths, mine: Option<&Release>) -> Option<Release> {
+    let dir = std::fs::canonicalize(paths.opt_dir().join("current")).ok()?;
+    let current = Release::holding(&dir.join("bin/fiber"))?;
+    (Some(&current) != mine).then_some(current)
 }
 
 fn systemctl(args: &[&str]) -> Result<String> {
@@ -929,5 +951,29 @@ mod tests {
         }
         // A restart would make it untrue, and nothing writes the file at the start.
         assert!(!text.contains("restart"));
+    }
+
+    #[test]
+    fn after_an_update_the_current_release_takes_over() {
+        let tmp = crate::testdir::TestDir::new("taking-over");
+        let paths = Paths::new(Some(tmp.path().to_path_buf()));
+        let releases = paths.opt_dir().join("releases");
+        for version in ["1.0.0", "1.1.0"] {
+            std::fs::create_dir_all(releases.join(version).join("bin")).unwrap();
+            std::fs::create_dir_all(releases.join(version).join("provision")).unwrap();
+        }
+        // As `Release::of_this_program` finds it: from the real path.
+        let bin = std::fs::canonicalize(releases.join("1.0.0/bin")).unwrap();
+        let mine = Release::holding(&bin.join("fiber")).unwrap();
+        // No current: nothing takes over.
+        assert_eq!(taking_over(&paths, Some(&mine)), None);
+        std::os::unix::fs::symlink("releases/1.0.0", paths.opt_dir().join("current")).unwrap();
+        assert_eq!(taking_over(&paths, Some(&mine)), None);
+        std::fs::remove_file(paths.opt_dir().join("current")).unwrap();
+        std::os::unix::fs::symlink("releases/1.1.0", paths.opt_dir().join("current")).unwrap();
+        let current = taking_over(&paths, Some(&mine)).unwrap();
+        assert_eq!(current.version, "1.1.0");
+        // A program outside a release: the current one takes over too.
+        assert_eq!(taking_over(&paths, None).map(|r| r.version), Some("1.1.0".into()));
     }
 }

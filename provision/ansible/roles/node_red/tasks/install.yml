@@ -58,12 +58,20 @@
       - --omit=dev
       - --no-audit
       - --no-fund
+      - --cache
+      - "{{ fiber.paths.state }}/npm-cache"
       - "node-red@{{ fiber_versions.node_red }}"
   when: >-
     not node_red_package.stat.exists
     or (node_red_package_json.content | b64decode | from_json).version != fiber_versions.node_red
   changed_when: true
   notify: Restart Node-RED
+
+# npm keeps everything it downloaded (127 MB on a FIBER, 2026-11-19): of no use after the install.
+- name: The cache npm kept of Node-RED, removed
+  ansible.builtin.file:
+    path: "{{ fiber.paths.state }}/npm-cache"
+    state: absent
 
 - name: The groups of the board's devices
   ansible.builtin.group:
@@ -115,6 +123,8 @@
       - --no-fund
       - --save
       - --save-exact
+      - --cache
+      - /var/lib/node-red/.fiber-npm-cache
       - "@flowfuse/node-red-dashboard@{{ fiber_versions.node_red_dashboard }}"
     chdir: /var/lib/node-red
   environment:
@@ -124,6 +134,12 @@
     or (node_red_dashboard_json.content | b64decode | from_json).version != fiber_versions.node_red_dashboard
   changed_when: true
   notify: Restart Node-RED
+
+# 90 MB on a FIBER (2026-11-19).
+- name: The cache npm kept of the dashboard, removed
+  ansible.builtin.file:
+    path: /var/lib/node-red/.fiber-npm-cache
+    state: absent
 
 - name: What npm installed of the dashboard
   ansible.builtin.slurp:

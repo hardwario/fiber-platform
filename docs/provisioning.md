@@ -111,7 +111,11 @@ work:
 5. **The end:** 0 when every step is `ok`; 10 when also a role asked for a restart (it touches
    `/run/fiber/platform/restart-needed`); 20 otherwise. On 0 and 10 `pending` is removed; on 20 it
    stays, and the service tries again after 10 s, then with longer and longer pauses, up to
-   30 minutes. A request that comes in while an apply runs makes it run once more.
+   30 minutes. A request that comes in while an apply runs makes it run once more, with the
+   release that is current by then: after an update, the new release's program takes over the
+   process (`exec`), so that the old one does not run its own roles for the new request. Seen on
+   a FIBER before this was there (2026-11-19): an apply that was waiting to try again served the
+   installer of the next release with the old roles.
 
 The service runs only while `pending` exists, at every start too, so an apply cut by a power cut
 goes on after the next start. Two never run at once. An apply that has nothing to install needs

@@ -78,7 +78,8 @@ They are those of TOWER's gateway API, so that one client can talk to both.
 | `battery` | The battery in volts, or `null` |
 
 It changes when the source changes, or a voltage by more than 0.05 V; otherwise once a minute.
-The source changes with a margin, so that it does not flap.
+Each voltage is the average of the last 8 readings, one a second: a single reading is too noisy
+for 0.05 V. The source changes with a margin, so that it does not flap.
 
 ### `power/event`
 

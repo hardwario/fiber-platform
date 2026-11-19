@@ -110,11 +110,13 @@ fn image_crc() -> u32 {
     crc::crc32(image)
 }
 
-/// The internal reference's factory calibration: its ADC count at 3.0 V (DS13866, "Embedded
-/// internal voltage reference": `VREFINT_CAL` at 0x1FFF 7568).
+/// The internal reference's factory calibration: its ADC count at 3.0 V, `VREFINT_CAL` at
+/// 0x1FFF 756A. The half-word before it, 0x1FFF 7568, is the temperature sensor's `TS_CAL1`. Read
+/// on a FIBER through the bootloader (2026-11-19): 1048 at 0x1FFF 7568 (0.768 V, the sensor) and
+/// 1662 at 0x1FFF 756A (1.218 V, the reference).
 fn vrefint_cal() -> u16 {
     // SAFETY: a half-word of the system memory, always mapped and read-only.
-    unsafe { core::ptr::read_volatile(0x1FFF_7568 as *const u16) }
+    unsafe { core::ptr::read_volatile(0x1FFF_756A as *const u16) }
 }
 
 /// Why the chip last started, from RCC_CSR2; the flags are cleared after.

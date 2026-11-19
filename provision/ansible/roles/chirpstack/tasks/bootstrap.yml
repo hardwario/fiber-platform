@@ -35,6 +35,16 @@
         src: "{{ fiber.paths.secrets }}/login.json"
       register: chirpstack_login
 
+    # ChirpStack refuses a shorter one ("Password must be at least 8 characters"), and FIBER
+    # Setup's own suggestion, `fiber`, is shorter (seen on a FIBER, 2026-11-19).
+    - name: ChirpStack needs a password of at least 8 characters
+      ansible.builtin.fail:
+        msg: >-
+          ChirpStack needs a password of at least 8 characters, and the one from FIBER Setup is
+          shorter. Put a longer one into {{ fiber.paths.secrets }}/login.json, then run: sudo fiber
+          platform apply (Node-RED and Mosquitto keep the password they have)
+      when: (chirpstack_login.content | b64decode | from_json).password | length < 8
+
     - name: The password, in a file only the user chirpstack can read
       ansible.builtin.copy:
         content: "{{ (chirpstack_login.content | b64decode | from_json).password }}"
