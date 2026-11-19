@@ -12,6 +12,7 @@
 //!   commands around it), for each receive filter in four settings in turn (the linear or the
 //!   switching regulator, the normal or the boosted receive gain): about 7 minutes, once;
 //! - `listen ...`: for each channel, the preambles and sync words heard in about 35 s;
+//! - in the send mode, `sent ...`: each frame built here and sent, with the PA's level;
 //! - `frame ...`: the bytes after any sync word it heard, with the packet's RSSI.
 //!
 //! Written from RM0453 (the STM32WL reference manual, section 5) and docs/hardware.md. A bench
@@ -134,6 +135,15 @@ fn switch_to_receive() {
         w.set_bs(3, true);
         w.set_bs(4, true);
         w.set_bs(5, true);
+    });
+}
+
+/// The RF switch: transmit on the low-power PA = PC3 and PC4 high, PC5 low (docs/hardware.md).
+fn switch_to_transmit() {
+    pac::GPIOC.bsrr().write(|w| {
+        w.set_bs(3, true);
+        w.set_bs(4, true);
+        w.set_br(5, true);
     });
 }
 
@@ -437,9 +447,134 @@ fn tune(frequency: u64, bandwidth: u8, regulator: u8, gain: u8, sync: &[u8]) {
     write_register(0x08AC, &[gain]);
 }
 
-/// The survey of the noise floor and the three channels (true), or the capture of what follows
-/// any preamble on channel 0 (false).
-const SURVEY: bool = false;
+/// What the spike does after the bring-up.
+#[allow(dead_code)]
+enum Mode {
+    /// The noise floor in every setting, then listening on the three channels.
+    Survey,
+    /// What follows any preamble on channel 0, printed.
+    Capture,
+    /// TOWER frames built here, sent on channel 0.
+    Send,
+}
+
+const MODE: Mode = Mode::Send;
+
+// ---- TOWER's packet, as the captures showed it (docs/bench-checks.md, check 4) -----------------
+
+/// PN9 (x^9 + x^5 + 1) from all ones, each byte filled from its least significant bit, over the
+/// length byte, the payload and the CRC.
+fn whiten(data: &mut [u8]) {
+    let mut state: u16 = 0x1FF;
+    for byte in data.iter_mut() {
+        let mut mask = 0u8;
+        for bit in 0..8 {
+            mask |= ((state & 1) as u8) << bit;
+            let feedback = (state ^ (state >> 5)) & 1;
+            state = (state >> 1) | (feedback << 8);
+        }
+        *byte ^= mask;
+    }
+}
+
+/// CRC-16/CCITT-FALSE over the length byte and the payload.
+fn crc16(data: &[u8]) -> u16 {
+    let mut crc: u16 = 0xFFFF;
+    for &byte in data {
+        crc ^= u16::from(byte) << 8;
+        for _ in 0..8 {
+            crc = if crc & 0x8000 != 0 {
+                (crc << 1) ^ 0x1021
+            } else {
+                crc << 1
+            };
+        }
+    }
+    crc
+}
+
+/// The payload of TOWER's `radio_beacon`: the sequence number, then 0xA5.
+const PAYLOAD: usize = 16;
+/// The length byte, the payload and the CRC.
+const PACKET: usize = 1 + PAYLOAD + 2;
+
+/// `radio_beacon`'s frame number `seq`, as it goes into the radio's buffer.
+fn beacon_packet(seq: u32) -> [u8; PACKET] {
+    let mut packet = [0xA5u8; PACKET];
+    packet[0] = PAYLOAD as u8;
+    packet[1..5].copy_from_slice(&seq.to_le_bytes());
+    let crc = crc16(&packet[..1 + PAYLOAD]);
+    packet[1 + PAYLOAD..].copy_from_slice(&crc.to_be_bytes());
+    whiten(&mut packet);
+    packet
+}
+
+/// The low-power PA's levels tried: its configuration (duty cycle, HP max, the low-power PA, 1)
+/// and the power asked of it, from RM0453's optimal settings: +14 dBm (0x04 and 14), +10 dBm (0x01
+/// and 13), and the +10 dBm configuration asked for 0 dBm (about -3 dBm).
+const LEVELS: [(&str, [u8; 4], u8); 3] = [
+    ("-3 dBm", [0x01, 0x00, 0x01, 0x01], 0x00),
+    ("+10 dBm", [0x01, 0x00, 0x01, 0x01], 0x0D),
+    ("+14 dBm", [0x04, 0x00, 0x01, 0x01], 0x0E),
+];
+
+/// One frame on channel 0 from the low-power PA at `level`: a preamble of 32 bits, the sync word,
+/// the packet; standby after it. Whether it was sent.
+fn send_frame(packet: &[u8; PACKET], level: usize) -> bool {
+    set(0x80, &[0x00]);
+    let (_, pa, power) = LEVELS[level];
+    set(0x95, &pa);
+    set(0x8E, &[power, 0x04]); // a ramp of 200 us
+    set(
+        0x8C,
+        &[0x00, 0x20, 0x05, 0x20, 0x00, 0x00, PACKET as u8, 0x01, 0x00],
+    );
+    write_register(0x06C0, &SYNC);
+    set(0x8F, &[0x00, 0x80]);
+    let mut params = [0u8; 1 + PACKET];
+    params[1..].copy_from_slice(packet);
+    set(0x0E, &params); // the buffer, from 0
+    set(0x08, &[0x02, 0x4F, 0x02, 0x4F, 0x00, 0x00, 0x00, 0x00]);
+    set(0x02, &[0xFF, 0xFF]);
+    switch_to_transmit();
+    set(0x83, &[0x00, 0x00, 0x00]); // once, no timeout
+    let mut sent = false;
+    for _ in 0..200 {
+        if irq() & 1 != 0 {
+            sent = true;
+            break;
+        }
+        delay_us(1_000);
+    }
+    set(0x02, &[0xFF, 0xFF]);
+    set(0x80, &[0x00]);
+    switch_to_receive();
+    sent
+}
+
+/// Frames like `radio_beacon`'s, about one every 2 s (11 ms on air: about 0.6 % of the time,
+/// inside the 1 % of the 868.0 to 868.6 MHz band; the delay loop runs about three times slower
+/// than it counts), numbered from 1 000 000, the levels in turn, 300 of them; then it waits.
+fn send() -> ! {
+    say!("send: radio_beacon frames on channel 0, low-power PA, the levels in turn");
+    gfsk(CHANNELS[0], 0x12, &SYNC);
+    for n in 0..300u32 {
+        let seq = 1_000_000 + n;
+        let level = n as usize % LEVELS.len();
+        let ok = send_frame(&beacon_packet(seq), level);
+        say!(
+            "sent #{seq} at {}: {}, status {}",
+            LEVELS[level].0,
+            if ok { "tx done" } else { "NO tx done" },
+            Status(status())
+        );
+        delay_us(700_000);
+    }
+    say!("send: done");
+    loop {
+        cortex_m::asm::wfi();
+    }
+}
 
 /// Captures: channel 0, the 187.2 kHz filter (room for both crystals' error), the linear
 /// regulator, the boosted gain, no sync word; every FRAME bytes after a preamble are printed.
@@ -465,8 +600,10 @@ fn main() -> ! {
     clocks();
     say!("fiber-radio-spike: north bridge, EU 868 channels 0 to 2");
     bring_up();
-    if !SURVEY {
-        capture();
+    match MODE {
+        Mode::Capture => capture(),
+        Mode::Send => send(),
+        Mode::Survey => {}
     }
     for (bw_hz, bw) in BANDWIDTHS {
         for (regulator, reg_code, gain, gain_code) in SETTINGS {

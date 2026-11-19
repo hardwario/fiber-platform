@@ -105,8 +105,26 @@ each preamble, and in them:
 All 56 strong frames of a 70-second capture agree, at -74 to -76 dBm (156 and 187.2 kHz filters,
 the boosted gain): sequence numbers 142 to 198 with one missed. Weaker frames of something else on
 the channel (-80 to -97 dBm) came too. The captures are kept as test vectors
-(`crates/tower-air/tests/`). Not done yet: frames sent the other way, the frequency offset, the
-error rates at the four levels.
+(`crates/tower-air/tests/`).
+
+**And the other way:** frames built on the north bridge from that description (`radio_beacon`'s
+payload, the CRC, the whitening, a preamble of 32 bits and the sync word in its order on air), sent
+raw from the low-power PA, are received by a second Core Module (an r2) running `radio_beacon` as
+the sniffer at the pinned revision: its SPIRIT1 checks the CRC and passes them, with all 32 bits of
+the sync word right (SQI 32) and an AFC correction of -4 to 0 (raw `AFC_CORR`, of +-127; TOWER does
+not give its scale in Hz). The strength it reads follows the power asked of the PA:
+
+| PA (RM0453's settings) | Received by the Core Module |
+|---|---|
+| +14 dBm | -88 dBm |
+| +10 dBm | -91 dBm |
+| about -3 dBm (the +10 dBm setting asked for 0 dBm) | -103 to -106 dBm; a few frames missed at the edge |
+
+The RF switch for the low-power PA (PC3 and PC4 high, PC5 low) is right: the earlier firmware had
+it wrong until 2026-09-26 and lost 26 dB to it. The path loss is high for a metre (about 100 dB from
++14 dBm to -88 dBm; the Core Module's +11 dBm or so arrived at -75 dBm): whether the FIBER had an
+antenna on its jack was not looked at. Not done yet: the error rates at -60, -90, -100 and -105
+dBm (they need attenuators), more than one Core Module, and the frequency offset in Hz.
 
 Before the Core Module (the same day): the radio up, the noise floor, and no TOWER traffic in the
 office. A bench firmware (`hil/radio-spike/`, plain registers), written to the north bridge

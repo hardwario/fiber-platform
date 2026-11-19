@@ -648,9 +648,14 @@ whitening is PN9 from all ones, least significant bit first, over the length byt
 the CRC; the CRC is CRC-16/CCITT-FALSE (`0x1021`, from `0xFFFF`) over the length byte and the
 payload. The captures are test vectors in `crates/tower-air`. Watch out: the beacon was built
 without `core-module-r1`, so it has no USB console (the r1's console is the STM32's own USB); to
-flash it again the module must be put into DFU by hand (hold BOOT, press RESET). Next: the
-sniffer role on the Core Module (built with `core-module-r1`), and frames sent from the north
-bridge to it.
+flash it again the module must be put into DFU by hand (hold BOOT, press RESET); it keeps
+sending its beacon (it is unplugged since). A second Core Module, an r2 with its FTDI bridge,
+runs `radio_beacon` as the sniffer (flashed over its UART bootloader, no buttons), and **it
+receives the frames the north bridge builds and sends** (spike in its send mode): through its
+CRC, SQI 32, AFC -4 to 0, at -88 dBm from +14 dBm, -91 from +10, about -105 from -3. So T22's
+"Done when" holds: frames go both ways and the captures are in the repository. Left: the error
+rates at four levels (attenuators), several Core Modules, `docs/firmware/radio.md`. The path loss
+is high for a metre (about 100 dB): whether the FIBER has an antenna fitted is to be asked.
 
 TOWER nodes use a SPIRIT1 radio; the north bridge has another one. Whether the two understand
 each other is the biggest unknown of the plan, so it is answered before anything is built on it
@@ -677,8 +682,9 @@ each other is the biggest unknown of the plan, so it is answered before anything
       length byte and the payload (56 of 56 frames)
 - [ ] Try the shorter way too: the radio's own variable length and whitening, with a correction
       in software. It loses the two CRC bytes; every frame still carries an 8-byte tag
-- [ ] Send frames built in software to the Core Module, and read the frequency offset it
-      reports, on several modules
+- [x] Send frames built in software to the Core Module, and read the frequency offset it
+      reports: received through its CRC, `AFC_CORR` -4 to 0 (one module, an r2, 2026-11-19)
+- [ ] The same on several modules
 - [ ] The error rate at -60, -90, -100 and -105 dBm, for 117, 156 and 187 kHz bandwidth
 - [x] The noise floor, with the linear regulator and with the switching one, with and without
       the boosted receive gain: -114 to -118 dBm, the regulator makes no difference. Whether the
