@@ -730,13 +730,17 @@ are in `crates/protocol` (`north`, its tag `0xa5bc` pinned by a test; a node's p
 string of at most 74). Seen on the way: adding the module moved the south bridge's image
 (`0xfbcd5b36` to `0xb79f9cb6`, 16240 bytes) with no change of its own (the crate's symbol names
 moved, and the linker's layout with them): the agent writes it once more at its next install.
-Now: the firmware, `firmware/north`, on the south firmware's model (Embassy 0.6, its own
-workspace and lock, flip-link): `embassy-stm32` for the `stm32wl55jc-cm4`, started with
-`init_primary` and an ordinary static for the shared data (the second core never runs, so its
-place does not matter); the core at 48 MHz from the TCXO (HSE in bypass, which powers it, and
-the PLL); the radio through `fiber-subghz` with the spike's bus (SUBGHZSPI at 12 MHz) and RF
-switch, and the spike's receive flow; the gateway of T24 and T47 in one loop, in slices of
-100 ms, with the link's messages between them.
+The firmware is written and builds (`firmware/north`, 62.8 KB of flash, 4.8 KB static; `just
+check-north` and a CI job; `docs/firmware/north.md`): Embassy 0.6 for the `stm32wl55jc-cm4`,
+started with `init_primary` and an ordinary static for the shared data (the second core never
+runs); 48 MHz from the TCXO (HSE in bypass, the PLL); the radio through `fiber-subghz` with the
+spike's bus and RF switch and its receive flow, made async (the radio's status read every
+100 us); the gateway of T24 and T47 in one loop, slices of 100 ms (500 ms while pairing), the
+link's messages between them; the watermark in the last two pages, `memory.x` keeping the image
+below them; the watchdog at 8 s. The gateway gained `counts`, `duty_left_ms` and `peers` for the
+link. The simulator for the agent's tests moved to T26, where its first user is (the south
+bridge's simulator lives in the agent too). Left: everything on a FIBER, which waits for the
+bench.
 
 - [x] `docs/firmware/north-link.md` first: `Hello` (who it is, its image's CRC, the
       personalities it has and the one that is active, why it reset), `SetPersonality`, the
@@ -744,17 +748,19 @@ switch, and the spike's receive flow; the gateway of T24 and T47 in one loop, in
       the block of transmit counters, a message queued for a node or dropped, pairing opened and
       cancelled, what a node sent (its address, counter, signal strength, bytes), how a
       transmission ended, the radio's numbers. A schema tag of its own
-- [ ] `firmware/north`: a workspace of its own for `thumbv7em-none-eabi`; the M4 core only; the
+- [x] `firmware/north`: a workspace of its own for `thumbv7em-none-eabi`; the M4 core only; the
       clock from the TCXO; USART1 at 115200; the random number generator for pairing; the
-      watchdog; the stale "empty" flag cleared at start
-- [ ] It keeps no list of nodes: after every `Hello` the agent sends the settings, the counters
-      and the nodes. It acknowledges a node only while it has room to pass the message on
-- [ ] The one thing it keeps: the transmit-counter watermark, in two pages of flash, each value
+      watchdog; the stale "empty" flag cleared at start (built, not run)
+- [x] It keeps no list of nodes: after every `Hello` the agent sends the settings, the counters
+      and the nodes. It passes each uplink on before it takes the next frame in, so it never
+      acknowledges what it could not pass on
+- [x] The one thing it keeps: the transmit-counter watermark, in two pages of flash, each value
       written with its complement
-- [ ] The personality switch, with `TowerFsk` as the only one for now (D4)
-- [ ] A CI job (build, clippy, rustdoc), and a check that its TOWER revision is the root
-      `Cargo.toml`'s
-- [ ] The north bridge as a simulator on a pseudo-terminal, for the agent's tests
+- [x] The personality switch, with `TowerFsk` as the only one for now (D4)
+- [x] A CI job (build, clippy, rustdoc), and a check that its TOWER revision is the root
+      `Cargo.toml`'s (`just check-north`)
+- [ ] On a FIBER: written through the bootloader (`hil/north_flash.py`), it says `Hello`, takes
+      `Settings` and a node from a test program, and passes on a Core Module's frames
 
 - Needs: T14, T15, T24.
 - Done when: the firmware runs on a FIBER, says `Hello`, and takes its settings from a test
@@ -820,6 +826,8 @@ replays are refused after a restart of either side; 24 hours pass without a faul
 - [ ] The north bridge's image built into the program, and flashed by the agent as the south
       bridge's is (T17)
 - [ ] `fiber radio status | config | nodes | pair | watch`
+- [ ] The north bridge as a simulator, as the south bridge's (`agent/src/agent/simulator.rs`),
+      speaking `docs/firmware/north-link.md` (moved here from T25)
 - [ ] Tests against the north bridge simulator
 
 - Needs: T17, T25, T47; T21 for the code on the LCD.

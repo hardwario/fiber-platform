@@ -5,8 +5,9 @@ wire, field by field, and when. As with the south link ([`south-link.md`](south-
 agent and the firmware build these messages from one crate, `crates/protocol` (`fiber-protocol`),
 and a frame from a peer built from another source is refused by its schema tag.
 
-**Status: a draft (T25).** Written before its code; nothing of it is built yet. The maintainer
-has not read it.
+**Status: a draft (T25).** Written before its code. The messages are in `crates/protocol`
+(`north`) and the firmware speaks them (`firmware/north`); the agent's side is T26. Not run on a
+FIBER yet; the maintainer has not read it.
 
 ## What it is for
 

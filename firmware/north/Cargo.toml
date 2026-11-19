@@ -1,0 +1,41 @@
+# The north bridge's firmware (STM32WL55, its Cortex-M4 core): the FIBER's TOWER gateway on the
+# radio, on the agent's word (docs/firmware/north.md). A workspace of its own, built inside this
+# directory, so that its target, its linker and its profile apply (.cargo/config.toml); the
+# gateway, the radio's commands and the messages are the host workspace's crates, by path.
+[package]
+name = "fiber-north"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "MIT"
+repository = "https://github.com/hardwario/fiber-platform"
+publish = false
+
+[workspace]
+resolver = "3"
+
+[dependencies]
+fiber-protocol = { path = "../../crates/protocol" }
+fiber-subghz = { path = "../../crates/subghz" }
+fiber-tower-air = { path = "../../crates/tower-air" }
+
+# The south bridge's versions (firmware/south), which are TOWER's.
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+# Microseconds: the receiver waits byte times of 417 us.
+embassy-time = { version = "0.5.1", features = ["tick-hz-1_000_000"] }
+embassy-stm32 = { version = "0.6.0", features = ["stm32wl55jc-cm4", "time-driver-any", "unstable-pac"] }
+embassy-sync = "0.8.0"
+embedded-io-async = "0.7.0"
+cortex-m = { version = "0.7.10", features = ["inline-asm", "critical-section-single-core"] }
+cortex-m-rt = "0.7.7"
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+debug = 2
+
+[profile.dev]
+opt-level = "s"
+panic = "abort"

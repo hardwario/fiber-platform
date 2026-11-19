@@ -47,7 +47,7 @@ The directory `crates/X` holds the package `fiber-X`.
 | `crates/subghz` | `fiber-subghz` | `no_std`, no dependencies: the commands of the radio inside the STM32WL over a bus trait (the SUBGHZSPI in the firmware), and the RF switch as a trait. Layer 1 of the north bridge. | GFSK, the TCXO, the calibrations, the low-power PA; tested against the bytes the bench proved (T23) |
 | `agent/` | `fiber-agent` (bin `fiber`) | Daemon, command line and platform tool. | `fiber version`, `doctor`, `platform ...`, `agent` (the south bridge, the thermometers, the buttons, the buzzer and the backlight on MQTT; flashing the south bridge, the LCD), the board's commands; run on a FIBER: the pages on its LCD, the buttons, the buzzer and the backlight work |
 | `firmware/south/` | `fiber-south` | Embassy, STM32C031C6 (thumbv6m). Own workspace. | 15.8 KB; runs on a FIBER, flashed by the agent |
-| `firmware/north/` | `fiber-north` | Embassy, STM32WL55 M4 core (thumbv7em). Own workspace. | no |
+| `firmware/north/` | `fiber-north` | Embassy, STM32WL55 M4 core (thumbv7em). Own workspace. | 62.8 KB; built and checked in CI, not run on a FIBER yet (T25) |
 | `provision/` | | `install.sh`, `components.yaml`, the Ansible roles, the `config.txt` block. | `components.yaml`, `install.sh`, `release.py` |
 | `hil/` | | Bench scripts, run by hand on a FIBER, and the radio spike's firmware (T22). | bootloader probe, the north bridge's flash read and written, an LCD test pattern, the radio spike |
 | `examples/` | | Clients of the MQTT API to copy: the command line, Python, Rust (a project of its own), Node-RED flows ([`examples.md`](examples.md)). | each run in the converge test |

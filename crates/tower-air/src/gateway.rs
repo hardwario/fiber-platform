@@ -165,6 +165,9 @@ pub struct Gateway<R: Radio, C: Clock, A: AesBlock, W: Watermark> {
     keyed_joined: Option<u32>,
     /// The last request to join that was not answered, until the agent takes it.
     join_refusal: Option<(u32, JoinRefusal)>,
+    /// Frames taken in, and heard but not taken in, since start (the link's `Status`).
+    taken_in: u32,
+    passed_over: u32,
 }
 
 /// The output of `a`, or `None` when `b` ends first.
@@ -213,6 +216,8 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
             keyed_join: false,
             keyed_joined: None,
             join_refusal: None,
+            taken_in: 0,
+            passed_over: 0,
         }
     }
 
@@ -328,6 +333,25 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
         self.peer(addr).is_some_and(|p| p.waiting.is_some())
     }
 
+    /// Frames taken in since start, and frames heard but not taken in; both wrap.
+    pub fn counts(&self) -> (u32, u32) {
+        (self.taken_in, self.passed_over)
+    }
+
+    /// What is left of the duty cycle's budget, in ms (36 000 when full), as of the last frame sent.
+    pub fn duty_left_ms(&self) -> u32 {
+        self.duty.budget_ms()
+    }
+
+    /// The nodes: each one's address, the last counter taken in from it, and whether something
+    /// waits for it.
+    pub fn peers(&self) -> impl Iterator<Item = (u32, u32, bool)> + '_ {
+        self.peers
+            .iter()
+            .flatten()
+            .map(|p| (p.addr, p.lane.last_seen(), p.waiting.is_some()))
+    }
+
     /// The acknowledgement that ended the last confirmed send: the strength the node heard it at,
     /// and whether the node has something waiting for the gateway. `None` after any other send.
     pub fn last_ack(&self) -> Option<AckMeta> {
@@ -342,8 +366,11 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
     pub async fn recv(&mut self, until_ms: u64) -> Option<Uplink> {
         loop {
             match self.recv_frame(until_ms).await {
-                Heard::Uplink(uplink) => return Some(uplink),
-                Heard::PassedOver => {}
+                Heard::Uplink(uplink) => {
+                    self.taken_in = self.taken_in.wrapping_add(1);
+                    return Some(uplink);
+                }
+                Heard::PassedOver => self.passed_over = self.passed_over.wrapping_add(1),
                 Heard::Nothing => return None,
             }
         }

@@ -28,7 +28,7 @@ default:
 
 # What CI runs. Needs cargo-audit, python3 and network access (the RustSec advisory database).
 # Run every hardware-free gate (host workspace, firmware, the FIBER's build, the release, scripts, no long dashes, audit).
-check: check-host check-south build-fiber check-release check-examples shellcheck check-hil no-dashes audit
+check: check-host check-south check-north build-fiber check-release check-examples shellcheck check-hil no-dashes audit
 
 # The thumb builds prove the pinned TOWER kernels and our own no_std crates still build for the
 # north bridge (an STM32WL55, Cortex-M4 without FPU) and the south bridge (STM32C031, Cortex-M0+).
@@ -63,6 +63,27 @@ check-south: south-size
     cd firmware/south && cargo fmt -- --check
     cd firmware/south && cargo clippy --locked --release -- -D warnings
     cd firmware/south && RUSTDOCFLAGS="-D warnings" cargo doc --locked --release --no-deps
+
+# Build the north bridge's firmware (needs flip-link).
+north:
+    cd firmware/north && cargo build --locked --release
+
+# Check the north bridge's firmware: fmt, clippy, rustdoc, and that its TOWER crates are the
+# pinned revision of the root Cargo.toml (its lock file is its own, but the pin is one).
+check-north: north
+    #!/usr/bin/env bash
+    set -euo pipefail
+    (cd firmware/north && cargo fmt -- --check)
+    (cd firmware/north && cargo clippy --locked --release -- -D warnings)
+    (cd firmware/north && RUSTDOCFLAGS="-D warnings" cargo doc --locked --release --no-deps)
+    pin() { awk '/^name = "tower-net"$/ {getline; getline; print}' "$1"; }
+    root=$(pin Cargo.lock)
+    north=$(pin firmware/north/Cargo.lock)
+    [ -n "$root" ] && [ "$root" = "$north" ] || {
+        echo "error: firmware/north/Cargo.lock has another TOWER revision than the root: $north"
+        exit 1
+    }
+    echo "north bridge firmware: TOWER at the root's pin"
 
 # rust-lld links it with the target's own musl (.cargo/config.toml): no C toolchain needed. It
 # carries the south bridge's firmware as a binary image (llvm-objcopy, from llvm-tools), to flash
@@ -183,6 +204,7 @@ check-hil:
 audit:
     cargo audit
     cargo audit --file firmware/south/Cargo.lock
+    cargo audit --file firmware/north/Cargo.lock
     cargo audit --file examples/rust/Cargo.lock
     cargo audit --file hil/radio-spike/Cargo.lock
 

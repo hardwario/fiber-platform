@@ -1,7 +1,7 @@
 # CI for the HARDWARIO FIBER platform.
 #
-# One Cargo workspace so far: the HOST workspace at the root (crates/*, agent). The two firmware
-# workspaces (firmware/south, firmware/north) get jobs of their own when they exist. There is no
+# The HOST workspace at the root (crates/*, agent), and the two firmware workspaces
+# (firmware/south, firmware/north), each with a job of its own. There is no
 # hardware in CI; the `fiber` program for the FIBER is built for arm64 and run in a container on
 # an arm64 runner.
 #
@@ -128,6 +128,35 @@ jobs:
       - name: just check-south
         run: just check-south
 
+  # 2b. The north bridge's firmware: a workspace of its own (firmware/north), built for its chip
+  #     with flip-link; its TOWER crates must be the root's pin.
+  north:
+    name: north bridge firmware (fmt, clippy, rustdoc, the TOWER pin)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust (rust-toolchain.toml pin) + thumbv7em
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master @ 2026-10-16
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: thumbv7em-none-eabi
+          components: rustfmt, clippy
+      - name: Install flip-link
+        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: flip-link@0.1.12
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: 1.59.0
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: firmware/north -> target
+      - name: just check-north
+        run: just check-north
+
   # 3. On an arm64 machine, in containers: the static `fiber` program in a bare Debian container
   #    (no broker, no hardware, no settings; `just check-container`); the installer in a
   #    container like Raspberry Pi OS (`just check-install`); the playbook and the roles linted
@@ -196,5 +225,6 @@ jobs:
         run: |
           cargo-audit audit
           cargo-audit audit --file firmware/south/Cargo.lock
+          cargo-audit audit --file firmware/north/Cargo.lock
           cargo-audit audit --file examples/rust/Cargo.lock
           cargo-audit audit --file hil/radio-spike/Cargo.lock

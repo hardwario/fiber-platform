@@ -1,0 +1,7 @@
+# The north bridge: the STM32WL55's Cortex-M4 (no FPU). flip-link puts the stack below the static
+# memory, so that an overflow faults at once instead of overwriting statics.
+[build]
+target = "thumbv7em-none-eabi"
+
+[target.thumbv7em-none-eabi]
+linker = "flip-link"

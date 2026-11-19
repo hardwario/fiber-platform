@@ -425,4 +425,14 @@ fn a_real_node_s_frames() {
     assert!(taken.iter().all(|t| t.1.starts_with(b"msg ") && t.1.len() == 8));
     // Every frame answered: the first copy, and each copy after it.
     assert_eq!(acks(&world).len(), frames.len());
+    // Counted: each message taken in once, each copy after it passed over.
+    assert_eq!(
+        gw.counts(),
+        (taken.len() as u32, (frames.len() - taken.len()) as u32)
+    );
+    assert_eq!(
+        gw.peers().collect::<Vec<_>>(),
+        vec![(NODE, *counters.last().unwrap(), false)]
+    );
+    assert!(gw.duty_left_ms() < 36_000);
 }

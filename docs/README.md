@@ -17,6 +17,7 @@ says only what the directory is and how to build it.
 | [`firmware/south-link.md`](firmware/south-link.md) | The serial link between the agent and the south bridge (a draft, T13) |
 | [`firmware/north-link.md`](firmware/north-link.md) | The serial link between the agent and the north bridge, the radio (a draft, T25) |
 | [`firmware/south.md`](firmware/south.md) | The south bridge's firmware: what it does, its pins, its faults, the option bytes |
+| [`firmware/north.md`](firmware/north.md) | The north bridge's firmware: the gateway on the radio, its clock, its loop, the watermark (T25) |
 | [`firmware/radio.md`](firmware/radio.md) | The radio: what a TOWER node sends on air, and how the north bridge's radio is set to speak it (T22) |
 | [`bench-checks.md`](bench-checks.md) | What must be confirmed on a real FIBER first, how, and the results |
 
