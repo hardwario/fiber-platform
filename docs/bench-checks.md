@@ -124,8 +124,32 @@ The RF switch for the low-power PA (PC3 and PC4 high, PC5 low) is right: the ear
 it wrong until 2026-09-26 and lost 26 dB to it. **The FIBER's antenna was disconnected** through
 all of these measurements (the maintainer, 2026-11-19): that is the path loss of about 100 dB at a
 metre (+14 dBm arrived at -88 dBm; the Core Module's +11 dBm or so at -75 dBm), and every level on
-this page is without it. Not done yet: the same with the antenna on, the error rates at -60, -90, -100 and -105
-dBm (they need attenuators), more than one Core Module, and the frequency offset in Hz.
+this page is without it, except the next paragraph.
+
+**With the antenna on** (2026-11-19, the same afternoon): an external antenna on the north bridge's
+jack, its tip 15 cm from the Core Module r2 (the maintainer). The spike's settings were checked
+against ST's own code for the module first (the RF switch, `HAL_RADIO_SetSwitchConfig`; the
+switching regulator, `HAL_RADIO_IsDCDC`), and the board against the module's datasheet
+(`docs/firmware/radio.md`, "Good to know"): they match. The levels, each regulator run twice, back
+to back:
+
+| | Linear regulator | Switching regulator | Antenna off, about a metre (above) |
+|---|---|---|---|
+| North bridge sends +14 dBm | -80 to -83 dBm | -80 to -81 dBm | -88 dBm |
+| North bridge sends +10 dBm | -83 to -85 dBm | -83 to -84 dBm | -91 dBm |
+| North bridge sends about -3 dBm | -97 to -99 dBm | -97 dBm | -103 to -106 dBm |
+| North bridge receives the Core Module (`net_confirmed`) | -71 to -78 dBm | -72 to -76 dBm | -75 dBm |
+
+The regulator makes no difference. The antenna, at a seventh of the distance, gives 2 to 9 dB:
+a connected antenna that much closer should give tens of dB more, so the signal still leaves and
+arrives about as it did with the jack open. Not found yet. Earlier the same afternoon the levels
+were 10 dB lower still in both directions (-85 dBm received, -91 to -95 dBm sent at +10 and
++14 dBm); the back-to-back runs rule the regulator out, so something on the bench moved. What is
+left to try is on the hardware: `R63` fitted and soldered, the jack `JP16`, the antenna and its
+cable, and the module's `ANT` pad.
+
+Not done yet: the error rates at -60, -90, -100 and -105 dBm (they need attenuators), more than
+one Core Module, and the frequency offset in Hz.
 
 Before the Core Module (the same day): the radio up, the noise floor, and no TOWER traffic in the
 office. A bench firmware (`hil/radio-spike/`, plain registers), written to the north bridge

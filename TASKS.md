@@ -461,8 +461,13 @@ board the two voltages read nothing useful, and `power` has to say so.
 
 ### T19. Thermometers (M3)
 
-State (2026-11-19): on a FIBER the overlay gives eight 1-Wire masters and `fiber doctor` counts
-them; no probe was plugged in, so nothing else is seen yet.
+State (2026-11-19): three DS18B20 on ports 1, 2 and 5 of the bench's FIBER (the maintainer).
+`fiber thermometers` lists each on its port (about 24 °C), and `thermometers/{id}` and `ports/{n}`
+carry them. The k-th master is port k, for these three: switching one port off (`fiber ports
+cycle`) takes away its probe alone, gone (an empty retained message) within 10 s, back 3 to 7 s
+after the power returns. Left: what the port lights show (the maintainer looks), a shorted port,
+eight ports with probes, the starter flow on a FIBER.
+Earlier: on a FIBER the overlay gives eight 1-Wire masters and `fiber doctor` counts them.
 Earlier (2026-11-18): written and tested on the computer: the docs (drafts, like T13's: the maintainer
 has not read them), `agent/src/agent/thermometers.rs` (the trait, the kernel's reader on a thread of
 its own, what counts as a reading), the topics, the port lights, `fiber thermometers [watch]`,
@@ -495,8 +500,10 @@ The first thing most users will plug in: a DS18B20 on one of the eight ports.
 - [x] Tests against a made-up 1-Wire tree under a root that the tests set (and in the converge
       test, through the service)
 - [x] The Node-RED starter flow shows the thermometers
-- [ ] On a FIBER: plug a probe in and out; short a port; eight ports with probes; check that the
-      k-th master is port k, by switching one port on at a time
+- [x] On a FIBER: a probe shows up on its port; the k-th master is port k, by switching a port off
+      (ports 1, 2 and 5, 2026-11-19); a probe that loses its power is gone within 10 s and back
+      within 7 s
+- [ ] On a FIBER: the port lights; a shorted port; eight ports with probes; the starter flow
 
 Watch out: if plugging in feels slow (the kernel searches a bus only every ten seconds), the
 other implementation is a driver of our own for the DS2482 over `i2c-dev`, about 700 lines. The
@@ -631,7 +638,14 @@ each other is the biggest unknown of the plan, so it is answered before anything
 - [x] The noise floor, with the linear regulator and with the switching one, with and without
       the boosted receive gain: -114 to -118 dBm, the regulator makes no difference. With the
       antenna disconnected: the receiver's own floor; with it on, still to be measured
-- [ ] The two-way levels again with the FIBER's antenna on
+- [x] The two-way levels again with the FIBER's antenna on (2026-11-19: an external antenna on
+      the north bridge, its tip 15 cm from the Core Module r2): +14 dBm arrives at -81 dBm, the
+      Core Module at -73 dBm; only 2 to 9 dB above the antenna-off levels at a metre. The spike's
+      settings match ST's code for the module (the RF switch, the switching regulator, now in the
+      spike; the regulator measured the same as the linear one, both ways), and the board matches
+      the module's datasheet. `docs/bench-checks.md`, check 4
+- [ ] Find why the antenna adds so little: on the hardware (`R63`, `JP16`, the antenna and its
+      cable, the module's `ANT` pad); the maintainer offered to try another antenna path
 - [ ] The receiver's sensitivity against a known signal (the earlier firmware measured a weak
       receiver)
 - [x] The results into `docs/bench-checks.md` and `docs/firmware/radio.md` (2026-11-19)
@@ -698,21 +712,6 @@ hopping (US 915), the remote shell, bulk transfer.
 
 - Needs: T23.
 - Done when: the vectors pass, and the flow tests cover the three cases above.
-
-### T41. A click on every press of a button (M4)
-
-State (2026-11-19): written and checked on the computer (`just check`); waiting for the FIBER.
-This build carries the south bridge's new image (T40), which the agent will write to it, and the
-CM4 cannot reach the south bridge's bootloader until the FIBER's power cycle (T2): it is installed
-there after that.
-
-- [x] A short click of the buzzer as a button goes down, the press that only lights the backlight
-      too; never over a pattern that sounds (a press must not cut an alarm short): 25 ms,
-      `Pattern::Click`, not one a client can ask for
-- [x] Tests; `docs/front-panel.md`
-- [ ] On the FIBER: heard
-
-- Done when: the tests pass, and on the FIBER each press clicks.
 
 ## Tasks ahead
 
@@ -1585,6 +1584,19 @@ numbers, so our messages carry the strength alone.
 - Needs: T22.
 - Done when: the codec passes every capture, and the test firmware exchanges frames with a Core
   Module through it.
+
+### T41. A click on every press of a button (M4)
+
+Done 2026-11-19, commit `a3acab3`. Checked: `just check`, and on the FIBER (bench release
+`0.1.0-bench.9`, after the power cycle) the maintainer hears a click on each press.
+
+- [x] A short click of the buzzer as a button goes down, the press that only lights the backlight
+      too; never over a pattern that sounds (a press must not cut an alarm short): 25 ms,
+      `Pattern::Click`, not one a client can ask for
+- [x] Tests; `docs/front-panel.md`
+- [x] On the FIBER: heard (the maintainer, 2026-11-19)
+
+- Done when: the tests pass, and on the FIBER each press clicks.
 
 ## Decisions ahead
 

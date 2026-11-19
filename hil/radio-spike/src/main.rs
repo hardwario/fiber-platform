@@ -264,7 +264,10 @@ fn bring_up(radio: &mut Radio) {
     // The radio sets XOSC_START_ERR at its start, before it is told about the TCXO.
     radio.clear_device_errors().ok();
     radio.set_packet_type(PacketType::Gfsk).ok();
-    step(radio, "errors cleared, gfsk");
+    // The switching regulator, as ST's code for the module runs it (`HAL_RADIO_IsDCDC`). Measured
+    // against the linear one on 2026-11-19: the same levels both ways, within 1 dB.
+    radio.set_regulator(Regulator::Smps).ok();
+    step(radio, "errors cleared, gfsk, smps");
 }
 
 /// GFSK as TOWER sends it on `frequency`, raw, `length` bytes after the sync word (none: after

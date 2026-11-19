@@ -10,8 +10,10 @@ two TOWER Core Modules at the pinned revision running `radio_beacon`: frames go 
 settings below are the spike's. The packet is made and checked by `fiber-tower-air`'s `packet`,
 the commands by `fiber-subghz` (T23), and the spike runs on both: through them it received every
 frame of a Core Module (20 in 20 s, none missed) and a Core Module received every frame it sent
-(14 of 14), on 2026-11-19. The north bridge's firmware (T25) is not written yet. Not measured yet: the error rates at several levels, the frequency offset in Hz,
-anything with the FIBER's antenna fitted.
+(14 of 14), on 2026-11-19. The north bridge's firmware (T25) is not written yet. With the
+FIBER's antenna fitted the levels hardly rise (see "Good to know"); the settings were checked
+against ST's own code for the module and match it. Not measured yet: the error rates at several
+levels, the frequency offset in Hz.
 
 ## What a TOWER node sends
 
@@ -48,6 +50,7 @@ From RM0453 (the STM32WL reference manual, section 5), as the spike sets it:
 | What | Command | Value |
 |---|---|---|
 | The TCXO (inside the module) | `SetTcxoMode` | 1.7 V, 1 ms to settle; then `Calibrate` (all) and `CalibrateImage` for 863 to 870 MHz |
+| Regulator | `SetRegulatorMode` | the switching regulator, as ST's code for the module (`HAL_RADIO_IsDCDC`) |
 | Packet type | `SetPacketType` | GFSK |
 | Frequency | `SetRfFrequency` | f x 2^25 / 32 MHz |
 | Modulation | `SetModulationParams` | bit rate 53 287 (32 x 32 MHz / 19 216.6, rounded; the spike's 53 286 was a slip of 0.002 %), BT 1 (`0x0B`), receive filter 117.3, 156.2 or 187.2 kHz (`0x0B`, `0x1A`, `0x12`), deviation 20 762 (19.8 kHz x 2^25 / 32 MHz, rounded) |
@@ -55,7 +58,7 @@ From RM0453 (the STM32WL reference manual, section 5), as the spike sets it:
 | Sync word | registers `0x06C0` | `15 47 62 DB` |
 | Receive gain | register `0x08AC` | `0x96` (boosted) |
 | Transmit | `SetPaConfig`, `SetTxParams` | the low-power PA: `04 00 01 01` and 14 for +14 dBm, `01 00 01 01` and 13 for +10 dBm; a ramp of 200 us |
-| RF switch | PC3, PC4, PC5 | receive: all high; transmit on the low-power PA: PC3 and PC4 high, PC5 low; off: all low |
+| RF switch | PC3, PC4, PC5 | receive: all high; transmit on the low-power PA: PC3 and PC4 high, PC5 low; off: all low (ST's HAL for the module, `HAL_RADIO_SetSwitchConfig`) |
 
 Good to know:
 
@@ -63,8 +66,21 @@ Good to know:
   device errors after the calibrations, and any error then is a real one.
 - **The high-power PA is not wired** on this module's board: +14 dBm from the low-power PA is the
   most, and the limit of the 868.0 to 868.6 MHz band (25 mW, 1 % of the time).
-- **The switching regulator** made no measurable difference to the noise floor; the boosted gain
-  read 1 to 2 dB lower.
+- **The switching regulator** made no measurable difference to the noise floor (the boosted gain
+  read 1 to 2 dB lower), nor to the levels sent and received: within 1 dB of the linear one,
+  both ways, run back to back (2026-11-19).
+- **The board wires the module for the low-power PA,** as the module's datasheet (DS14084,
+  "Low output power configuration") shows it: `VDDPA` on `VDDRF1V55`, `VR_PA` on `BIAS_LP`,
+  `BIAS_HP` to a test point. The module's `ANT` goes through `R63` (0 ohm) to the antenna jack
+  `JP16`; the two shunt places beside it (`C56`, `C57`) are not fitted. The module's pin 27,
+  `SW_CTL`, is not connected: the datasheet gives it no function beyond its name, and answers on
+  ST's forum disagree on it (one, from a community member, says it is PC4, the switch's control
+  line brought out). ST's board schematic for the module (MB1779) was not read yet.
+- **With the antenna on, the levels hardly rise** (the bench unit, 2026-11-19): its tip 15 cm
+  from a Core Module, +14 dBm arrived at -81 dBm and the Core Module's frames at -73 dBm; with
+  the antenna off and the Core Module about a metre away it was -88 and -75 dBm. A connected
+  antenna that much closer should give tens of dB more. Not found yet; see
+  [`../bench-checks.md`](../bench-checks.md), check 4.
 - **No frequency correction:** this radio does not follow the sender's offset. The receive filter
   has to pass both crystals' error: TOWER's own receiver uses about 216 kHz. Between the north
   bridge (a TCXO) and one Core Module the SPIRIT1's `AFC_CORR` read -4 to 0, a small offset.
