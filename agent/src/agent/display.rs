@@ -14,8 +14,12 @@ pub type Picture = Frame<16, 64>;
 pub const COLUMNS: usize = 21;
 pub const ROWS: usize = 5;
 
-/// The backlight dims this long after the last press of a button.
+/// The backlight dims this long after the last press of a button or the last client's message.
 pub const DIM_AFTER: Duration = Duration::from_secs(60);
+
+/// The backlight's duty cycle once it has dimmed, in %: low, and the display still readable
+/// (D27). A brightness below it stays as it is.
+pub const DIMMED: u8 = 20;
 
 /// The display as the agent wants it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,8 +29,9 @@ pub struct Display {
     /// A client's message, and when it goes.
     pub message: Option<String>,
     pub message_until: Option<Instant>,
-    /// The last press of a button: the backlight is lit until [`DIM_AFTER`] after it.
-    pub last_press: Instant,
+    /// The last press of a button or the last client's message: the backlight is lit until
+    /// [`DIM_AFTER`] after it.
+    pub lit_at: Instant,
 }
 
 impl Default for Display {
@@ -35,19 +40,19 @@ impl Default for Display {
             backlight: 80,
             message: None,
             message_until: None,
-            last_press: Instant::now(),
+            lit_at: Instant::now(),
         }
     }
 }
 
 impl Display {
-    /// The backlight's duty cycle now, 0 to 100 %: its brightness, or a fifth of it once it has
-    /// dimmed.
+    /// The backlight's duty cycle now, 0 to 100 %: its brightness, or [`DIMMED`] once it has
+    /// dimmed (never more than its brightness).
     pub fn duty(&self, now: Instant) -> u8 {
-        if now.saturating_duration_since(self.last_press) < DIM_AFTER {
+        if now.saturating_duration_since(self.lit_at) < DIM_AFTER {
             self.backlight
         } else {
-            self.backlight / 5
+            self.backlight.min(DIMMED)
         }
     }
 
@@ -129,9 +134,13 @@ mod tests {
         let mut display = Display::default();
         let start = Instant::now();
         assert_eq!(display.duty(start), 80);
-        assert_eq!(display.duty(start + DIM_AFTER), 16);
-        display.last_press = start + DIM_AFTER;
+        assert_eq!(display.duty(start + DIM_AFTER), 20);
+        display.lit_at = start + DIM_AFTER;
         assert_eq!(display.duty(start + DIM_AFTER), 80);
+        // A brightness below 20 % stays as it is.
+        display.backlight = 10;
+        assert_eq!(display.duty(start + DIM_AFTER * 2), 10);
+        display.backlight = 80;
 
         display.message = Some("hi".into());
         display.message_until = Some(start + Duration::from_secs(5));

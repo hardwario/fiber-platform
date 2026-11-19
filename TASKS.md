@@ -757,6 +757,22 @@ State (2026-11-19): written and tested, `just check` passes; on the bench's FIBE
 
 - Done when: the tests pass, and the FIBER's first page shows `10.0.0.108/24`.
 
+### T44. A press acts at once, also on a dimmed display (D27) (M4)
+
+State (2026-11-19): written and tested, `just check` passes; on the bench's FIBER as release
+`0.1.0-bench.12`. Seen there: dimmed, the backlight's PWM reads 20 % (200 000 of 1 000 000 ns);
+a message lit it to 80 % at once, and the maintainer's one press of *enter*, 26 s later, sent it
+away. Left: a press on a dimmed display moving the page (the maintainer looks).
+
+- [x] `docs/front-panel.md`, `docs/mqtt-api.md` first
+- [x] The backlight dims to 20 % (or stays at its brightness, when that is lower)
+- [x] A press acts at once, dimmed or not, and lights the backlight; a client's message lights it
+      as it arrives; a press sends a message away, dimmed or not
+- [x] Tests: the agent's front panel and press tests, the display's duty
+- [ ] On the FIBER: a press on a dimmed display moves the page; a message lights the backlight
+
+- Done when: the tests pass, and on the FIBER the first press on a dimmed display acts.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -1746,4 +1762,13 @@ Done 2026-11-19, commit `a3acab3`. Checked: `just check`, and on the FIBER (benc
   stops a pattern that sounds, and that press does nothing else; `display` then says
   `"message": null` (the maintainer, 2026-11-19, after the example's alarm could not be sent
   away on the bench). The other choices were: the message only stepping aside, a parameter that
-  keeps a message whatever is pressed, and alarms in the agent. Built in T42.
+  keeps a message whatever is pressed, and alarms in the agent. Built in T42. Its rule for a
+  dimmed display (the first press only lights it, the message goes with the next) was changed by
+  D27.
+- **D27. What does a press do while the backlight is dimmed?** What any press does: it acts at
+  once, and lights the backlight on the way; a client's message lights the backlight as it
+  arrives; any press sends a message away, dimmed or not (this changes D26's rule for a dimmed
+  display). The backlight dims to 20 %, not to a fifth of its brightness (16 % of 80 %). (The
+  maintainer, 2026-11-19: the press that only lit the backlight felt like nothing happening, on a
+  display that stays readable when dimmed.) The other choices were: a wake-only press made
+  audible, and only *enter* waking without acting. Built in T44.

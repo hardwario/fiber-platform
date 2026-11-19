@@ -41,13 +41,13 @@ The radio's page comes with the north bridge (T26).
   Held, they keep going every 0.2 s after 0.8 s.
 - **Enter** opens the menu, when it comes up again: a hold of *enter* is something else (in the
   menu it goes back).
-- When the backlight has dimmed, the first press only lights it: nothing else of that press acts.
+- **Every press acts at once,** also when the backlight has dimmed: it lights the backlight on
+  the way (D27). The backlight dims to 20 % a minute after the last press or the last client's
+  message (or stays at its brightness, when that is lower), and the display stays readable.
 - **A press sends a client's message away** and stops a pattern a client asked for (an alarm,
-  say): any button, as it goes down. That press does nothing else. On a dimmed display the first
-  press lights it and stops the pattern; the message goes with the next press, once it can be
-  read (D26).
-- **Each press clicks** the buzzer (25 ms) as the button goes down, the one that only lights the
-  backlight too. A click alone never sounds over a pattern a client asked for.
+  say): any button, as it goes down. That press does nothing else (D26).
+- **Each press clicks** the buzzer (25 ms) as the button goes down. A click alone never sounds
+  over a pattern a client asked for.
 
 In the menu, *up* and *down* move, *enter* chooses, and *Back* leaves.
 
@@ -69,7 +69,7 @@ row, and turns the page as the button goes down, not when it comes up.
 
 - **An apply that runs** (`fiber platform apply`) shows its progress: the component, a bar and
   the step, until it ends.
-- **A client's message** (`display.message`, `fiber display message`) shows until it is cleared,
-  its time is up, or somebody presses a button: that press sends it away and does nothing else
-  (D26). Alarms are the clients' to make (a Node-RED flow, say); the agent shows and sounds what it
+- **A client's message** (`display.message`, `fiber display message`) lights the backlight as it
+  comes, and shows until it is cleared, its time is up, or somebody presses a button: that press
+  sends it away and does nothing else (D26, D27). Alarms are the clients' to make (a Node-RED flow, say); the agent shows and sounds what it
   is asked to.

@@ -242,6 +242,8 @@ pub fn handle(state: &mut State, request: &Request) -> Handled {
                     state.display.message_until = None;
                 }
                 Some(Value::String(text)) => {
+                    // A message lights the backlight, so that it is seen (D27).
+                    state.display.lit_at = tokio::time::Instant::now();
                     state.display.message = Some(text.clone());
                     state.display.message_until =
                         seconds.map(|s| tokio::time::Instant::now() + std::time::Duration::from_secs(s));
