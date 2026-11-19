@@ -1,0 +1,41 @@
+# What the north bridge received from a TOWER Core Module r2 running `net_confirmed` (the node role)
+# at the pinned TOWER revision, on EU 868 channel 0, 2026-11-19 (TASKS.md, T24). Written by
+# hil/radio-spike in its receive mode: each packet taken apart by fiber-tower-air's packet codec,
+# its payload (the network frame) in hex. The node is 0x11111111, the gateway 0x22222222, the key
+# `11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff 00` (the example's own); it sends a confirmed
+# `msg NNN\0` every 2 s, 3 times when no acknowledgement comes (nothing acknowledged here). The
+# `(#..., ... missed)` the spike adds is for radio_beacon's frames and means nothing here.
+# Test vectors: tests/frames.rs.
+receive: channel 0, 187.2 kHz, boosted, TOWER packets through the codec
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 01 b8 00 00 85 44 97 a6 d9 79 dd 9a ff 5f 86 ce 4e cd 0d f4 (#286327072, 0 missed)
+rx 30 B, -77 dBm: 20 01 11 11 11 11 22 22 22 22 01 b8 00 00 85 44 97 a6 d9 79 dd 9a ff 5f 86 ce 4e cd 0d f4 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 01 b8 00 00 85 44 97 a6 d9 79 dd 9a ff 5f 86 ce 4e cd 0d f4 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 02 b8 00 00 1c bb 2d 9b 67 e7 cd 37 a6 bc 05 27 c9 ef a5 a6 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 02 b8 00 00 1c bb 2d 9b 67 e7 cd 37 a6 bc 05 27 c9 ef a5 a6 (#286327072, 4294967295 missed)
+rx 30 B, -76 dBm: 20 01 11 11 11 11 22 22 22 22 02 b8 00 00 1c bb 2d 9b 67 e7 cd 37 a6 bc 05 27 c9 ef a5 a6 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 03 b8 00 00 00 1c 7f 39 e9 96 0e ef 83 e2 31 86 e5 f1 0b db (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 03 b8 00 00 00 1c 7f 39 e9 96 0e ef 83 e2 31 86 e5 f1 0b db (#286327072, 4294967295 missed)
+rx 30 B, -77 dBm: 20 01 11 11 11 11 22 22 22 22 03 b8 00 00 00 1c 7f 39 e9 96 0e ef 83 e2 31 86 e5 f1 0b db (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 04 b8 00 00 f5 65 82 f3 bd 4d 1d 16 e1 16 36 8e c0 0c 3c ed (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 04 b8 00 00 f5 65 82 f3 bd 4d 1d 16 e1 16 36 8e c0 0c 3c ed (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 04 b8 00 00 f5 65 82 f3 bd 4d 1d 16 e1 16 36 8e c0 0c 3c ed (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 05 b8 00 00 ee 0f e0 7c 75 d5 57 79 1a 6f 76 f6 40 bd 29 9a (#286327072, 4294967295 missed)
+rx 30 B, -76 dBm: 20 01 11 11 11 11 22 22 22 22 05 b8 00 00 ee 0f e0 7c 75 d5 57 79 1a 6f 76 f6 40 bd 29 9a (#286327072, 4294967295 missed)
+rx 30 B, -76 dBm: 20 01 11 11 11 11 22 22 22 22 05 b8 00 00 ee 0f e0 7c 75 d5 57 79 1a 6f 76 f6 40 bd 29 9a (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 06 b8 00 00 66 c7 29 cb 5b f2 75 60 b5 af bc 37 58 0b db c4 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 06 b8 00 00 66 c7 29 cb 5b f2 75 60 b5 af bc 37 58 0b db c4 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 06 b8 00 00 66 c7 29 cb 5b f2 75 60 b5 af bc 37 58 0b db c4 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 07 b8 00 00 b3 24 af 7a 7f fe 9d 3e 05 5d 6e b3 4e 39 6e 62 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 07 b8 00 00 b3 24 af 7a 7f fe 9d 3e 05 5d 6e b3 4e 39 6e 62 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 07 b8 00 00 b3 24 af 7a 7f fe 9d 3e 05 5d 6e b3 4e 39 6e 62 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 08 b8 00 00 49 aa 19 d2 28 c6 ff 0e db 6f 5a 5a 69 48 01 89 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 08 b8 00 00 49 aa 19 d2 28 c6 ff 0e db 6f 5a 5a 69 48 01 89 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 08 b8 00 00 49 aa 19 d2 28 c6 ff 0e db 6f 5a 5a 69 48 01 89 (#286327072, 4294967295 missed)
+rx 30 B, -74 dBm: 20 01 11 11 11 11 22 22 22 22 09 b8 00 00 5f ad cc 88 89 93 77 10 7d 35 c0 93 30 96 d2 49 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 09 b8 00 00 5f ad cc 88 89 93 77 10 7d 35 c0 93 30 96 d2 49 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 0a b8 00 00 b0 ef 8e cf 97 42 7d 99 29 5b 01 6c ab 50 78 d4 (#286327072, 4294967295 missed)
+rx 30 B, -77 dBm: 20 01 11 11 11 11 22 22 22 22 0a b8 00 00 b0 ef 8e cf 97 42 7d 99 29 5b 01 6c ab 50 78 d4 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 0a b8 00 00 b0 ef 8e cf 97 42 7d 99 29 5b 01 6c ab 50 78 d4 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 0b b8 00 00 99 cc cd 8f cf b7 be 72 8e 61 82 40 09 5a 33 63 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 0b b8 00 00 99 cc cd 8f cf b7 be 72 8e 61 82 40 09 5a 33 63 (#286327072, 4294967295 missed)
+rx 30 B, -75 dBm: 20 01 11 11 11 11 22 22 22 22 0b b8 00 00 99 cc cd 8f cf b7 be 72 8e 61 82 40 09 5a 33 63 (#286327072, 4294967295 missed)

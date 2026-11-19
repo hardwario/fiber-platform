@@ -723,8 +723,10 @@ about security stays TOWER's code (D1).
       `tower-radio`, over an AES in software (`fiber_tower_air::frame`, `SoftAes` over `aes` 0.9;
       RFC 3610's packet vector 1 passes through it; the 74-byte MTU checked against
       `tower_protocol` at compile time)
-- [ ] The vectors: frames of `net_confirmed` from a real Core Module, captured, opened with its
-      known key
+- [x] The vectors: frames of `net_confirmed` from a real Core Module, captured, opened with its
+      known key (32 frames, 2026-11-19, `crates/tower-air/tests/net-confirmed-2026-11-19.txt`):
+      each opens, `msg NNN\0`, the counters one after another from 0xB801, each message sent 3
+      times as the same frame (no acknowledgement); none opens under another key
 - [ ] The gateway's flow over `tower-net`: only nodes it knows; the replay rule; confirmed
       delivery with an acknowledgement (the counter it answers, the signal strength, the
       "more waiting" flag); the transmit counter with its reserve; one waiting message for each
