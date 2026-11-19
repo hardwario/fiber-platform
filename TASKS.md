@@ -203,8 +203,11 @@ State (2026-11-19): measured on a FIBER with 1 GB, every component ticked, the i
 hand from a release served on the FIBER itself (FIBER Setup's first start was not tried): 6 min
 23 s over Wi-Fi to the end of the apply (the restart not counted), 147 MB downloaded, 687 MB more
 on disk (895 MB before npm's caches were removed, T36), 288 MB of memory in use with everything
-running (Node-RED 128 MB, ChirpStack 43 MB). Each component's own size is not measured yet. An
-apply with nothing to do takes about 3 minutes. Waits also for D25: FIBER Setup's suggested
+running (Node-RED 128 MB, ChirpStack 43 MB). Each component's download and installed size is in
+`provision/components.yaml` now, from apt's history and a fresh npm install on the FIBER: Node-RED
+115 and 490 MB, ChirpStack 17 and 68 MB, Mosquitto 1 and 2 MB (they add up to what was measured
+in all). The time in FIBER Setup's texts stays until its own first start is timed. An apply with
+nothing to do takes about 3 minutes. Waits also for D25: FIBER Setup's suggested
 password, `fiber`, is too short for ChirpStack.
 Earlier (2026-11-18): everything that needs neither the first release nor a FIBER is done, in FIBER
 Setup's commit `83d372a`, which is on this computer only: its catalog names the installer built here

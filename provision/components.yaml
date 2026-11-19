@@ -13,13 +13,17 @@
 #   services  : its systemd units
 #   ports     : where it listens: `loopback` (the FIBER itself) or `network`, and the setting
 #               that opens the port, if one does
-#   size      : download and installed size in MB, as measured on a FIBER. Empty until then (T12)
+#   size      : download and installed size in MB, as measured on a FIBER (2026-11-19, T12): the
+#               packages and files the component brings, with what they pull in. Not counted: the
+#               release itself (2 MB, 6 MB installed) and Ansible (4 MB, 26 MB installed), which
+#               every installation brings; apt keeps the packages it downloaded besides
 schema: 1
 components:
   base:
     title: Basic system configuration
     about: The config.txt block, the 1-Wire overlay, the i2c-dev module and the groups, so that the board works as plain Linux.
     roles: [base]
+    size: { download: 0, installed: 0 }
   mosquitto:
     title: Mosquitto
     about: Mosquitto, the broker everything on the FIBER talks through.
@@ -28,12 +32,15 @@ components:
     ports:
       - { port: 1883, listen: loopback }
       - { port: 1884, listen: network, when: mqtt.lan }
+    size: { download: 1, installed: 2 }
   agent:
     title: FIBER agent
     about: The service that shows the board, the front panel and the radio on MQTT.
     roles: [agent]
     requires: [base, mosquitto]
     services: [fiber-agent]
+    # The program is in the release.
+    size: { download: 0, installed: 0 }
   node-red:
     title: Node-RED
     about: Node.js, Node-RED and its dashboard, with a starter flow on the local broker.
@@ -43,6 +50,8 @@ components:
     services: [nodered]
     ports:
       - { port: 1880, listen: network }
+    # Node.js 37 MB (231 MB installed), Node-RED 43 MB (123 MB), the dashboard 35 MB (136 MB).
+    size: { download: 115, installed: 490 }
   chirpstack:
     title: ChirpStack
     about: A LoRaWAN network server, and the gateway when a RAK5146 card is in the mini-PCIe slot.
@@ -53,3 +62,4 @@ components:
     services: [chirpstack-sqlite, chirpstack-mqtt-forwarder, redis-server, fiber-concentratord]
     ports:
       - { port: 8080, listen: network }
+    size: { download: 17, installed: 68 }
