@@ -38,7 +38,9 @@ is done, long before the rest of M5.
 ### T2. Bench checks on a FIBER (M0)
 
 State (2026-11-19): everything that needs no eyes, ears or hands is answered, on one unit; what is
-left needs someone at the bench. The FIBER (reachable over SSH as `fiber`, sudo with FIBER Setup's
+left needs someone at the bench. Evening: the FIBER shut down cleanly (release `0.1.0-bench.12`,
+the north bridge holding the spike's receive image) for the maintainer to fit a RAK5146 card;
+check 3 next, with nothing driving GPIO11 first. The FIBER (reachable over SSH as `fiber`, sudo with FIBER Setup's
 default password) is a plain Raspberry Pi OS of 2026-10-06 (trixie, kernel 6.18.60) on a CM4 rev
 1.1 with 1 GB (`a03141`), written by FIBER Setup 1.2.0; the platform is installed on it since
 (see T12). A J-Link on the computer is wired to the south bridge's SWD header; it was used last,
