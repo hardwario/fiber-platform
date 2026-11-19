@@ -759,6 +759,21 @@ hopping (US 915), the remote shell, bulk transfer.
 - Needs: T23.
 - Done when: the vectors pass, and the flow tests cover the three cases above.
 
+### T41. A click on every press of a button (M4)
+
+State (2026-11-19): written and checked on the computer (`just check`); waiting for the FIBER.
+This build carries the south bridge's new image (T40), which the agent will write to it, and the
+CM4 cannot reach the south bridge's bootloader until the FIBER's power cycle (T2): it is installed
+there after that.
+
+- [x] A short click of the buzzer as a button goes down, the press that only lights the backlight
+      too; never over a pattern that sounds (a press must not cut an alarm short): 25 ms,
+      `Pattern::Click`, not one a client can ask for
+- [x] Tests; `docs/front-panel.md`
+- [ ] On the FIBER: heard
+
+- Done when: the tests pass, and on the FIBER each press clicks.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read

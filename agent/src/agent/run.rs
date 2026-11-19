@@ -397,6 +397,10 @@ impl<B: Bus> Agent<B> {
         self.light();
         if event.kind == Kind::Press {
             self.waking = dimmed;
+            // A click as the button goes down, also for the press that only lights the backlight.
+            if let Some(buzzer) = &self.buzzer {
+                let _ = buzzer.send(Pattern::Click);
+            }
         }
         if !dimmed && !self.waking && self.screen.press(event) == Some(Ask::Restart) {
             self.restart();
@@ -1060,6 +1064,9 @@ mod tests {
         gestures.send(press(DOWN, Kind::Press)).await.unwrap();
         gestures.send(press(DOWN, Kind::Click)).await.unwrap();
         run_without_link(&mut agent, Duration::from_secs(1)).await;
+        // The press clicked, the click (on the release) did not.
+        assert_eq!(beeps.try_recv().unwrap(), Pattern::Click);
+        assert!(beeps.try_recv().is_err());
         let menu = crate::agent::display::as_text(&agent.picture);
         assert!(
             menu == std::fs::read_to_string(concat!(

@@ -10,6 +10,9 @@ pub enum Pattern {
     Double,
     Long,
     Alarm,
+    /// The click of a button going down: the agent's own, not one a client asks for. It never
+    /// cuts a pattern short.
+    Click,
 }
 
 impl Pattern {
@@ -30,6 +33,7 @@ impl Pattern {
             Pattern::Beep => vec![(ms(100), ms(0))],
             Pattern::Double => vec![(ms(100), ms(100)), (ms(100), ms(0))],
             Pattern::Long => vec![(ms(500), ms(0))],
+            Pattern::Click => vec![(ms(25), ms(0))],
             Pattern::Alarm => {
                 let mut steps = vec![(ms(150), ms(100)); 5];
                 steps[4].1 = ms(0);
@@ -44,7 +48,8 @@ pub trait Line {
     fn sound(&mut self, on: bool);
 }
 
-/// Plays the patterns that come in, one at a time; a new one cuts the one that sounds short.
+/// Plays the patterns that come in, one at a time; a new one cuts the one that sounds short, but
+/// a click does not: it is dropped while another pattern sounds (a press must not end an alarm).
 /// Ends silent when `patterns` is closed.
 pub async fn play<L: Line>(mut line: L, mut patterns: tokio::sync::mpsc::UnboundedReceiver<Pattern>) {
     let mut next = patterns.recv().await;
@@ -59,13 +64,25 @@ pub async fn play<L: Line>(mut line: L, mut patterns: tokio::sync::mpsc::Unbound
                 }
             };
             tokio::pin!(steps);
-            tokio::select! {
-                () = &mut steps => next = patterns.recv().await,
-                other = patterns.recv() => match other {
-                    Some(pattern) => next = Some(pattern),
-                    // Nothing more will come: this one sounds to its end.
-                    None => steps.await,
-                },
+            loop {
+                tokio::select! {
+                    () = &mut steps => {
+                        next = patterns.recv().await;
+                        break;
+                    }
+                    other = patterns.recv() => match other {
+                        Some(Pattern::Click) => {}
+                        Some(pattern) => {
+                            next = Some(pattern);
+                            break;
+                        }
+                        // Nothing more will come: this one sounds to its end.
+                        None => {
+                            (&mut steps).await;
+                            break;
+                        }
+                    },
+                }
             }
         }
         line.sound(false);
@@ -119,6 +136,29 @@ mod tests {
                 (1300, false)
             ]
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_click_never_cuts_a_pattern_short() {
+        let line = Recorded(Arc::new(Mutex::new(vec![(0, false)])), Instant::now());
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let player = tokio::spawn(play(line.clone(), rx));
+        // A click alone: 25 ms.
+        tx.send(Pattern::Click).unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        // During a long one: dropped, the long one sounds to its end.
+        tx.send(Pattern::Long).unwrap();
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        tx.send(Pattern::Click).unwrap();
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        drop(tx);
+        player.await.unwrap();
+        assert_eq!(
+            *line.0.lock().unwrap(),
+            [(0, false), (0, true), (25, false), (100, true), (600, false)]
+        );
+        // Not a pattern a client can ask for.
+        assert_eq!(Pattern::parse("click"), None);
     }
 
     #[test]

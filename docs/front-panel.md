@@ -41,6 +41,9 @@ The radio's page comes with the north bridge (T26).
 - **Enter** opens the menu, when it comes up again: a hold of *enter* is something else (in the
   menu it goes back).
 - When the backlight has dimmed, the first press only lights it: nothing else of that press acts.
+- **Each press clicks** the buzzer (25 ms) as the button goes down, the one that only lights the
+  backlight too. A click never sounds over a pattern a client asked for: a press does not cut an
+  alarm short.
 
 In the menu, *up* and *down* move, *enter* chooses, and *Back* leaves.
 
