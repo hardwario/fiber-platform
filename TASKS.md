@@ -741,38 +741,6 @@ display on the bench; D26 says how.
 
 - Done when: the tests pass, and on the FIBER a press takes a message away and stops the alarm.
 
-### T43. The address with its network size on the first page (M4)
-
-State (2026-11-19): written and tested, `just check` passes; on the bench's FIBER as release
-`0.1.0-bench.11`, waiting for the maintainer to look at page 1. The size comes from the same
-`/proc/net/fib_trie`: the longest `link UNICAST` route that holds the address (on the bench:
-`10.0.0.0 /24`).
-
-- [x] `docs/front-panel.md` first
-- [x] Each local address with the size of the network it is in; an address in no such network
-      stays bare. `+N` only when it fits the line (19 characters after the icon)
-- [x] Tests: the FIBER's own `fib_trie` as a vector (`agent/src/agent/fib-trie-2026-11-19.txt`),
-      two networks of other sizes, the `+N` rule, the stored picture
-- [ ] On the FIBER: seen on the display
-
-- Done when: the tests pass, and the FIBER's first page shows `10.0.0.108/24`.
-
-### T44. A press acts at once, also on a dimmed display (D27) (M4)
-
-State (2026-11-19): written and tested, `just check` passes; on the bench's FIBER as release
-`0.1.0-bench.12`. Seen there: dimmed, the backlight's PWM reads 20 % (200 000 of 1 000 000 ns);
-a message lit it to 80 % at once, and the maintainer's one press of *enter*, 26 s later, sent it
-away. Left: a press on a dimmed display moving the page (the maintainer looks).
-
-- [x] `docs/front-panel.md`, `docs/mqtt-api.md` first
-- [x] The backlight dims to 20 % (or stays at its brightness, when that is lower)
-- [x] A press acts at once, dimmed or not, and lights the backlight; a client's message lights it
-      as it arrives; a press sends a message away, dimmed or not
-- [x] Tests: the agent's front panel and press tests, the display's duty
-- [ ] On the FIBER: a press on a dimmed display moves the page; a message lights the backlight
-
-- Done when: the tests pass, and on the FIBER the first press on a dimmed display acts.
-
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -1657,6 +1625,37 @@ Done 2026-11-19, commit `a3acab3`. Checked: `just check`, and on the FIBER (benc
 - [x] On the FIBER: heard (the maintainer, 2026-11-19)
 
 - Done when: the tests pass, and on the FIBER each press clicks.
+
+### T43. The address with its network size on the first page (M4)
+
+Done 2026-11-19, commit `d9d44a6`. Checked: `just check`, and on the bench's FIBER (release
+`0.1.0-bench.11`) the maintainer saw `10.0.0.108/24` on page 1. The size comes from the same
+`/proc/net/fib_trie`: the longest `link UNICAST` route that holds the address.
+
+- [x] `docs/front-panel.md` first
+- [x] Each local address with the size of the network it is in; an address in no such network
+      stays bare. `+N` only when it fits the line (19 characters after the icon)
+- [x] Tests: the FIBER's own `fib_trie` as a vector (`agent/src/agent/fib-trie-2026-11-19.txt`),
+      two networks of other sizes, the `+N` rule, the stored picture
+- [x] On the FIBER: seen on the display (the maintainer)
+
+- Done when: the tests pass, and the FIBER's first page shows `10.0.0.108/24`.
+
+### T44. A press acts at once, also on a dimmed display (D27) (M4)
+
+Done 2026-11-19, commit `0d543dd`. Checked: `just check`, and on the bench's FIBER (release
+`0.1.0-bench.12`): dimmed, the backlight's PWM reads 20 % (200 000 of 1 000 000 ns, 1 kHz); a
+message lit it to 80 % at once, and one press of *enter* sent it away; the first press on a
+dimmed display acts ("it works well", the maintainer).
+
+- [x] `docs/front-panel.md`, `docs/mqtt-api.md` first
+- [x] The backlight dims to 20 % (or stays at its brightness, when that is lower)
+- [x] A press acts at once, dimmed or not, and lights the backlight; a client's message lights it
+      as it arrives; a press sends a message away, dimmed or not
+- [x] Tests: the agent's front panel and press tests, the display's duty
+- [x] On the FIBER: a press on a dimmed display acts; a message lights the backlight
+
+- Done when: the tests pass, and on the FIBER the first press on a dimmed display acts.
 
 ## Decisions ahead
 
