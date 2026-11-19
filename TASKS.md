@@ -607,7 +607,8 @@ CRC, SQI 32, AFC -4 to 0, at -88 dBm from +14 dBm, -91 from +10, about -105 from
 rates at four levels (attenuators), several Core Modules, `docs/firmware/radio.md`. The FIBER's
 antenna was disconnected through every radio measurement (the maintainer); the distance was not
 measured. Each level is to be measured again with it on. Pushed so far
-(`a3ea469..2bdc6fd`), CI run 44516902698 green.
+(`a3ea469..2bdc6fd`), CI run 44516902698 green; the antenna's records with `00cedd0..9d0167b`, CI
+run 44577573971 green.
 
 TOWER nodes use a SPIRIT1 radio; the north bridge has another one. Whether the two understand
 each other is the biggest unknown of the plan, so it is answered before anything is built on it
@@ -720,8 +721,8 @@ hopping (US 915), the remote shell, bulk transfer.
 
 ### T42. A press sends a client's message away (D26) (M4)
 
-State (2026-11-19): written and tested on the computer, `just check` passes, commit `1fc485b` (not
-pushed). On the bench's FIBER as release `0.1.0-bench.10`: a test message ("Press any button / to
+State (2026-11-19): written and tested on the computer, `just check` passes, commit `1fc485b`, CI run
+44577573971 green. On the bench's FIBER as release `0.1.0-bench.10`: a test message ("Press any button / to
 send this away") went with the maintainer's second press of *up*, at 17:57:18; the first, 2 s
 before, met a dimmed display and only lit it, as D26 has it (`fiber-bench-watch` recorded both
 clicks and `"message": null`). Left: an alarm stopped by a press on the FIBER, and whether the page
@@ -1615,7 +1616,7 @@ numbers, so our messages carry the strength alone.
 
 ### T41. A click on every press of a button (M4)
 
-Done 2026-11-19, commit `a3acab3`. Checked: `just check`, and on the FIBER (bench release
+Done 2026-11-19, commit `a3acab3`, CI run 44577573971 green. Checked: `just check`, and on the FIBER (bench release
 `0.1.0-bench.9`, after the power cycle) the maintainer hears a click on each press.
 
 - [x] A short click of the buzzer as a button goes down, the press that only lights the backlight
@@ -1628,7 +1629,7 @@ Done 2026-11-19, commit `a3acab3`. Checked: `just check`, and on the FIBER (benc
 
 ### T43. The address with its network size on the first page (M4)
 
-Done 2026-11-19, commit `d9d44a6`. Checked: `just check`, and on the bench's FIBER (release
+Done 2026-11-19, commit `d9d44a6`, CI run 44577573971 green. Checked: `just check`, and on the bench's FIBER (release
 `0.1.0-bench.11`) the maintainer saw `10.0.0.108/24` on page 1. The size comes from the same
 `/proc/net/fib_trie`: the longest `link UNICAST` route that holds the address.
 
@@ -1643,7 +1644,7 @@ Done 2026-11-19, commit `d9d44a6`. Checked: `just check`, and on the bench's FIB
 
 ### T44. A press acts at once, also on a dimmed display (D27) (M4)
 
-Done 2026-11-19, commit `0d543dd`. Checked: `just check`, and on the bench's FIBER (release
+Done 2026-11-19, commit `0d543dd`, CI run 44577573971 green. Checked: `just check`, and on the bench's FIBER (release
 `0.1.0-bench.12`): dimmed, the backlight's PWM reads 20 % (200 000 of 1 000 000 ns, 1 kHz); a
 message lit it to 80 % at once, and one press of *enter* sent it away; the first press on a
 dimmed display acts ("it works well", the maintainer).
