@@ -5,8 +5,10 @@ and the buzzer. The agent drives them. A program of your own sees the buttons an
 message on the display through MQTT ([`mqtt-api.md`](mqtt-api.md)).
 
 **Status: a draft (T20, T21).** The pages are drawn and compared with stored pictures in the
-tests. The driver that sends them to the LCD is written (`agent/src/agent/lcd.rs`). Nobody has
-looked at the LCD yet: whether the pages show, and the right way up, is not known.
+tests. The driver that sends them to the LCD is written (`agent/src/agent/lcd.rs`), and on a
+FIBER the pages show (2026-11-19): first upside down, with the 180-degree turn of the earlier
+software, now sent as drawn. That they are upright now waits for a second look; the buttons have
+not been pressed.
 
 ## The pages
 

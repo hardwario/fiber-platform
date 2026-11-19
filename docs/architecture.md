@@ -44,7 +44,7 @@ The directory `crates/X` holds the package `fiber-X`.
 | `crates/flasher` | `fiber-flasher` | The ROM-bootloader engine (ST AN3155) for STM32C0 and STM32WL; reset lines behind a trait; a fake ROM for tests. | the engine and the simulated chip |
 | `crates/south-core` | `fiber-south-core` | `no_std`: the south bridge's logic, host-tested; also builds as a host simulator. | the logic, and the simulator (`fiber south-simulator`) |
 | `crates/tower-air` | `fiber-tower-air` | `no_std`: software packet codec, on-air frame codec and gateway flow of the TOWER personality, over a radio trait and the pinned TOWER kernels. | pin checks only |
-| `agent/` | `fiber-agent` (bin `fiber`) | Daemon, command line and platform tool. | `fiber version`, `doctor`, `platform ...`, `agent` (the south bridge, the thermometers, the buttons, the buzzer and the backlight on MQTT; flashing the south bridge, the LCD), the board's commands; run on a FIBER, the LCD not looked at |
+| `agent/` | `fiber-agent` (bin `fiber`) | Daemon, command line and platform tool. | `fiber version`, `doctor`, `platform ...`, `agent` (the south bridge, the thermometers, the buttons, the buzzer and the backlight on MQTT; flashing the south bridge, the LCD), the board's commands; run on a FIBER, the pages seen on its LCD |
 | `firmware/south/` | `fiber-south` | Embassy, STM32C031C6 (thumbv6m). Own workspace. | 15.8 KB; runs on a FIBER, flashed by the agent |
 | `firmware/north/` | `fiber-north` | Embassy, STM32WL55 M4 core (thumbv7em). Own workspace. | no |
 | `provision/` | | `install.sh`, `components.yaml`, the Ansible roles, the `config.txt` block. | `components.yaml`, `install.sh`, `release.py` |

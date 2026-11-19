@@ -56,15 +56,14 @@ Add `dtoverlay=spi6-1cs` and check that `/dev/spidev6.0` appears and that the di
 with chip select on GPIO18 (through the inverter). The earlier software drove GPIO12 by hand; on
 rev 2.1 that link is not fitted. Also confirm that nothing objects to the overlay claiming GPIO19.
 
-**Result (2026-11-19): half answered.** `/dev/spidev6.0` appears, GPIO18 becomes its chip select
+**Result (2026-11-19): the LCD shows the agent's pages.** `/dev/spidev6.0` appears, GPIO18 becomes its chip select
 and GPIO19 to 21 its pins (`SPI6_MISO`, `SPI6_MOSI`, `SPI6_SCLK`), and nothing in the kernel's log
 objects. A test pattern was sent as an ST7920 takes it (SPI mode 3, 400 kHz, `0xF8` before a
 command, `0xFA` before data, reset on GPIO16): four lines of text from the controller's own font
 and a frame with a checkerboard. Since then the agent's driver sends its pages, without an error.
-**Nobody has looked at the LCD yet.** What to look for: whether anything shows at all; whether the
-text is upside down (the earlier software turned its picture by 180 degrees, and the agent does the
-same, so its pages should be upright while the controller's own text of the test pattern would be
-upside down).
+The maintainer looked: the pages showed, flipped. So the bus, the mode, the speed and the packets
+are right, and the earlier software's 180-degree turn is wrong on this board; the agent now sends
+the picture as it is drawn. That the pages are upright now: waiting for a second look.
 
 ## 3. Which level does the RAK5146 USB card need on mini-PCIe pin 22?
 

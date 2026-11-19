@@ -47,8 +47,8 @@ cannot reach the south bridge's bootloader (`fiber firmware chip south` gets `0x
 next power-on. The firmware runs; a new one would have to go through the J-Link. Answered: both bootloaders (check 1); the I2C bus and its three chips; the clock;
 `/dev/spidev6.0` and PWM channel 1 (check 2 and 6 in part, all in `docs/bench-checks.md`). The
 earlier software's LCD driver was read: ST7920, mode 3, 400 kHz, and the picture turned by 180
-degrees, which T20's driver does too. Left, for someone at the bench: look at the LCD (does it
-show the agent's pages, upright?) and the backlight; press each button; listen to the buzzer, also
+degrees. The maintainer looked: the agent's pages show, flipped, so the turn is gone (T20). Left,
+for someone at the bench: the pages upright now?, the backlight; press each button; listen to the buzzer, also
 at power-on; a RAK5146 card in the slot; a second unit; then a power cycle, after which `sudo
 fiber firmware chip south` should answer again (with the agent stopped). The test pattern is
 `hil/lcd_test.py` (a copy is in the home directory of `fiber` on the unit; stop the agent first,
@@ -71,10 +71,10 @@ these answers, and each takes minutes ([`docs/bench-checks.md`](docs/bench-check
       units carry, not what one board does
 - [x] `i2cdetect -y 10` (after `dtparam=i2c_vc=on`): 0x18 (DS2482), 0x19 (LIS2DH12) and 0x51
       (PCF85063A) answer. The schematic leaves the bus's pull-up resistors unfitted
-- [ ] The LCD: add `dtoverlay=spi6-1cs`, see `/dev/spidev6.0`, and get a test pattern onto the
+- [x] The LCD: add `dtoverlay=spi6-1cs`, see `/dev/spidev6.0`, and get a test pattern onto the
       display with chip select on GPIO18 and reset on GPIO16 (the earlier software used SPI mode
       3 at 400 kHz, with `0xF8` before a command and `0xFA` before data). Nothing may object to
-      the overlay taking GPIO19
+      the overlay taking GPIO19 (2026-11-19: the agent's pages show, sent that way)
 - [ ] The backlight on PWM channel 1 (`dtoverlay=pwm,pin=13,func=4`)
 - [ ] The buttons on GPIO23, 24 and 25 read low while pressed
 - [ ] The buzzer sounds with GPIO17 low. Listen at power-on too: until `config.txt` sets the
@@ -563,10 +563,12 @@ cannot be used: the driver puts it on one master only, the master of the first D
 
 ### T20. LCD, backlight, buttons, buzzer (M4)
 
-State (2026-11-19): the display driver is written (`agent/src/agent/lcd.rs`): ST7920 packets over
-`/dev/spidev6.0` in mode 3 at 400 kHz, reset on GPIO16, the picture turned by 180 degrees as the
-earlier software did, only the rows that changed, the controller set up again after an error. It
-runs on the FIBER without an error; nobody has looked at the LCD. The backlight's channel is set
+State (2026-11-19): the maintainer looked: the LCD shows the agent's pages, flipped. So the bus,
+the mode, the speed and the packets are right, and the 180-degree turn taken from the earlier
+software is wrong on this board: it comes out, and the build goes on the FIBER for another look.
+The display driver (`agent/src/agent/lcd.rs`): ST7920 packets over `/dev/spidev6.0` in mode 3 at
+400 kHz, reset on GPIO16, only the rows that changed, the controller set up again after an
+error. The backlight's channel is set
 to 80 % on the FIBER (its first write races udev and is tried again a second later). `fiber
 display message` works through MQTT. Left, at the bench: see the pages, hear `fiber buzzer beep`,
 press the buttons with `fiber buttons watch`.
@@ -583,8 +585,8 @@ run on a FIBER.
 - [x] `docs/mqtt-api.md` and `docs/cli.md` first: `buttons/event`, `display`, and the methods
       `buzzer.beep`, `display.message`, `display.backlight`
 - [x] The display driver over `/dev/spidev6.0`, with what T2 found (the mode, the speed, the
-      bytes before a command and before data), reset on GPIO16. From the earlier software, not
-      seen on the LCD yet
+      bytes before a command and before data), reset on GPIO16. Seen on the LCD (2026-11-19);
+      the picture goes as drawn, without the earlier software's 180-degree turn
 - [x] The picture is a `tower_hmi::Frame<16, 64>`; only the rows that changed are sent
 - [x] The backlight on PWM channel 1, with a brightness and a time after which it dims; the unit
       leaves `/sys` writable as its permissions have it
