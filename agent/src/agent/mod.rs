@@ -13,6 +13,7 @@ mod daemon;
 pub mod display;
 pub mod firmware;
 mod hardware;
+pub mod icons;
 pub mod images;
 pub mod lcd;
 pub mod leds;

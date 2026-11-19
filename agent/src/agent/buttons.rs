@@ -1,8 +1,9 @@
 //! The three buttons beside the display (`docs/mqtt-api.md`, `buttons/event`).
 //!
 //! A thread of their own waits for the lines' edges and feeds `tower-hmi`'s recognizer, which
-//! turns presses into clicks, holds and repeats; the agent's loop gets the gestures. The lines
-//! are behind [`Lines`], so the tests press made-up buttons.
+//! turns presses into clicks, holds and repeats; the agent's loop gets each press as the button
+//! goes down (the pages turn on it) and the gestures. The lines are behind [`Lines`], so the
+//! tests press made-up buttons.
 
 use std::io;
 use std::time::{Duration, Instant};
@@ -77,7 +78,8 @@ pub fn watch<L: Lines>(mut lines: L, gestures: tokio::sync::mpsc::Sender<ButtonE
         let mut events = Vec::new();
         recognizer.update(ms(), raw, &mut |event| events.push(event));
         for event in events {
-            if gesture(event.kind).is_some() && gestures.blocking_send(event).is_err() {
+            let wanted = event.kind == Kind::Press || gesture(event.kind).is_some();
+            if wanted && gestures.blocking_send(event).is_err() {
                 return Ok(());
             }
         }
@@ -170,13 +172,17 @@ mod tests {
     }
 
     #[test]
-    fn the_thread_sends_gestures() {
+    fn the_thread_sends_the_press_and_the_gesture() {
         let (tx, mut rx) = tokio::sync::mpsc::channel(8);
         let lines = Scripted {
             start: Instant::now(),
             presses: vec![(50, UP), (200, 0)],
         };
         assert!(watch(lines, tx).is_err());
+        // The press as the button goes down (the pages turn on it), then the click on the
+        // release; the release itself is not sent.
+        let event = rx.try_recv().unwrap();
+        assert_eq!((event.buttons, event.kind), (UP, Kind::Press));
         let event = rx.try_recv().unwrap();
         assert_eq!((event.buttons, event.kind), (UP, Kind::Click));
         assert!(rx.try_recv().is_err());

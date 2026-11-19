@@ -2,13 +2,14 @@
 //! [`Picture`], and what the buttons do to it. [`Facts`] is what the agent gathers for it; the
 //! drawing is a pure function of the two, so the tests compare pictures.
 
-use tower_hmi::fonts::SPLEEN_6X12;
+use tower_hmi::fonts::{SPLEEN_5X8, SPLEEN_6X12, SPLEEN_8X16, SPLEEN_12X24};
 use tower_hmi::input::{ButtonEvent, Kind};
 use tower_hmi::menu::{Item, Menu, MenuState, MenuStyle, Nav, Outcome, Table};
-use tower_hmi::{Align, Canvas, Color, Rect, TextStyle};
+use tower_hmi::{Align, Canvas, Color, Image, Rect, TextStyle};
 
 use super::buttons::{DOWN, ENTER, UP};
 use super::display::{Picture, draw_message};
+use super::icons;
 
 /// The pages, in order.
 pub const PAGES: [&str; 4] = ["FIBER", "Components", "Power", "Thermometers"];
@@ -46,9 +47,10 @@ pub struct Facts {
     pub ts: u64,
     /// Each component that is on, and how its last apply ended.
     pub components: Vec<(String, String)>,
-    /// `PoE`, `battery` or `not known`, and the two voltages when they are known.
+    /// `PoE`, `battery` or `not known`, and the two voltages when they are known; the battery's
+    /// none when no cell is fitted.
     pub source: String,
-    pub volts: Option<(f64, f64)>,
+    pub volts: Option<(f64, Option<f64>)>,
     /// Port, id and millidegrees of each probe.
     pub thermometers: Vec<(u8, String, Option<i32>)>,
     /// The apply that runs: its component, its step and the number of steps.
@@ -81,7 +83,9 @@ impl Default for Screen {
 impl Screen {
     /// What a gesture of the buttons does, and what it asks of the agent.
     pub fn press(&mut self, event: ButtonEvent) -> Option<Ask> {
-        let step = matches!(event.kind, Kind::Click | Kind::Repeat);
+        // Up and down step as the button goes down, and again on each repeat of a hold; enter
+        // acts on the click (on the release), to tell it from a hold.
+        let step = matches!(event.kind, Kind::Press | Kind::Repeat);
         match &mut self.view {
             View::Page(page) => match event.buttons {
                 UP if step => *page = (*page + PAGES.len() - 1) % PAGES.len(),
@@ -114,19 +118,30 @@ impl Screen {
     }
 }
 
+const SMALL: TextStyle = TextStyle::new(&SPLEEN_5X8);
 const STYLE: TextStyle = TextStyle::new(&SPLEEN_6X12);
+const MEDIUM: TextStyle = TextStyle::new(&SPLEEN_8X16);
+const BIG: TextStyle = TextStyle::new(&SPLEEN_12X24);
 
-/// The title bar: white on black, the page's number on the right.
-fn title(canvas: &mut Canvas<'_>, text: &str, number: Option<usize>) {
+/// The title bar: white on black, an icon, the title, and on the right a dot for each page, the
+/// one shown filled.
+fn title(canvas: &mut Canvas<'_>, icon: &Image, text: &str, page: Option<usize>) {
     canvas.fill_rect(Rect::new(0, 0, 128, 12), Color::Black);
-    canvas.text(1, 0, text, &STYLE.inverted());
-    if let Some(n) = number {
-        let n = format!("{}/{}", n + 1, PAGES.len());
-        canvas.text(127, 0, &n, &STYLE.inverted().align(Align::Right));
+    canvas.image(2, 2, icon, Color::White, None);
+    canvas.text(13, 0, text, &STYLE.inverted());
+    if let Some(shown) = page {
+        for i in 0..PAGES.len() {
+            let x = 104 + 6 * i as i32;
+            if i == shown {
+                canvas.fill_rect(Rect::new(x, 4, 4, 4), Color::White);
+            } else {
+                canvas.fill_rect(Rect::new(x + 1, 5, 2, 2), Color::White);
+            }
+        }
     }
 }
 
-/// The four lines below the title bar.
+/// Lines of text below the title bar, at most four.
 fn lines(canvas: &mut Canvas<'_>, lines: &[String]) {
     for (row, line) in lines.iter().take(4).enumerate() {
         let line: String = line.chars().take(21).collect();
@@ -134,58 +149,201 @@ fn lines(canvas: &mut Canvas<'_>, lines: &[String]) {
     }
 }
 
-/// `HH:MM UTC`.
-fn clock(ts: u64) -> String {
-    let seconds = ts % 86_400;
-    format!("{:02}:{:02} UTC", seconds / 3600, seconds / 60 % 60)
+/// An icon and a line of text beside it, in the row that starts at `y`.
+fn line_with_icon(canvas: &mut Canvas<'_>, y: i32, icon: &Image, text: &str) {
+    canvas.image(1, y + 2, icon, Color::Black, None);
+    let text: String = text.chars().take(19).collect();
+    canvas.text(11, y, &text, &STYLE);
 }
 
-/// The text of a page.
-pub fn page_lines(page: usize, facts: &Facts) -> Vec<String> {
-    match page {
-        0 => {
-            let mut out = vec![facts.name.clone()];
-            out.extend(facts.addresses.iter().take(2).cloned());
-            if facts.addresses.is_empty() {
-                out.push("no address".into());
-            }
-            out.push(clock(facts.ts));
-            out
+/// The date of a Unix time, in UTC: (year, month, day, weekday from Sunday = 0).
+fn date(ts: u64) -> (i64, usize, u64, usize) {
+    let days = (ts / 86_400) as i64;
+    // 1 January 1970 was a Thursday.
+    let weekday = (days + 4).rem_euclid(7) as usize;
+    // Days to the civil date (H. Hinnant, "chrono-Compatible Low-Level Date Algorithms").
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = (doy - (153 * mp + 2) / 5 + 1) as u64;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 } as usize;
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    (year, month, day, weekday)
+}
+
+/// `Thu 19 Nov`.
+fn day(ts: u64) -> String {
+    const DAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let (_, month, day, weekday) = date(ts);
+    format!("{} {day} {}", DAYS[weekday], MONTHS[month - 1])
+}
+
+/// `HH:MM`, in UTC.
+fn clock(ts: u64) -> String {
+    let seconds = ts % 86_400;
+    format!("{:02}:{:02}", seconds / 3600, seconds / 60 % 60)
+}
+
+/// The first page: the name, the address, and the time in big digits with the day beside it.
+fn page_fiber(canvas: &mut Canvas<'_>, facts: &Facts) {
+    line_with_icon(canvas, 13, &icons::NAME, &facts.name);
+    let address = match facts.addresses.as_slice() {
+        [] => "no address".to_owned(),
+        [one] => one.clone(),
+        [first, rest @ ..] => format!("{first} +{}", rest.len()),
+    };
+    line_with_icon(canvas, 25, &icons::NETWORK, &address);
+    canvas.hline(0, 38, 128, Color::Black);
+    canvas.text(1, 40, &clock(facts.ts), &BIG);
+    canvas.text(66, 41, "UTC", &STYLE);
+    canvas.text(66, 52, &day(facts.ts), &STYLE);
+}
+
+/// How a component's last apply ended, as its mark shows it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mark {
+    Ok,
+    Failed,
+    Other,
+}
+
+/// The rows of the components' page: each component's mark, name and, when it is not up, how
+/// its apply ended; at most four, the last one saying how many more there are.
+pub fn component_rows(facts: &Facts) -> Vec<(Mark, String, String)> {
+    let mut rows: Vec<(Mark, String, String)> = facts
+        .components
+        .iter()
+        .map(|(name, result)| {
+            let mark = match result.as_str() {
+                "ok" => Mark::Ok,
+                "failed" => Mark::Failed,
+                _ => Mark::Other,
+            };
+            let shown = if mark == Mark::Ok {
+                String::new()
+            } else {
+                result.clone()
+            };
+            (mark, name.clone(), shown)
+        })
+        .collect();
+    if rows.len() > 4 {
+        let more = rows.len() - 3;
+        rows.truncate(3);
+        rows.push((Mark::Other, format!("and {more} more"), String::new()));
+    }
+    rows
+}
+
+fn page_components(canvas: &mut Canvas<'_>, facts: &Facts) {
+    let rows = component_rows(facts);
+    if rows.is_empty() {
+        lines(canvas, &["none applied yet".into()]);
+        return;
+    }
+    for (row, (mark, name, result)) in rows.iter().enumerate() {
+        let y = 14 + row as i32 * 12;
+        let icon = match mark {
+            Mark::Ok => &icons::OK,
+            Mark::Failed => &icons::FAILED,
+            Mark::Other => &icons::OTHER,
+        };
+        canvas.image(1, y + 2, icon, Color::Black, None);
+        canvas.text(11, y, name, &STYLE);
+        if !result.is_empty() {
+            canvas.text(127, y, result, &STYLE.align(Align::Right));
         }
-        1 if facts.components.is_empty() => vec!["none applied yet".into()],
-        1 => {
-            let mut out: Vec<String> = facts
-                .components
-                .iter()
-                .take(4)
-                .map(|(name, result)| format!("{name:<14}{result}"))
-                .collect();
-            if facts.components.len() > 4 {
-                out[3] = format!("and {} more", facts.components.len() - 3);
+    }
+}
+
+/// How full a battery at `volts` is drawn, from 3.0 V (empty) to 4.2 V (full): 0 to `width`.
+pub fn battery_fill(volts: f64, width: i32) -> i32 {
+    (((volts - 3.0) / 1.2).clamp(0.0, 1.0) * f64::from(width)).round() as i32
+}
+
+/// The power page: the source with its icon, the input in big digits, the battery's gauge.
+fn page_power(canvas: &mut Canvas<'_>, facts: &Facts) {
+    let icon = match facts.source.as_str() {
+        "PoE" => &icons::PLUG,
+        "Battery" => &icons::BATTERY,
+        _ => &icons::UNKNOWN,
+    };
+    line_with_icon(canvas, 13, icon, &facts.source);
+    let Some((input, battery)) = facts.volts else {
+        canvas.text(0, 30, "Voltages not known", &STYLE);
+        return;
+    };
+    canvas.text(127, 16, "input", &SMALL.align(Align::Right));
+    canvas.text(1, 26, &format!("{input:5.2}"), &BIG);
+    canvas.text(66, 32, "V", &MEDIUM);
+    // The battery's gauge: an outline with its knob, filled to the level.
+    canvas.rect(Rect::new(1, 53, 13, 8), Color::Black);
+    canvas.fill_rect(Rect::new(14, 55, 2, 4), Color::Black);
+    match battery {
+        Some(volts) => {
+            let fill = battery_fill(volts, 9);
+            if fill > 0 {
+                canvas.fill_rect(Rect::new(3, 55, fill, 4), Color::Black);
             }
-            out
+            canvas.text(20, 51, &format!("Battery {volts:.2} V"), &STYLE);
         }
-        2 => {
-            let mut out = vec![facts.source.clone()];
-            if let Some((input, battery)) = facts.volts {
-                out.push(format!("Input   {input:5.2} V"));
-                out.push(format!("Battery {battery:5.2} V"));
-            }
-            out
+        None => {
+            canvas.line(3, 59, 11, 54, Color::Black);
+            canvas.text(20, 51, "No battery", &STYLE);
         }
-        _ if facts.thermometers.is_empty() => vec!["no thermometers".into()],
-        _ => facts
-            .thermometers
-            .iter()
-            .take(4)
-            .map(|(port, id, millis)| {
-                let end = &id[id.len().saturating_sub(4)..];
-                match millis {
-                    Some(m) => format!("{port} {end} {:7.2} °C", super::thermometers::degrees(*m)),
-                    None => format!("{port} {end}  no reading"),
+    }
+}
+
+/// A port's number in a black badge, in the row that starts at `y`.
+fn port_badge(canvas: &mut Canvas<'_>, y: i32, port: u8) {
+    canvas.fill_rect(Rect::new(0, y + 1, 9, 10), Color::Black);
+    canvas.text(2, y + 2, &port.to_string(), &SMALL.inverted());
+}
+
+/// The thermometers' page: one probe in big digits, more as a list, none with a hint.
+fn page_thermometers(canvas: &mut Canvas<'_>, facts: &Facts) {
+    let tail = |id: &str| id[id.len().saturating_sub(4)..].to_owned();
+    match facts.thermometers.as_slice() {
+        [] => {
+            canvas.image(1, 17, &icons::THERMOMETER, Color::Black, None);
+            canvas.text(11, 15, "No thermometers", &STYLE);
+            canvas.text(0, 32, "Plug a DS18B20 into", &STYLE);
+            canvas.text(0, 44, "any port to see it.", &STYLE);
+        }
+        [(port, id, millis)] => {
+            port_badge(canvas, 13, *port);
+            canvas.text(12, 16, &format!("port {port}, probe {}", tail(id)), &SMALL);
+            match millis {
+                Some(m) => {
+                    let degrees = format!("{:.1}", super::thermometers::degrees(*m));
+                    let width = SPLEEN_12X24.text_width(&degrees) + 4 + SPLEEN_8X16.text_width("°C");
+                    let x = (128 - width) / 2;
+                    canvas.text(x, 30, &degrees, &BIG);
+                    canvas.text(x + SPLEEN_12X24.text_width(&degrees) + 4, 36, "°C", &MEDIUM);
                 }
-            })
-            .collect(),
+                None => {
+                    canvas.text(64, 36, "no reading", &STYLE.align(Align::Center));
+                }
+            }
+        }
+        probes => {
+            for (row, (port, id, millis)) in probes.iter().take(4).enumerate() {
+                let y = 14 + row as i32 * 12;
+                port_badge(canvas, y, *port);
+                canvas.text(12, y + 3, &tail(id), &SMALL);
+                let reading = match millis {
+                    Some(m) => format!("{:.2} °C", super::thermometers::degrees(*m)),
+                    None => "no reading".into(),
+                };
+                canvas.text(127, y, &reading, &STYLE.align(Align::Right));
+            }
+        }
     }
 }
 
@@ -194,11 +352,16 @@ pub fn draw(screen: &mut Screen, facts: &Facts) -> Picture {
     if let Some((component, step, steps)) = &facts.apply {
         let mut picture = Picture::new();
         let mut canvas = picture.canvas();
-        title(&mut canvas, "Applying", None);
-        lines(
-            &mut canvas,
-            &[component.clone(), format!("step {step} of {steps}")],
-        );
+        title(&mut canvas, &icons::GEAR, "Applying", None);
+        canvas.text(1, 16, component, &MEDIUM);
+        // The progress bar: the steps done of all of them.
+        canvas.rect(Rect::new(0, 36, 128, 10), Color::Black);
+        let done = (*step).saturating_sub(1).min(*steps);
+        if *steps > 0 && done > 0 {
+            let width = (124 * done / *steps) as i32;
+            canvas.fill_rect(Rect::new(2, 38, width, 6), Color::Black);
+        }
+        canvas.text(1, 50, &format!("step {step} of {steps}"), &STYLE);
         return picture;
     }
     if let Some(message) = &facts.message {
@@ -209,16 +372,30 @@ pub fn draw(screen: &mut Screen, facts: &Facts) -> Picture {
     match &mut screen.view {
         View::Page(page) => {
             let page = (*page).min(PAGES.len() - 1);
-            title(&mut canvas, PAGES[page], Some(page));
-            lines(&mut canvas, &page_lines(page, facts));
+            let icon = [
+                &icons::FIBER,
+                &icons::COMPONENTS,
+                &icons::POWER,
+                &icons::THERMOMETER,
+            ][page];
+            title(&mut canvas, icon, PAGES[page], Some(page));
+            match page {
+                0 => page_fiber(&mut canvas, facts),
+                1 => page_components(&mut canvas, facts),
+                2 => page_power(&mut canvas, facts),
+                _ => page_thermometers(&mut canvas, facts),
+            }
         }
         View::Menu(menu) => menu.render(&mut canvas, &Table::new([]), &MenuStyle::new(&SPLEEN_6X12)),
         View::Restarting => {
-            title(&mut canvas, "Restarting", None);
-            lines(&mut canvas, &["The FIBER restarts.".into()]);
+            title(&mut canvas, &icons::RESTART, "Restarting", None);
+            lines(
+                &mut canvas,
+                &["The FIBER restarts.".into(), "Back in a minute.".into()],
+            );
         }
         View::About => {
-            title(&mut canvas, "About", None);
+            title(&mut canvas, &icons::INFO, "About", None);
             let about: Vec<String> = facts
                 .versions
                 .iter()
@@ -267,7 +444,7 @@ mod tests {
                 ("node-red".into(), "failed".into()),
             ],
             source: "PoE".into(),
-            volts: Some((12.08, 4.11)),
+            volts: Some((12.08, Some(4.11))),
             thermometers: vec![
                 (3, "28-0000034a5b1c".into(), Some(21437)),
                 (5, "28-00000b1c2d3e".into(), None),
@@ -301,6 +478,14 @@ mod tests {
         }
     }
 
+    /// A button going down: up and down step on it.
+    fn down(buttons: u8) -> ButtonEvent {
+        ButtonEvent {
+            buttons,
+            kind: Kind::Press,
+        }
+    }
+
     #[test]
     fn every_page() {
         let mut screen = Screen::default();
@@ -326,10 +511,13 @@ mod tests {
     #[test]
     fn the_buttons() {
         let mut screen = Screen::default();
+        screen.press(down(UP));
+        assert!(matches!(screen.view, View::Page(3)));
+        // The click that follows on the release does not step again.
         screen.press(click(UP));
         assert!(matches!(screen.view, View::Page(3)));
-        screen.press(click(DOWN));
-        screen.press(click(DOWN));
+        screen.press(down(DOWN));
+        screen.press(down(DOWN));
         assert!(matches!(screen.view, View::Page(1)));
         // A hold alone does not turn a page; its repeats do.
         screen.press(ButtonEvent {
@@ -351,20 +539,20 @@ mod tests {
         same_as_stored("about", &draw(&mut screen, &facts()));
         screen.press(click(UP));
         assert!(matches!(screen.view, View::Menu(_)));
-        screen.press(click(DOWN));
-        screen.press(click(DOWN));
+        screen.press(down(DOWN));
+        screen.press(down(DOWN));
         assert_eq!(screen.press(click(ENTER)), None);
         assert!(matches!(screen.view, View::Page(0)));
 
         // Restart asks first: "No" is the first choice, "Yes, restart" the second.
         screen.press(click(ENTER));
-        screen.press(click(DOWN));
+        screen.press(down(DOWN));
         assert_eq!(screen.press(click(ENTER)), None);
         same_as_stored("menu-restart", &draw(&mut screen, &facts()));
         assert_eq!(screen.press(click(ENTER)), None);
         assert!(matches!(screen.view, View::Menu(_)));
         screen.press(click(ENTER));
-        screen.press(click(DOWN));
+        screen.press(down(DOWN));
         assert_eq!(screen.press(click(ENTER)), Some(Ask::Restart));
         assert!(matches!(screen.view, View::Restarting));
         same_as_stored("restarting", &draw(&mut screen, &facts()));
@@ -377,20 +565,41 @@ mod tests {
     fn many_components_and_long_names() {
         let mut facts = facts();
         facts.components.push(("chirpstack".into(), "skipped".into()));
-        let lines = page_lines(1, &facts);
-        assert_eq!(lines.len(), 4);
-        assert_eq!(lines[3], "and 2 more");
+        let rows = component_rows(&facts);
+        assert_eq!(rows.len(), 4);
+        assert_eq!(rows[0], (Mark::Ok, "base".into(), String::new()));
+        assert_eq!(rows[3], (Mark::Other, "and 2 more".into(), String::new()));
+        facts.components.truncate(4);
         assert_eq!(
-            page_lines(
-                2,
-                &Facts {
-                    source: "not known".into(),
-                    ..Facts::default()
-                }
-            ),
-            ["not known"]
+            component_rows(&facts)[3],
+            (Mark::Failed, "node-red".into(), "failed".into())
         );
-        assert_eq!(page_lines(0, &Facts::default())[1], "no address");
+    }
+
+    #[test]
+    fn dates_and_the_battery_gauge() {
+        assert_eq!(date(0), (1970, 1, 1, 4));
+        // 2026-11-19 07:55:15 UTC, a Thursday; 29 February 2024.
+        assert_eq!(date(1_795_074_915), (2026, 11, 19, 4));
+        assert_eq!(day(1_795_074_915), "Thu 19 Nov");
+        assert_eq!(date(1_709_208_000), (2024, 2, 29, 4));
+        assert_eq!(battery_fill(4.2, 9), 9);
+        assert_eq!(battery_fill(3.6, 9), 5);
+        assert_eq!(battery_fill(2.5, 9), 0);
+    }
+
+    #[test]
+    fn pages_with_little_on_them() {
+        let mut screen = Screen::default();
+        let mut facts = facts();
+        facts.thermometers.truncate(1);
+        facts.volts = Some((13.62, None));
+        screen.view = View::Page(2);
+        same_as_stored("page-power-no-battery", &draw(&mut screen, &facts));
+        screen.view = View::Page(3);
+        same_as_stored("page-thermometer", &draw(&mut screen, &facts));
+        facts.thermometers.clear();
+        same_as_stored("page-no-thermometers", &draw(&mut screen, &facts));
     }
 
     #[test]

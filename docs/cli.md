@@ -93,8 +93,14 @@ North       running 0.2.0, image 0x1a2b3c4d (the one carried)
 
 ### `fiber power`
 
-The power source and the two voltages, as `power` has them. `--follow` then prints a line on
-every change, and each `power/event`, with the time in UTC, until Ctrl+C.
+The power source and the two voltages, as `power` has them; "no battery" when `battery` is `null`
+with the input known. `--follow` then prints a line on every change, and each `power/event`,
+with the time in UTC, until Ctrl+C.
+
+```
+$ fiber power
+Power       PoE, input 13.62 V, no battery
+```
 
 ### `fiber ports [on|off|cycle] [PORT...] [--seconds N]`
 

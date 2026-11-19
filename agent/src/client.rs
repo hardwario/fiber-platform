@@ -177,6 +177,7 @@ fn power_line(power: Option<&Value>) -> String {
     };
     match (power["input"].as_f64(), power["battery"].as_f64()) {
         (Some(input), Some(battery)) => format!("{source}, input {input:.2} V, battery {battery:.2} V"),
+        (Some(input), None) => format!("{source}, input {input:.2} V, no battery"),
         _ => source.to_owned(),
     }
 }
@@ -626,6 +627,8 @@ mod tests {
         assert_eq!(ports_line(&some), "1 2 4 5 6 7 8 on, 3 off");
         let power = json!({"source": "poe", "input": 12.08, "battery": 4.1});
         assert_eq!(power_line(Some(&power)), "PoE, input 12.08 V, battery 4.10 V");
+        let power = json!({"source": "poe", "input": 13.62, "battery": null});
+        assert_eq!(power_line(Some(&power)), "PoE, input 13.62 V, no battery");
         assert_eq!(
             power_line(Some(&json!({"source": "unknown", "input": null}))),
             "not known"

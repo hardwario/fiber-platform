@@ -704,6 +704,46 @@ the receive filter has to be wide enough for both crystals' error.
 - Needs: T2 (the bootloader answers, to write the test firmware); a TOWER Core Module.
 - Done when: frames go both ways, and the captures are in the repository.
 
+### T37. No battery: `power` says `null` (M2)
+
+State (2026-11-19): done but for its commit. On the FIBER, with no cell fitted, the battery read
+1.7 V and was shown as a voltage; a Li-Ion cell that works never reads under 2.5 V, so below 2 V
+there is none. On the FIBER since (`0.1.0-bench.7`): `"battery": null` on `power`, "no battery"
+from `fiber power`. On the way: whether `power` moved compared the input exactly once the battery
+was `null`, which would have published every 0.01 V; it compares each voltage by 0.05 V now.
+
+- [x] The agent: a battery below 2 V is `null` on `power` (the topic already allows it), the
+      source not changed by it (`Volts::cell`)
+- [x] `fiber power`, `fiber status` and the power page say "no battery"
+- [x] `docs/mqtt-api.md` and `docs/cli.md` say so; tests
+
+- Done when: the tests pass, and on the FIBER `power` has `"battery": null`.
+
+### T38. The front panel: faster to answer, and drawn with symbols (M4)
+
+State (2026-11-19): started, on the maintainer's word: a press answers slowly, the redraw can be
+seen, and the pages should look better, with symbols. Measured on the FIBER: a full redraw takes
+91 ms the agent's way (a write per 3-byte packet at 400 kHz), where the ST7920's datasheet allows
+no less than about 83 ms (72 us an instruction, 1152 of them); a write per row took 79 ms and a
+whole picture at 1 MHz 40 ms, both by packing packets closer than 72 us. And a click is only
+recognized on the release, so the page turned after the finger came up. All but the last step is
+done and on the FIBER (`0.1.0-bench.7`); `just check` passes. Waiting for the maintainer to look
+and press.
+
+- [x] *Up* and *down* turn the page on the press (and on the repeats of a hold), not on the
+      click; *enter* stays on the click, to tell it from a hold. The first press after the
+      backlight dimmed still only lights it, and nothing else of that press acts
+- [x] The LCD driver sends only the 16-pixel words of a row that changed
+- [x] The pages drawn again: icons of our own (`tower_hmi::Image`), page dots in the title bar,
+      the clock and the readings in bigger fonts, a mark for each component's result, the
+      battery's level, a progress bar for an apply; stored pictures for each, looked at as PNGs
+      on the computer before they went on the FIBER
+- [x] `docs/front-panel.md` as it is now
+- [ ] On the FIBER: the maintainer looks, and presses
+
+- Done when: the pictures match, and on the FIBER the pages look right and turn as the button
+  goes down.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read

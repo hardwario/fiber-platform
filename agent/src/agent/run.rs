@@ -14,7 +14,7 @@ use serde_json::Value;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
-use tower_hmi::input::ButtonEvent;
+use tower_hmi::input::{ButtonEvent, Kind};
 
 use super::buttons;
 use super::buzzer::Pattern;
@@ -122,6 +122,8 @@ pub struct Agent<B: Bus> {
     /// The LCD's thread, and the picture last sent to it; none without the LCD.
     pub lcd: Option<std::sync::mpsc::Sender<super::lcd::Rows>>,
     lcd_sent: Option<super::lcd::Rows>,
+    /// The press that is down only lit the backlight: nothing else of it acts.
+    waking: bool,
     /// Where the pages find what is not in the state; none in the tests.
     pub sources: Option<Sources>,
 }
@@ -172,6 +174,7 @@ impl<B: Bus> Agent<B> {
             picture: Picture::new(),
             lcd: None,
             lcd_sent: None,
+            waking: false,
             sources: None,
         }
     }
@@ -265,17 +268,13 @@ impl<B: Bus> Agent<B> {
         let stale = self.power_sent.is_none_or(|at| at.elapsed() >= POWER_EVERY);
         let power = topics::power(&self.state, ts);
         let moved = self.sent.get("power").is_none_or(|before| {
-            let v = |p: &Value, k: &str| p[k].as_f64();
-            before["source"] != power["source"]
-                || match (
-                    v(before, "input"),
-                    v(&power, "input"),
-                    v(before, "battery"),
-                    v(&power, "battery"),
-                ) {
-                    (Some(a), Some(b), Some(c), Some(d)) => (a - b).abs() > 0.05 || (c - d).abs() > 0.05,
-                    _ => before["input"] != power["input"],
-                }
+            // A voltage moved by more than 0.05 V, or came or went (the battery is `null` when no
+            // cell is fitted).
+            let moved = |k: &str| match (before[k].as_f64(), power[k].as_f64()) {
+                (Some(a), Some(b)) => (a - b).abs() > 0.05,
+                (a, b) => a.is_some() != b.is_some(),
+            };
+            before["source"] != power["source"] || moved("input") || moved("battery")
         });
         if force || stale || moved {
             self.power_sent = Some(Instant::now());
@@ -320,7 +319,7 @@ impl<B: Bus> Agent<B> {
                 Source::Unknown => "Power not known",
             }
             .into(),
-            volts: self.state.power.volts.map(|v| (v.input, v.battery)),
+            volts: self.state.power.volts.map(|v| (v.input, v.cell())),
             thermometers: {
                 let mut probes: Vec<_> = self
                     .state
@@ -387,13 +386,16 @@ impl<B: Bus> Agent<B> {
     }
 
     /// A gesture of the buttons: on MQTT, and the backlight lit. When it had dimmed, the press
-    /// only lights it.
+    /// only lights it, and nothing else of that press acts (its click, hold or repeats).
     async fn gesture(&mut self, event: ButtonEvent) {
         let at = Instant::now();
         let dimmed = self.state.display.duty(at) < self.state.display.backlight;
         self.state.display.last_press = at;
         self.light();
-        if !dimmed && self.screen.press(event) == Some(Ask::Restart) {
+        if event.kind == Kind::Press {
+            self.waking = dimmed;
+        }
+        if !dimmed && !self.waking && self.screen.press(event) == Some(Ask::Restart) {
             self.restart();
         }
         self.draw();
@@ -976,8 +978,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn the_front_panel() {
-        use crate::agent::buttons::ENTER;
-        use tower_hmi::input::Kind;
+        use crate::agent::buttons::{DOWN, ENTER};
         let published = Rc::new(RefCell::new(Vec::new()));
         let (mut agent, bus) = agent_with(Some(CRC), &published);
 
@@ -1047,6 +1048,28 @@ mod tests {
                 "/src/agent/pictures/menu.txt"
             ))
             .unwrap()
+        );
+
+        // Dimmed again: a press of down only lights it, its click does nothing, and the next
+        // press moves the menu at once, as the button goes down.
+        run_without_link(&mut agent, Duration::from_secs(61)).await;
+        let press = |buttons, kind| ButtonEvent { buttons, kind };
+        gestures.send(press(DOWN, Kind::Press)).await.unwrap();
+        gestures.send(press(DOWN, Kind::Click)).await.unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        let menu = crate::agent::display::as_text(&agent.picture);
+        assert!(
+            menu == std::fs::read_to_string(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/src/agent/pictures/menu.txt"
+            ))
+            .unwrap()
+        );
+        gestures.send(press(DOWN, Kind::Press)).await.unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        assert!(
+            crate::agent::display::as_text(&agent.picture) != menu,
+            "the press moved nothing"
         );
     }
 

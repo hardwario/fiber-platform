@@ -43,7 +43,7 @@ fn volts(v: f64) -> Value {
 
 pub fn power(state: &State, ts: u64) -> Value {
     let (input, battery) = match state.power.volts {
-        Some(v) => (volts(v.input), volts(v.battery)),
+        Some(v) => (volts(v.input), v.cell().map_or(Value::Null, volts)),
         None => (Value::Null, Value::Null),
     };
     json!({"source": state.power.source.name(), "input": input, "battery": battery, "ts": ts})
@@ -141,6 +141,15 @@ mod tests {
         assert_eq!(
             power(&state, 5).to_string(),
             r#"{"battery":4.11,"input":12.08,"source":"poe","ts":5}"#
+        );
+        // No cell fitted: the pin reads a little, which is no battery.
+        state.power.update(Some(Volts {
+            input: 13.62,
+            battery: 1.7,
+        }));
+        assert_eq!(
+            power(&state, 5).to_string(),
+            r#"{"battery":null,"input":13.62,"source":"poe","ts":5}"#
         );
         state.ports = 0b11;
         assert_eq!(

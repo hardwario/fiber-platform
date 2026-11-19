@@ -77,7 +77,7 @@ They are those of TOWER's gateway API, so that one client can talk to both.
 |---|---|
 | `source` | `poe` (the 12 V rail is there), `battery`, or `unknown` (the south bridge does not answer, or the board has no dividers) |
 | `input` | The 12 V rail in volts, or `null` |
-| `battery` | The battery in volts, or `null` |
+| `battery` | The battery in volts, or `null`: when the voltages cannot be read, and when it reads below 2 V, as with no cell fitted (a Li-Ion cell that works never reads under 2.5 V) |
 
 It changes when the source changes, or a voltage by more than 0.05 V; otherwise once a minute.
 Each voltage is the average of the last 8 readings, one a second: a single reading is too noisy

@@ -26,6 +26,17 @@ pub struct Volts {
     pub battery: f64,
 }
 
+/// Below this the battery is not there: a Li-Ion cell that works never reads under 2.5 V. With no
+/// cell fitted the FIBER on the bench read 1.7 V (2026-11-19).
+pub const NO_BATTERY_BELOW: f64 = 2.0;
+
+impl Volts {
+    /// The battery's voltage, or none when no cell is fitted (or it is dead).
+    pub fn cell(&self) -> Option<f64> {
+        (self.battery >= NO_BATTERY_BELOW).then_some(self.battery)
+    }
+}
+
 /// The counts in volts: the supply from the reference and its calibration, each pin from its
 /// count, the battery through 68 k / 68 k, the input through 330 k / 68 k. `None` without a
 /// reference count or a calibration.
@@ -204,6 +215,15 @@ mod tests {
         assert_eq!(events, [Source::Battery]);
         average.clear();
         assert_eq!(average.add(at(4.0)).input, 4.0);
+    }
+
+    #[test]
+    fn no_cell_below_two_volts() {
+        let v = |battery| Volts { input: 13.6, battery };
+        assert_eq!(v(1.7).cell(), None);
+        assert_eq!(v(1.99).cell(), None);
+        assert_eq!(v(2.0).cell(), Some(2.0));
+        assert_eq!(v(4.11).cell(), Some(4.11));
     }
 
     #[test]

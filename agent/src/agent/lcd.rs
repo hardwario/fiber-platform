@@ -126,16 +126,21 @@ impl<B: Bus> Lcd<B> {
         }
         for row in 0..64 {
             let bytes = turned(picture, row);
-            let same = !fresh && self.shown.is_some_and(|shown| shown[row] == bytes);
-            if same {
+            // The words (16 pixels, 2 bytes) that changed, first to last; the whole row when the
+            // controller's memory is not known. Each costs 2 packets, about 145 us.
+            let words = match self.shown {
+                Some(shown) if !fresh => changed_words(&shown[row], &bytes),
+                _ => Some((0, 7)),
+            };
+            let Some((first, last)) = words else {
                 continue;
-            }
+            };
             // Row r of the top half is at (r, 0), row r of the bottom half at (r - 32, 8), in
-            // units of 16 pixels.
+            // words of 16 pixels.
             let (vertical, horizontal) = if row < 32 { (row, 0) } else { (row - 32, 8) };
             self.command(ADDRESS | vertical as u8, Duration::ZERO)?;
-            self.command(ADDRESS | horizontal, Duration::ZERO)?;
-            for byte in bytes {
+            self.command(ADDRESS | (horizontal + first), Duration::ZERO)?;
+            for &byte in &bytes[usize::from(first) * 2..usize::from(last) * 2 + 2] {
                 self.bus.send(packet(DATA, byte))?;
             }
             if let Some(shown) = self.shown.as_mut() {
@@ -144,6 +149,14 @@ impl<B: Bus> Lcd<B> {
         }
         Ok(())
     }
+}
+
+/// The first and the last word (2 bytes) in which `new` differs from `old`, or none.
+fn changed_words(old: &[u8; 16], new: &[u8; 16]) -> Option<(u8, u8)> {
+    let differs = |w: usize| old[2 * w..2 * w + 2] != new[2 * w..2 * w + 2];
+    let first = (0..8).find(|&w| differs(w))?;
+    let last = (0..8).rev().find(|&w| differs(w))?;
+    Some((first as u8, last as u8))
 }
 
 /// How long to wait before trying a failed LCD again.
@@ -253,13 +266,33 @@ mod tests {
         lcd.bus.sent.clear();
         lcd.show(&rows(&picture)).unwrap();
         assert!(lcd.bus.sent.is_empty());
-        // Row 2 of the picture is the controller's row 61: vertical 29 of the bottom half.
+        // Row 2 of the picture is the controller's row 61: vertical 29 of the bottom half. Only
+        // the word that changed goes: two addresses and its two bytes.
         picture.canvas().pixel(127, 2, Color::Black);
         lcd.show(&rows(&picture)).unwrap();
-        assert_eq!(lcd.bus.sent.len(), 18);
-        assert_eq!(lcd.bus.sent[0], (COMMAND, 0x80 | 29));
-        assert_eq!(lcd.bus.sent[1], (COMMAND, 0x88));
-        assert_eq!(lcd.bus.sent[2], (DATA, 0x80));
+        assert_eq!(
+            lcd.bus.sent,
+            [(COMMAND, 0x80 | 29), (COMMAND, 0x88), (DATA, 0x80), (DATA, 0x00)]
+        );
+        // A pixel in the middle of the row, column 64: turned, column 63, the lowest bit of the
+        // fourth word.
+        lcd.bus.sent.clear();
+        picture.canvas().pixel(64, 2, Color::Black);
+        lcd.show(&rows(&picture)).unwrap();
+        assert_eq!(
+            lcd.bus.sent,
+            [
+                (COMMAND, 0x80 | 29),
+                (COMMAND, 0x88 + 3),
+                (DATA, 0x00),
+                (DATA, 0x01)
+            ]
+        );
+        assert_eq!(changed_words(&[0; 16], &[0; 16]), None);
+        let mut row = [0; 16];
+        row[3] = 1;
+        row[12] = 1;
+        assert_eq!(changed_words(&[0; 16], &row), Some((1, 6)));
     }
 
     #[test]
