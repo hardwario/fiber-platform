@@ -12,13 +12,16 @@
 //! * the gateway flow (confirmed delivery, replay protection, pairing) over a radio trait, with
 //!   every accept or reject decision taken by `tower-net`.
 //!
-//! None of that exists yet (milestone M5, `TASKS.md`). What this crate holds today is the proof
-//! that the pinned TOWER kernels build for the host and for the north bridge's target
-//! (`thumbv7em-none-eabi`, `just check`), and tests that pin the on-air facts this stack will
-//! rely on. A test that fails after the TOWER pin moved means TOWER changed something on the
-//! air: read `docs/architecture.md` ("Two radio stacks") before touching the test.
+//! The packet codec is here ([`packet`], T23); the frame codec and the gateway flow come with T24.
+//! The crate also proves that the pinned TOWER kernels build for the host and for the north
+//! bridge's target (`thumbv7em-none-eabi`, `just check`), and holds tests that pin the on-air facts
+//! this stack relies on: captures of a real Core Module among them. A test that fails after the
+//! TOWER pin moved means TOWER changed something on the air: read `docs/architecture.md` ("Two
+//! radio stacks") before touching the test.
 
 #![no_std]
+
+pub mod packet;
 
 #[cfg(test)]
 mod tests {

@@ -713,9 +713,11 @@ settings, in the spike's own code. Now each in its place, host-tested: the packe
 firmware (T25) and the spike use the same code. The spike is the test firmware for "Done when":
 it moves onto the two crates and exchanges frames with a Core Module through them.
 
-- [ ] The packet codec in `fiber-tower-air`, as pure functions tested against the captures of
+- [x] The packet codec in `fiber-tower-air`, as pure functions tested against the captures of
       T22. To send: length, frame and CRC, whitened. To receive: the length byte as soon as it
-      is in (how many bytes follow), then the rest, de-whitened and checked
+      is in (how many bytes follow), then the rest, de-whitened and checked (`packet::encode`,
+      `packet_len`, `decode`; every capture passes, and the encoder makes a captured packet byte
+      for byte)
 - [ ] `crates/subghz`: the radio inside the STM32WL over a bus trait: standby, the regulator,
       the TCXO, the calibrations, packet type, frequency, GFSK modulation and packet settings,
       the sync word, the buffer, interrupts, signal strength of a packet and of the channel, the
