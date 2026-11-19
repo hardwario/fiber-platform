@@ -1444,7 +1444,7 @@ apply's hand-over in it; pushed with the rest of the bench's commits (`a3ea469..
 
 ### T37. No battery: `power` says `null` (M2)
 
-Done 2026-11-19, commit `4c1a735`, with T38. On the FIBER, with no cell fitted, the battery read
+Done 2026-11-19, commit `4c1a735`, with T38; CI run 44532823673 green. On the FIBER, with no cell fitted, the battery read
 1.7 V and was shown as a voltage; a Li-Ion cell that works never reads under 2.5 V, so below 2 V
 there is none. On the FIBER since (`0.1.0-bench.7`): `"battery": null` on `power`, "no battery"
 from `fiber power`. On the way: whether `power` moved compared the input exactly once the battery
@@ -1459,7 +1459,7 @@ was `null`, which would have published every 0.01 V; it compares each voltage by
 
 ### T38. The front panel: faster to answer, and drawn with symbols (M4)
 
-Done 2026-11-19, commit `4c1a735`, with T37: the maintainer looked at the pages on the FIBER
+Done 2026-11-19, commit `4c1a735`, with T37 (CI run 44532823673 green): the maintainer looked at the pages on the FIBER
 (`0.1.0-bench.7`) and pressed the buttons, and said good. Measured first: a full redraw takes 91 ms
 the agent's way (a write per 3-byte packet at 400 kHz), where the ST7920's datasheet allows no less
 than about 83 ms (72 us an instruction, 1152 of them); a write per row took 79 ms and a whole
