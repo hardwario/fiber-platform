@@ -461,7 +461,7 @@ pattern on the south bridge's pins, read over SWD (M2's third line, T16); `fiber
 firmware's fix (T36), and a single reading was too noisy for the 0.05 V rule: 38 messages on
 `power` in 2 minutes, so the agent averages 8 readings now (T36). Left: the power cut, the
 mini-PCIe lines (a card). After the agent restarts, the ports are all on and the LEDs automatic
-again, whatever a client had set: as the code has it, not written in `docs/mqtt-api.md`. Open: with no cell the
+again, whatever a client had set: as the code has it, and now written in `docs/mqtt-api.md`. Open: with no cell the
 battery reads 1.7 V and is shown as a voltage; perhaps `power` should say there is no battery.
 Earlier (2026-11-18): everything that needs no board is written and tested (`just check` and
 the converge test pass on the computer; commit `b8f038d`, CI run 44206746581 green). `fiber agent`
@@ -698,8 +698,8 @@ write north-backup.bin` puts the earlier firmware back. The spike (`hil/radio-sp
 the north bridge now and only listens. It is plain registers, not Embassy: `embassy-stm32` wants
 a section of shared memory to start on the dual-core WL55, and the spike needs nothing of the
 HAL. Results in `docs/bench-checks.md`, check 4: the radio up without a device error, the noise
-floor at -114 to -118 dBm, no sync word heard on channel 0 in 6 minutes. Next, with a Core
-Module running `radio_beacon`: the captures.
+floor at -114 to -118 dBm, no sync word heard on any of TOWER's three channels (about 5 minutes
+of listening, after the survey). Next, with a Core Module running `radio_beacon`: the captures.
 
 TOWER nodes use a SPIRIT1 radio; the north bridge has another one. Whether the two understand
 each other is the biggest unknown of the plan, so it is answered before anything is built on it

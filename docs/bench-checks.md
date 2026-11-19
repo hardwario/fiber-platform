@@ -111,8 +111,13 @@ at). The average in dBm; the lowest reading was -127 dBm everywhere, the highest
 
 The floor rises with the filter about as thermal noise does (1.25 dB and 0.8 dB from one to the
 next), and is about what thermal noise and a receiver's usual noise figure give (-117 dBm at 117
-kHz). The switching regulator adds nothing measurable; the boosted gain reads 1 to 2 dB lower. In
-6 minutes no sync word was heard on channel 0. What this does not answer: the receiver's
+kHz). The switching regulator adds nothing measurable; the boosted gain reads 1 to 2 dB lower. A
+second survey, after a reset, agreed within 1 dB. Then the radio listened on TOWER's three channels
+in turn (868.1, 868.3 and 868.5 MHz, 156.2 kHz, boosted gain), about 35 s each, three rounds: no
+sync word on any. On 868.1 and 868.5 MHz short spikes up to -81 dBm and a few preamble detections
+(up to 13 in 35 s); on 868.3 MHz neither, the highest reading -108 dBm. 868.1, 868.3 and 868.5 MHz
+are also LoRaWAN's three default channels in EU 868: the spikes are probably LoRa traffic nearby
+(not checked). The preamble detector of 16 bits also fires on noise now and then. What this does not answer: the receiver's
 sensitivity (the earlier firmware measured a weak one; that takes a known signal), and everything
 that needs a Core Module (the whitening, the CRC, frames both ways, the error rates).
 
