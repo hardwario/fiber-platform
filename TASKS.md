@@ -730,7 +730,13 @@ are in `crates/protocol` (`north`, its tag `0xa5bc` pinned by a test; a node's p
 string of at most 74). Seen on the way: adding the module moved the south bridge's image
 (`0xfbcd5b36` to `0xb79f9cb6`, 16240 bytes) with no change of its own (the crate's symbol names
 moved, and the linker's layout with them): the agent writes it once more at its next install.
-Next: the firmware, `firmware/north`.
+Now: the firmware, `firmware/north`, on the south firmware's model (Embassy 0.6, its own
+workspace and lock, flip-link): `embassy-stm32` for the `stm32wl55jc-cm4`, started with
+`init_primary` and an ordinary static for the shared data (the second core never runs, so its
+place does not matter); the core at 48 MHz from the TCXO (HSE in bypass, which powers it, and
+the PLL); the radio through `fiber-subghz` with the spike's bus (SUBGHZSPI at 12 MHz) and RF
+switch, and the spike's receive flow; the gateway of T24 and T47 in one loop, in slices of
+100 ms, with the link's messages between them.
 
 - [x] `docs/firmware/north-link.md` first: `Hello` (who it is, its image's CRC, the
       personalities it has and the one that is active, why it reset), `SetPersonality`, the
