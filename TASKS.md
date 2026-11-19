@@ -706,8 +706,10 @@ the receive filter has to be wide enough for both crystals' error.
 
 ### T24. The frame codec and the gateway's flow (M5)
 
-State (2026-11-19): the frame codec and its vectors are done (`8ec3c7b`, `17ca877`, not pushed
-yet); the gateway's flow is next, and not begun. The codec: TOWER's `frame.rs` written again in
+State (2026-11-19): the frame codec and its vectors are done (`8ec3c7b`, `17ca877`), pushed; the
+first CI run failed in `check-hil` (the spike's own lock file was stale after `fiber-tower-air` got
+`aes` and `tower-protocol`), fixed in `ad022bd`, CI run 44556434962 green. The gateway's flow is
+next, and not begun. The codec: TOWER's `frame.rs` written again in
 `crates/tower-air` (`frame`), over `tower_radio::ccm::Ccm` and `SoftAes` (RustCrypto's `aes` 0.9, as
 TOWER's own host tests use; the STM32WL's AES engine can come later through the same `AesBlock`).
 The vectors: 32 frames of TOWER's `net_confirmed` (the node on the r2, which still runs it) through
