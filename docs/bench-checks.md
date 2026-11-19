@@ -4,7 +4,7 @@ Six questions that documents cannot answer. Each takes minutes on a real FIBER a
 risk from the plan, so they come before the work that depends on them (`TASKS.md`: T2 for checks
 1 to 3 and 6, T22 for check 4, T3 for check 5).
 
-**Status: check 5 is answered (2026-11-17); the others have not been run yet.** Fill in the
+**Status: checks 5 (2026-11-17) and 1 (2026-11-19) are answered; checks 2 and 6 in part (2026-11-19); 3 and 4 have not been run yet.** Fill in the
 result and the date as they are answered.
 
 What is needed: a FIBER-R2 rev 2.1 reachable over SSH, written by FIBER Setup with the FIBER
@@ -32,8 +32,19 @@ option bytes. It only reads; each chip restarts into its firmware afterwards.
 
 | Chip | Expected | Result |
 |---|---|---|
-| North bridge | ACK, product id `0x497`, `nSWBOOT0` = 1 | not run |
-| South bridge | ACK, product id `0x453`, and the option bytes of a production unit (`nBOOT_SEL`) | not run |
+| North bridge | ACK, product id `0x497`, `nSWBOOT0` = 1 | **Yes** (2026-11-19): ACK, bootloader 3.3, product id `0x497`, option bytes `0x3FFFF0AA` (the factory value), `nSWBOOT0` = 1 |
+| South bridge | ACK, product id `0x453`, and the option bytes of a production unit (`nBOOT_SEL`) | **Yes** (2026-11-19): ACK, bootloader 3.1, product id `0x453`, option bytes `0xFEFFFEAA`, `nBOOT_SEL` = 0 |
+
+**Result (2026-11-19): the CM4 reaches both bootloaders.** One unit, FIBER-R2 rev 2.1 with a CM4
+rev 1.1 (1 GB), on a plain Raspberry Pi OS of 2026-10-06 with kernel 6.18.60. Readout protection is
+off on both chips. Neither chip sent anything on its own in 4 s before the probe.
+
+The south bridge of this unit was not factory-fresh: its option bytes are those of the earlier
+production script (`0xEEFFFEAA`) but for the reset pin's mode (`NRST_MODE` 3, the factory's
+input and output, where the script set 1, input only). Bit 8 (`BOREN`) is 0: the brown-out reset is
+off, as `hardware.md` warns about that script. `nBOOT_SEL` is already 0, so the new firmware's
+one-time fix changes nothing on such a unit. Only one unit was at hand: what other production units
+carry is not known.
 
 If the south bridge does not answer on a unit whose firmware runs, its `nBOOT_SEL` bit is
 probably still 1 (the BOOT0 pin is ignored): that unit can only be reached over SWD, and the new
@@ -45,7 +56,15 @@ Add `dtoverlay=spi6-1cs` and check that `/dev/spidev6.0` appears and that the di
 with chip select on GPIO18 (through the inverter). The earlier software drove GPIO12 by hand; on
 rev 2.1 that link is not fitted. Also confirm that nothing objects to the overlay claiming GPIO19.
 
-Result: not run.
+**Result (2026-11-19): half answered.** `/dev/spidev6.0` appears, GPIO18 becomes its chip select
+and GPIO19 to 21 its pins (`SPI6_MISO`, `SPI6_MOSI`, `SPI6_SCLK`), and nothing in the kernel's log
+objects. A test pattern was sent as an ST7920 takes it (SPI mode 3, 400 kHz, `0xF8` before a
+command, `0xFA` before data, reset on GPIO16): four lines of text from the controller's own font
+and a frame with a checkerboard. Since then the agent's driver sends its pages, without an error.
+**Nobody has looked at the LCD yet.** What to look for: whether anything shows at all; whether the
+text is upside down (the earlier software turned its picture by 180 degrees, and the agent does the
+same, so its pages should be upright while the controller's own text of the test pattern would be
+upside down).
 
 ## 3. Which level does the RAK5146 USB card need on mini-PCIe pin 22?
 
@@ -53,7 +72,8 @@ GPIO11 drives that pin. On the LTE modem it is PERST# (low = reset). RAK documen
 active-high reset on the SPI variants of the card; the USB variant is not documented. Until this is
 known, nothing drives GPIO11 at boot.
 
-Result: not run.
+Result: not run. The unit on the bench (2026-11-19) has no card in the slot: `lsusb` shows only
+the root hub.
 
 ## 4. Radio: can the STM32WL55 exchange frames with a TOWER Core Module?
 
@@ -131,7 +151,24 @@ Quick looks while the FIBER is on the bench, each against [`hardware.md`](hardwa
 
 | What | How | Result |
 |---|---|---|
-| The I2C bus | `i2cdetect -y 10` (after `dtparam=i2c_vc=on`) shows 0x18, 0x19 and 0x51. The schematic leaves the bus's pull-up resistors unfitted | not run |
-| The backlight | `dtoverlay=pwm,pin=13,func=4`, then PWM channel 1 dims it | not run |
-| The buttons | GPIO23, 24 and 25 read low while pressed | not run |
-| The buzzer | GPIO17 low sounds it. Listen at power-on too: until `config.txt` sets the line, only the Raspberry Pi's weak pull-down holds it | not run |
+| The I2C bus | `i2cdetect -y 10` (after `dtparam=i2c_vc=on`) shows 0x18, 0x19 and 0x51. The schematic leaves the bus's pull-up resistors unfitted | **Yes** (2026-11-19): all three answer, at 97.5 kHz. The LIS2DH12 answers `0x33` to `WHO_AM_I`, the DS2482 reads `0x18` after a reset, the PCF85063A holds the right time in UTC with its oscillator flag clear. With the platform's block, 0x18 and 0x51 show `UU` (taken by their drivers) |
+| The backlight | `dtoverlay=pwm,pin=13,func=4`, then PWM channel 1 dims it | Half (2026-11-19): `pwmchip0` with two channels; channel 1 on GPIO13 (`PWM0_1`) takes a period and a duty cycle, and the agent sets it to 80 %. Whether the backlight lights and dims: not seen |
+| The buttons | GPIO23, 24 and 25 read low while pressed | Half (2026-11-19): all three read high, not pressed, against the CM4's own pull-downs, so the board's pull-ups are there. Pressed: not tried, nobody at the bench |
+| The buzzer | GPIO17 low sounds it. Listen at power-on too: until `config.txt` sets the line, only the Raspberry Pi's weak pull-down holds it | Half (2026-11-19): on a plain Raspberry Pi OS the line reads high at start, against the CM4's pull-down, so the driver's pull-up keeps it quiet before `config.txt` sets it. Not heard, nobody at the bench |
+
+More that the bench showed (2026-11-19), with the platform installed:
+
+- **The clock is set from the PCF85063A at start,** by the kernel itself when the driver registers
+  `rtc0` (19 s after the start; before that the time comes from `systemd-timesyncd`'s file). No
+  `fake-hwclock` is installed. Seen across restarts; a power cycle without network: not tried.
+- **The stock `config.txt`** of the image of 2026-10-06 is byte for byte the converge test's
+  `provision/tests/fixtures/config.txt.stock`, and the file the `base` role wrote from it is byte
+  for byte `config.txt.expected`. A kernel package installed again leaves `fiber-ds2482.dtbo` in
+  place (its hook copies with `rsync` and deletes nothing).
+- **Eight 1-Wire bus masters** appear with the DS2482 overlay. With no probe plugged in, which
+  master is which port is not checked yet.
+- **The south bridge's `VREFINT_CAL` is at 0x1FFF 756A,** not 0x1FFF 7568 as the firmware first
+  read it (that is `TS_CAL1`, the temperature sensor's): 1662 and 1048 on this chip, read through
+  its bootloader. The first firmware's voltages were 1.59 times too low.
+- **The voltages** with that fixed: input 13.6 V, battery 1.7 V (no cell fitted, by the look of
+  it). The input's readings spread over 0.13 V. Not checked with a meter.

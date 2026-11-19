@@ -35,10 +35,69 @@ is done, long before the rest of M5.
 
 ## Tasks in progress
 
+### T2. Bench checks on a FIBER (M0)
+
+State (2026-11-19): everything that needs no eyes, ears or hands is answered, on one unit; what is
+left needs someone at the bench. The FIBER (reachable over SSH as `fiber`, sudo with FIBER Setup's
+default password) is a plain Raspberry Pi OS of 2026-10-06 (trixie, kernel 6.18.60) on a CM4 rev
+1.1 with 1 GB (`a03141`), written by FIBER Setup 1.2.0; the platform is installed on it since
+(see T12). A J-Link on the computer is wired to the south bridge's SWD header and has not been
+used: after SWD an STM32C0 keeps BOOT0 low until the next power-on, which would cut the agent's
+flashing off. Answered: both bootloaders (check 1); the I2C bus and its three chips; the clock;
+`/dev/spidev6.0` and PWM channel 1 (check 2 and 6 in part, all in `docs/bench-checks.md`). The
+earlier software's LCD driver was read: ST7920, mode 3, 400 kHz, and the picture turned by 180
+degrees, which T20's driver does too. Left, for someone at the bench: look at the LCD (does it
+show the agent's pages, upright?) and the backlight; press each button; listen to the buzzer, also
+at power-on; a RAK5146 card in the slot; a second unit. The test pattern script is
+`lcd_test.py` in the home directory of `fiber` on the unit.
+
+What only a real board answers. Flashing, recovery, the LCD and the ChirpStack role all rest on
+these answers, and each takes minutes ([`docs/bench-checks.md`](docs/bench-checks.md), checks 1 to
+3 and 6).
+
+- [x] Write a FIBER-R2 rev 2.1 with FIBER Setup, with the FIBER software turned off, and log in
+      over SSH (FIBER Setup 1.2.0, the image of 2026-10-06)
+- [x] Add `dtoverlay=uart3` and `dtoverlay=uart4` to `/boot/firmware/config.txt`, restart, and
+      see `/dev/ttyAMA3` and `/dev/ttyAMA4`
+- [x] Run `sudo python3 bootloader_probe.py` (from `hil/`). North bridge: ACK, product id
+      `0x497`, `nSWBOOT0` = 1. South bridge: ACK, product id `0x453`
+- [x] Write down the south bridge's option bytes as a production unit has them. `nBOOT_SEL` = 1
+      on a unit whose firmware runs means the CM4 cannot reach that chip's bootloader at all
+      (this unit: `0xFEFFFEAA`, `nBOOT_SEL` = 0)
+- [ ] If a second unit is at hand, run the probe on it too: the question is what production
+      units carry, not what one board does
+- [x] `i2cdetect -y 10` (after `dtparam=i2c_vc=on`): 0x18 (DS2482), 0x19 (LIS2DH12) and 0x51
+      (PCF85063A) answer. The schematic leaves the bus's pull-up resistors unfitted
+- [ ] The LCD: add `dtoverlay=spi6-1cs`, see `/dev/spidev6.0`, and get a test pattern onto the
+      display with chip select on GPIO18 and reset on GPIO16 (the earlier software used SPI mode
+      3 at 400 kHz, with `0xF8` before a command and `0xFA` before data). Nothing may object to
+      the overlay taking GPIO19
+- [ ] The backlight on PWM channel 1 (`dtoverlay=pwm,pin=13,func=4`)
+- [ ] The buttons on GPIO23, 24 and 25 read low while pressed
+- [ ] The buzzer sounds with GPIO17 low. Listen at power-on too: until `config.txt` sets the
+      line, only the Raspberry Pi's weak pull-down holds it
+- [ ] With a RAK5146 USB card in the mini-PCIe slot: which level on GPIO11 (pin 22) lets the
+      card appear on USB (`0483:5740`)
+- [ ] Write every result, with the date, into `docs/bench-checks.md`, and correct
+      `docs/hardware.md` where the board disagrees with it
+
+Watch out: the probe resets both microcontrollers, and no other program may hold the two serial
+ports (stop the earlier FIBER software if the unit has it). After any access over SWD an
+STM32C0 keeps BOOT0 low until the next power-on, so do not mix a debug probe into this check.
+
+- Needs: a FIBER-R2 rev 2.1 on the bench, reachable over SSH.
+- Done when: every result is in `docs/bench-checks.md`.
+
 ### T7. The `base` role and `fiber doctor` (M1)
 
-State (2026-11-17): waiting for a FIBER (T2) for its last step. Everything that needs no board is
-done, commit `81f5cf4`, and its CI run (44192840178) is green: the fixture test on a real FAT
+State (2026-11-19): on a FIBER all but the power cycle is seen: the role wrote the block into the
+stock `config.txt`, byte for byte the fixture's expected file; after the restart `i2cdetect -y 10`
+shows 18 and 51 in use, both serial ports, `/dev/spidev6.0`, `/dev/rtc0` and eight 1-Wire masters
+are there, and `fiber doctor` finds nothing wrong. The stock file has `otg_mode=1` under `[cm4]`;
+the kernel sets the clock from the RTC 19 s into the start, with no `fake-hwclock`; a kernel
+package installed again leaves `fiber-ds2482.dtbo` in place. Left: the time across a power cycle
+without network, which needs someone to pull the plug.
+Earlier (2026-11-17): everything that needs no board is done, commit `81f5cf4`, and its CI run (44192840178) is green: the fixture test on a real FAT
 filesystem in the converge test, `fiber doctor`, the board module and its check against the
 block. Settled: the stock `config.txt` is `pi-gen`'s at the tag of the pinned image
 (`provision/tests/fixtures/`), not one taken out of the image; the role uses `blockinfile`;
@@ -70,9 +129,10 @@ both serial links, the 1-Wire ports and the display's bus are there for anyone w
       says what to do. Tested against a temporary root
 - [x] The fixture test, in the converge test: the stock `config.txt` becomes the expected file,
       byte for byte; a second run changes nothing; a file edited by hand gets the block back
-- [ ] On a FIBER: the list under "Done when"; that the stock file already has `otg_mode=1`
-      under `[cm4]`; that the clock is set from the RTC at start without `fake-hwclock`; that a
-      kernel update leaves `fiber-ds2482.dtbo` in place
+- [x] On a FIBER: the list under "Done when" (but the power cycle); that the stock file already
+      has `otg_mode=1` under `[cm4]`; that the clock is set from the RTC at start without
+      `fake-hwclock`; that a kernel update leaves `fiber-ds2482.dtbo` in place (2026-11-19)
+- [ ] On a FIBER: the time survives a power cycle, with no network
 
 Watch out: `dtparam=spi=on` turns on SPI0, which takes GPIO7 to 11: the south bridge's reset,
 its serial link and the card's lines. A bare `dtoverlay=pwm` takes GPIO18, the LCD's chip
@@ -86,65 +146,15 @@ which probe the same I2C bus as the board's own chips.
   both serial ports and `/dev/spidev6.0` exist, eight 1-Wire masters exist, and the time
   survives a power cycle.
 
-### T8. The `mosquitto` and `node-red` roles (M1)
-
-State (2026-11-18): waiting for a FIBER (T2). The dashboard (D20) is in (commit `71321b0`, CI run
-44241706037 green). Everything else that needs no FIBER is done, commit `14e348f`, and its CI run
-(44194596621) is green: the network listener with the seed's login; a password the owner changes
-stays; Node-RED behind the login, with the flow to start from; a second apply with nothing changed;
-only ports 1880, 1883 on loopback and 1884 listening. Settled: the password file is
-`/etc/mosquitto/fiber-passwd`, made once by `mosquitto_passwd` (the file is its own stamp);
-Node-RED's `settings.js` is written once, when there is none, with the login's bcrypt hash made by
-the `bcryptjs` Node-RED brings; the NodeSource key is vendored in the role (fingerprint checked
-2026-11-17). Found on the way: the converge test's network test took the default route away with the
-link; it puts it back now.
-
-The broker everything else talks through, and the first thing a user sees working.
-
-Mosquitto:
-
-- [x] Debian's `mosquitto` and `mosquitto-clients`. The package's `mosquitto.conf` stays as it
-      is; ours is one file, `/etc/mosquitto/conf.d/fiber.conf` (done in T6, as its example role)
-- [x] `mqtt.lan: false`: no listener is written. The broker then serves port 1883 on loopback
-      only, without a login, which is what is wanted (T6; the converge test checks it)
-- [x] `mqtt.lan: true`: `per_listener_settings true` first; port 1883 on loopback without a
-      login; port 1884 for the network with a login, its password file owned by `mosquitto` and
-      readable by nobody else. The password is made with `mosquitto_passwd`, once, behind a
-      stamp file (its output differs every time)
-- [x] Turning it off: the service stopped and disabled, the settings and data kept (T6)
-
-Node-RED:
-
-- [x] Node.js 24 from NodeSource (source, key and its fingerprint in `docs/provisioning.md`),
-      with an apt preference that keeps `nodejs` on NodeSource
-- [x] `npm install -g --omit=dev node-red@<pinned>`, run only when that version is not there
-- [x] A system user `nodered` in the groups for the serial ports, GPIO, I2C and SPI; its
-      directory `/var/lib/node-red`; our own `nodered.service`, with Node's memory capped at
-      256 MB
-- [x] The login (`adminAuth`, a bcrypt hash made with the bcrypt that Node-RED brings) written
-      before the first start
-- [x] The starter flow, copied only when there is none: a broker node on `localhost:1883` and a
-      debug node on `fiber/#`
-- [x] The dashboard nodes (D20): `@flowfuse/node-red-dashboard`, pinned, and a page with the
-      thermometers in the starter flow. Version 1.34.1, behind the same login as the editor
-      (`httpNodeAuth`); the converge test checks the version, the page in the flow, and the
-      login. Not looked at in a browser yet
-- [x] In CI: after a converge only the expected ports listen; the editor asks for the login; a
-      second apply changes nothing
-
-Watch out: the installer script the old FIBER documentation names is gone (its address returns
-404), and its successor installs again on every run. Debian's own Node.js 20 is too old for
-Node-RED 5. What npm pulls in below Node-RED is not pinned, and the install takes minutes on
-eMMC.
-
-- Needs: T6.
-- Done when: `mosquitto_sub -t '#'` works on the FIBER; with the LAN listener only port 1884
-  answers from outside and asks for the password; Node-RED's editor asks for the login.
-
 ### T9. The `chirpstack` role (M1)
 
-State (2026-11-18): waiting for a FIBER with a card (and T2). Everything else is done, commit
-`26a78d0`, and its CI run (44197050069) is green: the API never answers to admin/admin during the
+State (2026-11-19): runs on a FIBER without a card, after one fix: ChirpStack refuses a password
+shorter than 8 characters ("Password must be at least 8 characters"), and FIBER Setup suggests
+`fiber`, so with its default the component failed at every try. The role now says so before it
+sets anything, with what to do (T36); what FIBER Setup should do is D25. With a longer password
+in `login.json`, as the message says, it came up: its login works, admin/admin is refused, Redis
+answers on loopback only, ChirpStack takes 43 MB. Waiting for a card.
+Earlier (2026-11-18): everything else is done, commit `26a78d0`, and its CI run (44197050069) is green: the API never answers to admin/admin during the
 apply, the seed's login works, Redis listens on loopback only, the API key is kept, the
 concentrator daemon and its udev rule are there, a second apply changes nothing. Tried
 first in a container with ChirpStack 4.20.0's own arm64 binary: `set-password --password-file`
@@ -189,7 +199,14 @@ The card is fed from the battery rail and goes away when the battery is low.
 
 ### T12. FIBER Setup: the component picker (M1)
 
-State (2026-11-18): everything that needs neither the first release nor a FIBER is done, in FIBER
+State (2026-11-19): measured on a FIBER with 1 GB, every component ticked, the installer run by
+hand from a release served on the FIBER itself (FIBER Setup's first start was not tried): 6 min
+23 s over Wi-Fi to the end of the apply (the restart not counted), 147 MB downloaded, 687 MB more
+on disk (895 MB before npm's caches were removed, T36), 288 MB of memory in use with everything
+running (Node-RED 128 MB, ChirpStack 43 MB). Each component's own size is not measured yet. An
+apply with nothing to do takes about 3 minutes. Waits also for D25: FIBER Setup's suggested
+password, `fiber`, is too short for ChirpStack.
+Earlier (2026-11-18): everything that needs neither the first release nor a FIBER is done, in FIBER
 Setup's commit `83d372a`, which is on this computer only: its catalog names the installer built here
 from `0257447`, marked as not published. Waits for the bench (T2), as D24 says: the platform runs on a
 FIBER from a release built by hand first; then the first release is tagged, FIBER Setup's catalog
@@ -326,8 +343,12 @@ The one contract between the agent and the firmware, built by both from the same
 
 ### T15. `fiber-flasher` (M2)
 
-State (2026-11-18): waiting for a FIBER (T2) for its last step. `crates/flasher` is built and its
-11 tests pass against the simulated chip: the image written and started; another chip, readout
+State (2026-11-19): on a FIBER: `fiber firmware chip` reads both chips (`0x453` and `0x497`) and
+refuses while the agent holds the port; the agent wrote and verified the south bridge three times
+(about 6 s each); a flash stopped hard at page 22 of 64 (the agent killed) left the chip in its
+bootloader, and the next start flashed it again by itself. Left: the same with the power cut,
+which also takes the south bridge's power, and needs someone at the bench.
+Earlier (2026-11-18): `crates/flasher` is built and its 11 tests pass against the simulated chip: the image written and started; another chip, readout
 protection and a bad image refused before anything is erased; three attempts with BOOT0 held
 longer; a write cut short by a power cut leaves the chip waiting in its bootloader, and the next
 write puts it right; a reset after a first write lands in the bootloader again (why it leaves
@@ -358,8 +379,9 @@ Writing a microcontroller's firmware from the CM4, in a way that cannot leave it
 - [x] A simulated bootloader for the tests that models the two lines, the "empty" flag, and the
       refusals a real one gives
 - [x] A lock, so that a command run by hand keeps off a serial port the agent is using
-- [ ] On a FIBER: both chips' identity is read; a test image is written to the south bridge and
-      verified; the same with the power cut in the middle, then recovered
+- [x] On a FIBER: both chips' identity is read; a test image is written to the south bridge and
+      verified; a write stopped hard in the middle, then recovered (2026-11-19)
+- [ ] On a FIBER: the same with the power cut in the middle
 
 Watch out: a write of the STM32C0's option bytes that is cut short can leave the chip with
 readout protection on and its bootloader out of reach, which only SWD can undo. That is why only
@@ -370,8 +392,13 @@ the south bridge firmware changes them, once (T16).
 
 ### T16. The south bridge firmware (M2)
 
-State (2026-11-18): waiting for a FIBER (T2) to run it, and for T13's drafts. Built on the draft of
-`docs/firmware/south-link.md`: `crates/south-core` (6 tests) and `firmware/south`, 16224 bytes of
+State (2026-11-19): runs on a FIBER, flashed there by the agent: its `Hello` names its image, a
+`Status` comes every second, the agent's `Desired` goes in (a port cycled and its LED set through
+MQTT were answered). One fix from the bench: `VREFINT_CAL` is at 0x1FFF 756A, not 0x1FFF 7568
+(`TS_CAL1`), so the first build's voltages were 1.59 times too low (T36). This unit's option
+bytes have `nBOOT_SEL` = 0 already, so the one-time write did not run. Not seen: the LEDs and the
+port power themselves (nobody at the bench; the J-Link could read the pins, see T2).
+Earlier (2026-11-18): built on the draft of `docs/firmware/south-link.md`: `crates/south-core` (6 tests) and `firmware/south`, 16224 bytes of
 flash (15.8 KB of the 24 KB), with fmt, clippy, rustdoc and the size in `just check-south` and a CI
 job, green since `30fb908` (44202681510). Not run on a chip: not the LEDs, not the ports, not the
 ADC, and above all not the write of the option bytes, which is for the bench with a debug probe at
@@ -415,7 +442,15 @@ costs 82 bytes.
 
 ### T17. The agent's core (M2)
 
-State (2026-11-18): everything that needs no board is written and tested (`just check` and
+State (2026-11-19): on a FIBER: the agent flashed the south bridge, which had the earlier firmware,
+on its own at its first start (M2's first line), and again after an update; a flash stopped hard
+recovered by itself (the power cut proper is left, T15); `fiber status`, `power`, `ports`, `leds`,
+`firmware status` and `firmware flash` work through MQTT. The voltages were too low until the
+firmware's fix (T36), and a single reading was too noisy for the 0.05 V rule: 38 messages on
+`power` in 2 minutes, so the agent averages 8 readings now (T36). Left: the fallback pattern seen
+when the agent stops (eyes), the power cut, the mini-PCIe lines (a card). Open: with no cell the
+battery reads 1.7 V and is shown as a voltage; perhaps `power` should say there is no battery.
+Earlier (2026-11-18): everything that needs no board is written and tested (`just check` and
 the converge test pass on the computer; commit `b8f038d`, CI run 44206746581 green). `fiber agent`
 runs: the core's logic (`agent/src/agent/`), the loop around it (the south link every second, MQTT,
 requests, port cycles), MQTT through rumqttc without TLS, `agent.toml` with defaults. The agent
@@ -465,37 +500,11 @@ board the two voltages read nothing useful, and `power` has to say so.
 - Needs: T14 to T16.
 - Done when: the three lines under "M2" hold on a FIBER.
 
-### T18. The `agent` role (M2)
-
-State (2026-11-18): everything that needs no board is done and checked (commit `94dea9b`, CI run
-44210054395 green): `just check`, and the converge test with the service in it (the agent runs as
-`fiber-agent` without capabilities, holds the port, feeds a watchdog of 3 s, is restarted on the new
-program by an update and a rollback, and goes offline when turned off). On the way the converge test
-found that the agent served nothing on MQTT without the south bridge's port; fixed
-(`run_without_link`). The port lock is taken read-only when its file is there (another user's file
-in the sticky `/run/lock`). Waits for a FIBER (T2) for the last step.
-
-- [x] `docs/provisioning.md` first: the agent role (the user, its groups, the unit, the settings
-      file), and the unit's lines in `docs/architecture.md`
-- [x] `fiber-agent.service`: the user `fiber-agent`; `Type=notify` with a watchdog that the agent's
-      loop feeds (also while the port is missing and while it flashes); the system read-only
-      but for `/var/lib/fiber/agent` and `/run/lock`; only the device classes it needs; no
-      capabilities
-- [x] The role: the user and its groups, the unit, `/etc/fiber/agent.toml` written once with the
-      defaults in comments, enabled and started; restarted when the program changed (an update
-      or a rollback)
-- [x] Turning it off stops and disables the service; both microcontrollers keep their firmware
-- [x] In the converge test: the service against the south bridge simulator; it runs as
-      `fiber-agent`, holds the port (`fiber firmware chip` refuses), its watchdog does not fire, an
-      update restarts it on the new program, and turning it off takes `fiber/status` offline
-- [ ] On a FIBER: `fiber platform enable agent` brings up `fiber/status`
-
-- Needs: T6, T17.
-- Done when: `fiber platform enable agent` on a FIBER brings up `fiber/status`.
-
 ### T19. Thermometers (M3)
 
-State (2026-11-18): written and tested on the computer: the docs (drafts, like T13's: the maintainer
+State (2026-11-19): on a FIBER the overlay gives eight 1-Wire masters and `fiber doctor` counts
+them; no probe was plugged in, so nothing else is seen yet.
+Earlier (2026-11-18): written and tested on the computer: the docs (drafts, like T13's: the maintainer
 has not read them), `agent/src/agent/thermometers.rs` (the trait, the kernel's reader on a thread of
 its own, what counts as a reading), the topics, the port lights, `fiber thermometers [watch]`,
 `fiber power --follow`, the starter flow, `fiber doctor` counting the masters as the agent does.
@@ -541,7 +550,14 @@ cannot be used: the driver puts it on one master only, the master of the first D
 
 ### T20. LCD, backlight, buttons, buzzer (M4)
 
-State (2026-11-18): all but the display driver is written and tested on the computer: the docs
+State (2026-11-19): the display driver is written (`agent/src/agent/lcd.rs`): ST7920 packets over
+`/dev/spidev6.0` in mode 3 at 400 kHz, reset on GPIO16, the picture turned by 180 degrees as the
+earlier software did, only the rows that changed, the controller set up again after an error. It
+runs on the FIBER without an error; nobody has looked at the LCD. The backlight's channel is set
+to 80 % on the FIBER (its first write races udev and is tried again a second later). `fiber
+display message` works through MQTT. Left, at the bench: see the pages, hear `fiber buzzer beep`,
+press the buttons with `fiber buttons watch`.
+Earlier (2026-11-18): all but the display driver is written and tested on the computer: the docs
 (drafts), the buttons (`agent/src/agent/buttons.rs`, `tower-hmi`'s recognizer on a thread that waits
 for the lines' edges), the buzzer's patterns, the backlight through sysfs PWM with its dimming, the
 `display` topic, a message drawn into a `Frame<16, 64>` and compared with stored pictures, `fiber
@@ -553,9 +569,10 @@ run on a FIBER.
 
 - [x] `docs/mqtt-api.md` and `docs/cli.md` first: `buttons/event`, `display`, and the methods
       `buzzer.beep`, `display.message`, `display.backlight`
-- [ ] The display driver over `/dev/spidev6.0`, with what T2 found (the mode, the speed, the
-      bytes before a command and before data), reset on GPIO16
-- [ ] The picture is a `tower_hmi::Frame<16, 64>`; only the rows that changed are sent
+- [x] The display driver over `/dev/spidev6.0`, with what T2 found (the mode, the speed, the
+      bytes before a command and before data), reset on GPIO16. From the earlier software, not
+      seen on the LCD yet
+- [x] The picture is a `tower_hmi::Frame<16, 64>`; only the rows that changed are sent
 - [x] The backlight on PWM channel 1, with a brightness and a time after which it dims; the unit
       leaves `/sys` writable as its permissions have it
 - [x] The buttons on GPIO23, 24 and 25 through `gpiocdev`, with the pull-ups and the kernel's
@@ -568,7 +585,9 @@ run on a FIBER.
 
 ### T21. Pages and the menu (M4)
 
-State (2026-11-18): written and tested on the computer: `docs/front-panel.md` (a draft),
+State (2026-11-19): the pictures go to the LCD now (T20's driver), on the FIBER too; not seen, and
+the buttons not pressed.
+Earlier (2026-11-18): written and tested on the computer: `docs/front-panel.md` (a draft),
 `agent/src/agent/screen.rs` (the four pages, the menu with About, the apply's progress and a
 client's message over the pages, the addresses from `/proc/net/fib_trie`), the agent drawing the
 picture every second and on every gesture, the first press after the backlight dimmed only lighting
@@ -619,7 +638,12 @@ A new, small profile (D3), agreed with the people who make the app before any co
 
 ### T31. Examples (M7)
 
-State (2026-11-18): everything that runs without a FIBER is done and checked, commit `877ce39`, CI
+State (2026-11-19): on a FIBER, against the real agent: `request.sh` (a message, a port cycled, seen
+on `ports/3`) and `request.py` (an LED set and back to auto) were answered `ok`; `thermometers.py`
+and the Rust example connect and wait (no probe plugged in); both flows import into the FIBER's
+Node-RED and connect, and stay there (the button flow beeps on a hold of *enter*). Not on the
+FIBER: a beep (nobody to hear it), a reading, the alarm. Left: those, and the TOWER flow (T26).
+Earlier (2026-11-18): everything that runs without a FIBER is done and checked, commit `877ce39`, CI
 run 44262065157 green (the converge test with the examples in it, on the arm64 runner): `just check`
 (with `check-examples` and the example's lock file in `audit`) and the converge test pass. In step 10c, against the agent's service: `request.sh` and `request.py` put a message on
 the display and get "the buzzer is not there" for a beep; `thermometers.py` and the Rust example
@@ -651,6 +675,38 @@ user to copy.
 - Needs: T17 to T21 (the topics they use); T26 for the TOWER node's flow.
 - Done when: every example runs in CI, and once on a FIBER.
 
+### T36. What the first bench run found (M1, M2)
+
+State (2026-11-19): all five fixes are written; `just check`, the roles' lint and the converge
+test pass on the computer. Waiting for a push, for CI. Each was found on the FIBER of T2 and tried
+there with releases built by hand (`0.1.0-bench.2` and `.3`).
+
+- [x] **The south bridge read the wrong calibration word** for its voltages: `VREFINT_CAL` is at
+      0x1FFF 756A; 0x1FFF 7568 is the temperature sensor's `TS_CAL1` (1662 and 1048 on the
+      chip, read through its bootloader). Every voltage was 1.59 times too low (T16). On the
+      FIBER since: input 13.6 V, the source `poe`
+- [x] **ChirpStack refuses a password shorter than 8 characters,** and FIBER Setup suggests
+      `fiber`: the component failed at every try with "non-zero return code". The role now fails
+      before it sets anything, saying what is wrong and what to do; the converge test tries it
+      with `fiber` first (T9). What FIBER Setup should do: D25
+- [x] **npm kept everything it downloaded:** 127 MB in `/root/.npm` and 90 MB in
+      `/var/lib/node-red/.npm`, on 8 GB of eMMC. Each npm call gets a cache of its own, removed
+      after it; the converge test checks that none is left (T8)
+- [x] **After an update, a waiting apply ran the old release's roles:** the apply service's
+      process, started by release 0.1.0 and waiting to try again, served the request of the
+      next release's installer with its own roles. It now hands the process over to the current
+      release's program (`exec`) before it runs again for a new request; a test for which release
+      takes over (T6, T10)
+- [x] **A single voltage reading is too noisy for the 0.05 V rule:** `power` went out 38 times
+      in 2 minutes. The agent averages the last 8 readings (T17)
+- [x] The converge test passes with them, on the computer (2026-11-19)
+- [ ] CI passes with them
+- [x] On the FIBER (`0.1.0-bench.3`): 3 messages on `power` in 2 minutes (the retained one, then
+      once a minute), where there were 38; the apply with the new npm tasks changes nothing. That
+      a fresh install leaves no npm cache is for the converge test to show
+
+- Done when: the converge test and CI pass, and the step before is seen on the FIBER.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -658,43 +714,7 @@ again and brought up to date before the first one is ticked.
 
 ### M0. Foundations and bench checks
 
-#### T2. Bench checks on a FIBER
-
-What only a real board answers. Flashing, recovery, the LCD and the ChirpStack role all rest on
-these answers, and each takes minutes ([`docs/bench-checks.md`](docs/bench-checks.md), checks 1 to
-3 and 6).
-
-- [ ] Write a FIBER-R2 rev 2.1 with FIBER Setup, with the FIBER software turned off, and log in
-      over SSH
-- [ ] Add `dtoverlay=uart3` and `dtoverlay=uart4` to `/boot/firmware/config.txt`, restart, and
-      see `/dev/ttyAMA3` and `/dev/ttyAMA4`
-- [ ] Run `sudo python3 bootloader_probe.py` (from `hil/`). North bridge: ACK, product id
-      `0x497`, `nSWBOOT0` = 1. South bridge: ACK, product id `0x453`
-- [ ] Write down the south bridge's option bytes as a production unit has them. `nBOOT_SEL` = 1
-      on a unit whose firmware runs means the CM4 cannot reach that chip's bootloader at all
-- [ ] If a second unit is at hand, run the probe on it too: the question is what production
-      units carry, not what one board does
-- [ ] `i2cdetect -y 10` (after `dtparam=i2c_vc=on`): 0x18 (DS2482), 0x19 (LIS2DH12) and 0x51
-      (PCF85063A) answer. The schematic leaves the bus's pull-up resistors unfitted
-- [ ] The LCD: add `dtoverlay=spi6-1cs`, see `/dev/spidev6.0`, and get a test pattern onto the
-      display with chip select on GPIO18 and reset on GPIO16 (the earlier software used SPI mode
-      3 at 400 kHz, with `0xF8` before a command and `0xFA` before data). Nothing may object to
-      the overlay taking GPIO19
-- [ ] The backlight on PWM channel 1 (`dtoverlay=pwm,pin=13,func=4`)
-- [ ] The buttons on GPIO23, 24 and 25 read low while pressed
-- [ ] The buzzer sounds with GPIO17 low. Listen at power-on too: until `config.txt` sets the
-      line, only the Raspberry Pi's weak pull-down holds it
-- [ ] With a RAK5146 USB card in the mini-PCIe slot: which level on GPIO11 (pin 22) lets the
-      card appear on USB (`0483:5740`)
-- [ ] Write every result, with the date, into `docs/bench-checks.md`, and correct
-      `docs/hardware.md` where the board disagrees with it
-
-Watch out: the probe resets both microcontrollers, and no other program may hold the two serial
-ports (stop the earlier FIBER software if the unit has it). After any access over SWD an
-STM32C0 keeps BOOT0 low until the next power-on, so do not mix a debug probe into this check.
-
-- Needs: a FIBER-R2 rev 2.1 on the bench, reachable over SSH.
-- Done when: every result is in `docs/bench-checks.md`.
+Its tasks, T1 to T3, are in progress or done.
 
 ### M1. Provisioning
 
@@ -709,7 +729,7 @@ Its tasks, T4 to T12, are in progress or done.
 Done when: a unit with the earlier south bridge firmware is flashed by the agent on its own; a
 power cut in the middle of flashing recovers; stopping the agent shows the fallback LED pattern.
 
-Its tasks, T13 to T18, are all in progress.
+Its tasks, T13 to T18, are in progress or done.
 
 ### M3. Thermometers
 
@@ -1173,6 +1193,67 @@ Every `command` task has `creates` or a real `changed_when`, or the second run i
 - Needs: T5.
 - Done when: the three converge tests pass in CI.
 
+### T8. The `mosquitto` and `node-red` roles (M1)
+
+Done 2026-11-19, on a FIBER: Mosquitto and Node-RED installed by the installer with the rest;
+`mosquitto_sub` works on the FIBER; from another computer only port 1884 answers, and refuses
+without the login and serves `fiber/#` with it (1883 and Redis's 6379 do not answer); Node-RED's
+editor and its dashboard answer 401 without the login and 200 with it, and a wrong password gets
+403. The dashboard has still not been looked at in a browser. Found there: npm kept 217 MB of
+downloads in two caches; they go now (T36).
+Earlier (2026-11-18): the dashboard (D20) is in (commit `71321b0`, CI run 44241706037 green).
+Everything else that needs no FIBER is done, commit `14e348f`, and its CI run
+(44194596621) is green: the network listener with the seed's login; a password the owner changes
+stays; Node-RED behind the login, with the flow to start from; a second apply with nothing changed;
+only ports 1880, 1883 on loopback and 1884 listening. Settled: the password file is
+`/etc/mosquitto/fiber-passwd`, made once by `mosquitto_passwd` (the file is its own stamp);
+Node-RED's `settings.js` is written once, when there is none, with the login's bcrypt hash made by
+the `bcryptjs` Node-RED brings; the NodeSource key is vendored in the role (fingerprint checked
+2026-11-17). Found on the way: the converge test's network test took the default route away with the
+link; it puts it back now.
+
+The broker everything else talks through, and the first thing a user sees working.
+
+Mosquitto:
+
+- [x] Debian's `mosquitto` and `mosquitto-clients`. The package's `mosquitto.conf` stays as it
+      is; ours is one file, `/etc/mosquitto/conf.d/fiber.conf` (done in T6, as its example role)
+- [x] `mqtt.lan: false`: no listener is written. The broker then serves port 1883 on loopback
+      only, without a login, which is what is wanted (T6; the converge test checks it)
+- [x] `mqtt.lan: true`: `per_listener_settings true` first; port 1883 on loopback without a
+      login; port 1884 for the network with a login, its password file owned by `mosquitto` and
+      readable by nobody else. The password is made with `mosquitto_passwd`, once, behind a
+      stamp file (its output differs every time)
+- [x] Turning it off: the service stopped and disabled, the settings and data kept (T6)
+
+Node-RED:
+
+- [x] Node.js 24 from NodeSource (source, key and its fingerprint in `docs/provisioning.md`),
+      with an apt preference that keeps `nodejs` on NodeSource
+- [x] `npm install -g --omit=dev node-red@<pinned>`, run only when that version is not there
+- [x] A system user `nodered` in the groups for the serial ports, GPIO, I2C and SPI; its
+      directory `/var/lib/node-red`; our own `nodered.service`, with Node's memory capped at
+      256 MB
+- [x] The login (`adminAuth`, a bcrypt hash made with the bcrypt that Node-RED brings) written
+      before the first start
+- [x] The starter flow, copied only when there is none: a broker node on `localhost:1883` and a
+      debug node on `fiber/#`
+- [x] The dashboard nodes (D20): `@flowfuse/node-red-dashboard`, pinned, and a page with the
+      thermometers in the starter flow. Version 1.34.1, behind the same login as the editor
+      (`httpNodeAuth`); the converge test checks the version, the page in the flow, and the
+      login. Not looked at in a browser yet
+- [x] In CI: after a converge only the expected ports listen; the editor asks for the login; a
+      second apply changes nothing
+
+Watch out: the installer script the old FIBER documentation names is gone (its address returns
+404), and its successor installs again on every run. Debian's own Node.js 20 is too old for
+Node-RED 5. What npm pulls in below Node-RED is not pinned, and the install takes minutes on
+eMMC.
+
+- Needs: T6.
+- Done when: `mosquitto_sub -t '#'` works on the FIBER; with the LAN listener only port 1884
+  answers from outside and asks for the password; Node-RED's editor asks for the login.
+
 ### T10. Update, rollback, uninstall (M1)
 
 Done 2026-11-18, commits `a054cde` and `256b9e4`. Checked: the CI run of `256b9e4` (44200429368) is
@@ -1234,6 +1315,38 @@ the first time; run the workflow by hand on `main` before it.
 Watch out: a tag cannot be moved, so a release whose build fails uses up its version. Run the
 workflow by hand first after any change to the build.
 
+### T18. The `agent` role (M2)
+
+Done 2026-11-19, on a FIBER: the installer's seed turned the agent on, the role installed it, and
+after the restart `fiber/status` came up online, with the south bridge flashed by the agent. An
+update to the next release restarted it on the new program (and it flashed the new firmware).
+Earlier (2026-11-18): everything that needs no board is done and checked (commit `94dea9b`, CI run
+44210054395 green): `just check`, and the converge test with the service in it (the agent runs as
+`fiber-agent` without capabilities, holds the port, feeds a watchdog of 3 s, is restarted on the new
+program by an update and a rollback, and goes offline when turned off). On the way the converge test
+found that the agent served nothing on MQTT without the south bridge's port; fixed
+(`run_without_link`). The port lock is taken read-only when its file is there (another user's file
+in the sticky `/run/lock`). Waits for a FIBER (T2) for the last step.
+
+- [x] `docs/provisioning.md` first: the agent role (the user, its groups, the unit, the settings
+      file), and the unit's lines in `docs/architecture.md`
+- [x] `fiber-agent.service`: the user `fiber-agent`; `Type=notify` with a watchdog that the agent's
+      loop feeds (also while the port is missing and while it flashes); the system read-only
+      but for `/var/lib/fiber/agent` and `/run/lock`; only the device classes it needs; no
+      capabilities
+- [x] The role: the user and its groups, the unit, `/etc/fiber/agent.toml` written once with the
+      defaults in comments, enabled and started; restarted when the program changed (an update
+      or a rollback)
+- [x] Turning it off stops and disables the service; both microcontrollers keep their firmware
+- [x] In the converge test: the service against the south bridge simulator; it runs as
+      `fiber-agent`, holds the port (`fiber firmware chip` refuses), its watchdog does not fire, an
+      update restarts it on the new program, and turning it off takes `fiber/status` offline
+- [x] On a FIBER: `fiber platform enable agent` brings up `fiber/status` (2026-11-19, through the
+      installer's seed)
+
+- Needs: T6, T17.
+- Done when: `fiber platform enable agent` on a FIBER brings up `fiber/status`.
+
 ### T34. Review of the night's code (M2 to M4)
 
 Done 2026-11-18, commit `2a04dff`. Checked: `just check`, the roles' lint and the converge test
@@ -1279,7 +1392,19 @@ The toolchain moves with the TOWER pin and nothing else (D21).
 
 ## Decisions ahead
 
-None open.
+- **D25. Which password does FIBER Setup let through, now that it opens services?** Found on the
+  bench (2026-11-19, T36): ChirpStack refuses a password shorter than 8 characters, and FIBER
+  Setup suggests `fiber` and checks only that the field is not empty. The same password opens
+  Node-RED, its dashboard and MQTT on port 1884 from the network (D16), and AGENTS.md says no
+  service may answer with a default password. Choices:
+  1. **(Recommended)** When any component is ticked, FIBER Setup asks for at least 8 characters
+     and suggests none: the password opens services on the network, so it should not be one
+     everybody knows. With nothing ticked, as today.
+  2. Only when ChirpStack is ticked, at least 8 characters; `fiber` stays the suggestion
+     otherwise.
+  3. As it is: the platform's role says what to do, and the person puts a longer password into
+     `/etc/fiber/secrets/login.json`.
+  The platform's side is done either way (the role's message). T12 waits for it.
 
 ## Decisions done
 
