@@ -694,7 +694,7 @@ each other is the biggest unknown of the plan, so it is answered before anything
 - [ ] The two-way levels again with the FIBER's antenna on
 - [ ] The receiver's sensitivity against a known signal (the earlier firmware measured a weak
       receiver)
-- [ ] The results into `docs/bench-checks.md` and `docs/firmware/radio.md`
+- [x] The results into `docs/bench-checks.md` and `docs/firmware/radio.md` (2026-11-19)
 
 Watch out: by the documents the radio's own whitening has the right polynomial and seed and the
 wrong bit order, so it cannot be used as it is. That is read from documents and from a capture
