@@ -719,6 +719,37 @@ maintainer at 19:46:23 (`fiber firmware flash south`, the third write of the hou
 
 - Done when: the tests pass, and on the FIBER the maintainer sees red, dark, green after a start.
 
+### T25. The north bridge firmware and its link (M5)
+
+State (2026-11-19): started, without hardware (the maintainer away from the bench), after T24 and
+T47 (pushed, `f47d3bd`). The link document is written (`docs/firmware/north-link.md`, a draft
+the maintainer has not read): the south link's frame with a tag of its own; every message from
+the agent answered (`Answer`), sent again when no answer comes within 200 ms; the radio silent
+until `Settings`; uplinks acknowledged only while there is room to pass them on. Next: the
+messages in `crates/protocol` (`north`), then the firmware.
+
+- [x] `docs/firmware/north-link.md` first: `Hello` (who it is, its image's CRC, the
+      personalities it has and the one that is active, why it reset), `SetPersonality`, the
+      settings (the gateway's address, the band, the channel), nodes added, removed and listed,
+      the block of transmit counters, a message queued for a node or dropped, pairing opened and
+      cancelled, what a node sent (its address, counter, signal strength, bytes), how a
+      transmission ended, the radio's numbers. A schema tag of its own
+- [ ] `firmware/north`: a workspace of its own for `thumbv7em-none-eabi`; the M4 core only; the
+      clock from the TCXO; USART1 at 115200; the random number generator for pairing; the
+      watchdog; the stale "empty" flag cleared at start
+- [ ] It keeps no list of nodes: after every `Hello` the agent sends the settings, the counters
+      and the nodes. It acknowledges a node only while it has room to pass the message on
+- [ ] The one thing it keeps: the transmit-counter watermark, in two pages of flash, each value
+      written with its complement
+- [ ] The personality switch, with `TowerFsk` as the only one for now (D4)
+- [ ] A CI job (build, clippy, rustdoc), and a check that its TOWER revision is the root
+      `Cargo.toml`'s
+- [ ] The north bridge as a simulator on a pseudo-terminal, for the agent's tests
+
+- Needs: T14, T15, T24.
+- Done when: the firmware runs on a FIBER, says `Hello`, and takes its settings from a test
+  program.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -757,30 +788,6 @@ the pages. Held on a FIBER (2026-11-19); its tasks, T20 and T21, are done.
 Done when: two TOWER Core Modules at the pinned revision pair with the FIBER, their events arrive
 on MQTT and a `set` reaches them; at least 99 % of frames are acknowledged at the first try;
 replays are refused after a restart of either side; 24 hours pass without a fault.
-
-#### T25. The north bridge firmware and its link
-
-- [ ] `docs/firmware/north-link.md` first: `Hello` (who it is, its image's CRC, the
-      personalities it has and the one that is active, why it reset), `SetPersonality`, the
-      settings (the gateway's address, the band, the channel), nodes added, removed and listed,
-      the block of transmit counters, a message queued for a node or dropped, pairing opened and
-      cancelled, what a node sent (its address, counter, signal strength, bytes), how a
-      transmission ended, the radio's numbers. A schema tag of its own
-- [ ] `firmware/north`: a workspace of its own for `thumbv7em-none-eabi`; the M4 core only; the
-      clock from the TCXO; USART1 at 115200; the random number generator for pairing; the
-      watchdog; the stale "empty" flag cleared at start
-- [ ] It keeps no list of nodes: after every `Hello` the agent sends the settings, the counters
-      and the nodes. It acknowledges a node only while it has room to pass the message on
-- [ ] The one thing it keeps: the transmit-counter watermark, in two pages of flash, each value
-      written with its complement
-- [ ] The personality switch, with `TowerFsk` as the only one for now (D4)
-- [ ] A CI job (build, clippy, rustdoc), and a check that its TOWER revision is the root
-      `Cargo.toml`'s
-- [ ] The north bridge as a simulator on a pseudo-terminal, for the agent's tests
-
-- Needs: T14, T15, T24.
-- Done when: the firmware runs on a FIBER, says `Hello`, and takes its settings from a test
-  program.
 
 #### T26. The agent's radio service
 
