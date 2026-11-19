@@ -458,7 +458,7 @@ enum Mode {
     Send,
 }
 
-const MODE: Mode = Mode::Send;
+const MODE: Mode = Mode::Capture;
 
 // ---- TOWER's packet, as the captures showed it (docs/bench-checks.md, check 4) -----------------
 
