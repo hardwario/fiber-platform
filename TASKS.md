@@ -778,9 +778,11 @@ the way: the north link has no way to send at once to a node that listens (TOWER
 kind); written down as not yet. The radio service's logic is written and tested
 (`agent/src/agent/radio/`: `store` for the nodes file, `values` for TOWER's property values with
 `tower-protocol`'s own parse and fixed-point writing, `service` turning each north message,
-request and client `set` into effects: publish, send north, save, say; 14 tests). Next: the north
-link's task in the agent (the port, the frames, one message at a time with its answer), wired into
-the agent's loop and MQTT, then the simulator.
+request and client `set` into effects: publish, send north, save, say; 14 tests). The north link's
+task is written too (`agent/src/agent/north.rs`: the port, opened again every 5 s; one message at
+a time, sent again after 200 ms, given up after 3 tries; lost after 30 s of silence; a `Hello`
+drops what was on its way), with a simulated north bridge (`north::simulate`) and 3 tests. Next:
+both wired into the agent's loop, MQTT (`radio/nodes/+/set/#`) and `fiber agent`.
 
 - [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
       pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with

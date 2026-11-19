@@ -19,6 +19,7 @@ pub mod lcd;
 pub mod leds;
 pub mod link;
 pub mod mqtt;
+pub mod north;
 pub mod notify;
 pub mod power;
 pub mod radio;
