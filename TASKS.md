@@ -1488,7 +1488,7 @@ again and brought up to date before the first one is ticked.
 
 ### T39. The front panel shows local time (M4)
 
-Done 2026-11-19, commit `4e513a2`: on the FIBER (`0.1.0-bench.8`) the maintainer looked and
+Done 2026-11-19, commit `4e513a2`, CI run 44538912753 green: on the FIBER (`0.1.0-bench.8`) the maintainer looked and
 asked for it to be pushed. The FIBER page showed the time in UTC; FIBER Setup sets a time zone (Europe/Prague on the
 bench), in `/etc/localtime`, which the agent's user can read. Read with `tz-rs` 0.7 (pure Rust, no
 `unsafe`, no dependencies), which also follows the TZif file's closing rule
