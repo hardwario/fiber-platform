@@ -10,7 +10,14 @@
 //! (D8): it adds each with its key and the last counter it saw from it.
 //!
 //! One transfer at a time, as in TOWER: the north bridge's firmware owns one [`Gateway`] in one
-//! loop. Pairing over the air comes with T47; frequency hopping and bulk transfer are not here.
+//! loop. Pairing a node is [`Gateway::open_window`] and [`Gateway::pair`] (T47), its keyed join
+//! part of [`Gateway::recv`]; frequency hopping and bulk transfer are not here.
+
+mod pairing;
+
+pub use pairing::{
+    Entropy, HOST_HANDSHAKE_TIME_MS, JOIN_FRAME_KEY, JoinRefusal, PAIRING_WINDOW_MS, PairedPeer, PairingHost,
+};
 
 use core::future::Future;
 use core::pin::pin;
@@ -152,6 +159,12 @@ pub struct Gateway<R: Radio, C: Clock, A: AesBlock, W: Watermark> {
     duty_at: u64,
     rng: u32,
     last_ack: Option<AckMeta>,
+    /// Keyed joins are answered ([`Gateway::set_keyed_join`]).
+    keyed_join: bool,
+    /// The node whose keyed join was answered last, until the agent takes it.
+    keyed_joined: Option<u32>,
+    /// The last request to join that was not answered, until the agent takes it.
+    join_refusal: Option<(u32, JoinRefusal)>,
 }
 
 /// The output of `a`, or `None` when `b` ends first.
@@ -197,6 +210,9 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
             duty_at,
             rng: addr | 1,
             last_ack: None,
+            keyed_join: false,
+            keyed_joined: None,
+            join_refusal: None,
         }
     }
 
@@ -349,6 +365,16 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
         let frame = buf.get_mut(..len)?;
         // The clear header says who sent it, so whose key opens it.
         let (peek, _) = Header::parse(frame).ok()?;
+        if peek.frame_type == FrameType::JoinReq && peek.flags & flags::KEYED != 0 && peek.dest == 0 {
+            // A keyed join: answered like an acknowledgement, never an uplink.
+            if let Some((node, answer)) = self.keyed_answer(frame) {
+                self.sleep_ms(ACK_TURNAROUND_MS).await;
+                if self.radio.send(&answer).await.is_ok() {
+                    self.keyed_joined = Some(node);
+                }
+            }
+            return None;
+        }
         if peek.dest != self.addr || peek.frame_type != FrameType::Data {
             return None;
         }

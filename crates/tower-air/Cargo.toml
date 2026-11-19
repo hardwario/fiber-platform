@@ -21,3 +21,6 @@ tower-radio.workspace = true
 tower-protocol.workspace = true
 # AES-128 in software for the CCM (frame::SoftAes), as TOWER's own host tests use it; no_std.
 aes = "0.9"
+# To wipe the pairing window's key pair slot (gateway::pairing), as TOWER does; the same version
+# tower-net's handshake uses, so nothing new is fetched.
+zeroize = { version = "1.9", default-features = false }

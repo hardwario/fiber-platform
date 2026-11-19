@@ -782,23 +782,6 @@ replays are refused after a restart of either side; 24 hours pass without a faul
 - Done when: the firmware runs on a FIBER, says `Hello`, and takes its settings from a test
   program.
 
-#### T47. Pairing over the air
-
-Split off from T24 (2026-11-19). TOWER's `firmware/src/radio/net/pairing.rs` written again over
-the gateway of T24: the window the agent opens, the X25519 key agreement, the commitment round,
-the six-digit code, and the keyed join of a known node. Every decision stays `tower-net`'s
-(`pairing`, `handshake`).
-
-- [ ] Read `pairing.rs` and `tower-net`'s `pairing` and `handshake`; write the flow into
-      `docs/firmware/radio.md` first
-- [ ] The pairing host over the T24 gateway; the random numbers from the STM32WL's generator
-      through a trait
-- [ ] Tests: a node joins against a made-up radio; a wrong code; pairing again (a new key, the
-      lane started again)
-
-- Needs: T24.
-- Done when: the tests pass, and later (T26) a real Core Module pairs with a FIBER.
-
 #### T26. The agent's radio service
 
 - [ ] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
@@ -1714,6 +1697,37 @@ hopping (US 915), the remote shell, bulk transfer.
 
 - Needs: T23.
 - Done when: the vectors pass, and the flow tests cover the three cases above.
+
+### T47. Pairing over the air (M5)
+
+Done 2026-11-19 (the commit that closes it). Checked: `just check`, and 7 tests against a
+joining node made up from `tower_net::handshake` (as a TOWER node runs it): the whole handshake
+(the same link key and code at both ends, the answers 20 ms after each frame), a wrong
+confirmation, a lost nonce (a fresh key pair for the next try), who may join (a known node, a
+reserved address, the gateway's own, another handshake version), the window, nothing answered
+before the agent's floor, and the keyed join (answered, a replay refused, switched off, an
+unknown node). Not run with a real Core Module: that is T26's check (M5: TOWER nodes pair with
+the FIBER). In `crates/tower-air`, `gateway::pairing`: the agent opens a window
+(`Gateway::open_window`), the firmware calls `Gateway::pair` in slices, and adds the node it
+returns; the random numbers through an `Entropy` trait (the STM32WL's generator in T25); the
+refusals for the agent to tell (`take_join_refusal`), as TOWER logs them. The test air moved to
+`crates/tower-air/tests/common/`. `zeroize` is a direct dependency now (to wipe the window's key
+pair slot, as TOWER does; already in the lock through `tower-net`); the spike's lock followed.
+
+Split off from T24 (2026-11-19). TOWER's `firmware/src/radio/net/pairing.rs` written again over
+the gateway of T24: the window the agent opens, the X25519 key agreement, the commitment round,
+the six-digit code, and the keyed join of a known node. Every decision stays `tower-net`'s
+(`pairing`, `handshake`).
+
+- [x] Read `pairing.rs` and `tower-net`'s `pairing` and `handshake`; write the flow into
+      `docs/firmware/radio.md` first ("Pairing a node")
+- [x] The pairing host over the T24 gateway, and the keyed join inside `recv`; the random numbers
+      from the STM32WL's generator through a trait
+- [x] Tests: a node joins against a made-up radio; a wrong confirmation tag pairs nobody;
+      pairing again (removed first, a new key, the lane started again)
+
+- Needs: T24.
+- Done when: the tests pass; a real Core Module pairing with a FIBER is T26's check (M5).
 
 ## Decisions ahead
 

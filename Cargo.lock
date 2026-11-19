@@ -411,6 +411,7 @@ dependencies = [
  "tower-net",
  "tower-protocol",
  "tower-radio",
+ "zeroize",
 ]
 
 [[package]]

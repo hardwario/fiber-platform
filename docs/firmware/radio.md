@@ -82,7 +82,50 @@ run on a FIBER yet.
   fit is not sent, and a node whose acknowledgement did not fit sends again.
 - **Payloads pass through:** what the nodes send (`Info`, `Report`, `Event`) and what they are
   sent (`Set`, `Time`, `Describe`) are bytes to the gateway; the agent reads them.
-- **Not yet:** pairing over the air (T47), frequency hopping (US 915), bulk transfer.
+- **Not yet:** frequency hopping (US 915), bulk transfer.
+
+## Pairing a node
+
+How a node gets its key, as TOWER's gateway does it (`firmware/src/radio/net/pairing.rs` at the
+pinned revision), written again in `crates/tower-air` (`gateway::pairing`, T47). The handshake,
+the key schedule, the tags and the code are `tower_net::handshake`'s; who may be answered is
+`tower_net::pairing`'s. Tested on the computer against a node made up from the same kernels; not
+run on a FIBER yet.
+
+**Over the air** (the agent opens a window, 60 s by default): an X25519 key agreement with a
+commitment round, the numeric comparison of Bluetooth LE Secure Connections.
+
+| Frame | From | Payload | Sealed under |
+|---|---|---|---|
+| `JoinReq` | node, to address 0 | `3`, the node's public key | the public framing key |
+| `JoinResp` | gateway | `3`, its public key, its commitment to its nonce | the public framing key |
+| `JoinNonce` | node | `3`, the node's nonce | the public framing key |
+| `JoinReveal` | gateway | `3`, its nonce, its confirmation tag | the public framing key |
+| `JoinConfirm` | node | `3`, the node's confirmation tag | the new link key |
+
+- **The framing key is public** (`TOWER-JOIN-v2`): it only gives the four frames a CCM format, so
+  a damaged frame is dropped. Secrecy comes from the key agreement; no key goes on air.
+- **The six-digit code:** both ends compute it from everything sent; the agent shows it, the
+  person compares it with the node's. A man in the middle shows a different one, except with a
+  chance of one in a million.
+- **The gateway commits to its nonce before it sees the node's,** so neither side can steer the
+  code. Each answered request uses a fresh key pair, from the STM32WL's random number generator;
+  without it pairing is refused, never keyed from anything else.
+- **Only new nodes:** a request from a node the gateway knows, a reserved address or its own is
+  not answered (anyone could ask as that node). To pair a node again, the agent removes it first.
+  A request is answered only while a whole handshake (about 3.9 s) fits before the window ends.
+- **The waits:** 300 ms for the node's nonce; 300 ms and 1.5 s for its confirmation (the node
+  computes its shared secret first, about 1.2 s on a Core Module). The gateway answers each frame
+  20 ms after it, like an acknowledgement.
+- **The node chooses its address,** and keeps it. The gateway pairs the first node whose
+  confirmation is right, and the agent adds it with its new key and counter 0.
+
+**A node whose key the gateway holds already** (added by the agent: provisioned by cable, or
+moved from another gateway) joins under that key, at any time, without a window: a `JoinReq`
+with the `KEYED` flag to address 0, its own address as payload, sealed under its key; the gateway
+answers with a `KEYED` `JoinResp` carrying the request's counter back. The request's counter must
+be new on the node's replay lane, so a recorded request draws no second answer. The agent can
+switch this off.
 
 ## How the STM32WL is set
 
