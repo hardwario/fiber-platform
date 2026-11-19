@@ -37,7 +37,7 @@ check-host: doc
     cargo fmt --all -- --check
     cargo clippy --workspace --all-targets --locked -- -D warnings
     cargo test --workspace --locked
-    cargo build --locked --target thumbv7em-none-eabi -p fiber-tower-air -p fiber-protocol
+    cargo build --locked --target thumbv7em-none-eabi -p fiber-tower-air -p fiber-protocol -p fiber-subghz
     cargo build --locked --target thumbv6m-none-eabi -p fiber-protocol
 
 # A workspace of its own, built inside its directory so that its target, its linker (flip-link) and

@@ -1,0 +1,11 @@
+[package]
+name = "fiber-subghz"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The sub-GHz radio inside the STM32WL (the FIBER's north bridge): its commands over a bus trait that the firmware fills with the SUBGHZSPI, and the RF switch as a trait. no_std, nothing allocated, no dependencies; host-tested against the bytes the bench proved."
+
+[lints]
+workspace = true

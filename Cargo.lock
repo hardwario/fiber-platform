@@ -373,6 +373,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "fiber-subghz"
+version = "0.1.0"
+
+[[package]]
 name = "fiber-tower-air"
 version = "0.0.0"
 dependencies = [

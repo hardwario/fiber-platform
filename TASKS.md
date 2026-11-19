@@ -718,13 +718,14 @@ it moves onto the two crates and exchanges frames with a Core Module through the
       is in (how many bytes follow), then the rest, de-whitened and checked (`packet::encode`,
       `packet_len`, `decode`; every capture passes, and the encoder makes a captured packet byte
       for byte)
-- [ ] `crates/subghz`: the radio inside the STM32WL over a bus trait: standby, the regulator,
+- [x] `crates/subghz`: the radio inside the STM32WL over a bus trait: standby, the regulator,
       the TCXO, the calibrations, packet type, frequency, GFSK modulation and packet settings,
       the sync word, the buffer, interrupts, signal strength of a packet and of the channel, the
       low-power PA (+14 dBm at most, the limit of the 25 mW band), receive and send; the RF
       switch as a trait of its own. Laid out so that LoRa is another packet type and not a
       rewrite (D4). Tests: the bytes of each command, against the spike's, which the bench
-      proved
+      proved. One difference found: the bit rate's word is 53 287 (32 x 32 MHz / 19 216.6,
+      rounded); the spike sent 53 286, a slip of 0.002 % in its comment's arithmetic
 - [ ] The spike on the two crates: the receive flow (the sync word, the length byte one byte
       time later, the rest when it is in, read, receive again), and sending; frames both ways
       with the Core Module r2 (`radio_beacon` as node, then as sniffer, flashed over its FTDI)

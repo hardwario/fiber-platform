@@ -7,8 +7,8 @@ send and receive the same. The layers around it are in [`../architecture.md`](..
 
 **Status:** settled on the bench (2026-11-19, T22) with the radio spike (`hil/radio-spike`) and
 two TOWER Core Modules at the pinned revision running `radio_beacon`: frames go both ways. The
-settings below are the spike's. The north bridge's firmware (T25) and its command layer (T23) are
-not written yet. Not measured yet: the error rates at several levels, the frequency offset in Hz,
+settings below are the spike's. The packet is made and checked by `fiber-tower-air`'s `packet`,
+the commands by `fiber-subghz` (T23); the north bridge's firmware (T25) is not written yet. Not measured yet: the error rates at several levels, the frequency offset in Hz,
 anything with the FIBER's antenna fitted.
 
 ## What a TOWER node sends
@@ -41,7 +41,7 @@ From RM0453 (the STM32WL reference manual, section 5), as the spike sets it:
 | The TCXO (inside the module) | `SetTcxoMode` | 1.7 V, 1 ms to settle; then `Calibrate` (all) and `CalibrateImage` for 863 to 870 MHz |
 | Packet type | `SetPacketType` | GFSK |
 | Frequency | `SetRfFrequency` | f x 2^25 / 32 MHz |
-| Modulation | `SetModulationParams` | bit rate 53 286 (32 x 32 MHz / 19 216.6), BT 1 (`0x0B`), receive filter 117.3, 156.2 or 187.2 kHz (`0x0B`, `0x1A`, `0x12`), deviation 20 762 (19.8 kHz x 2^25 / 32 MHz) |
+| Modulation | `SetModulationParams` | bit rate 53 287 (32 x 32 MHz / 19 216.6, rounded; the spike's 53 286 was a slip of 0.002 %), BT 1 (`0x0B`), receive filter 117.3, 156.2 or 187.2 kHz (`0x0B`, `0x1A`, `0x12`), deviation 20 762 (19.8 kHz x 2^25 / 32 MHz, rounded) |
 | Packet | `SetPacketParams` | a preamble of 32 bits, a detector of 16 bits, a sync word of 32 bits, no address, fixed length, no CRC, no whitening |
 | Sync word | registers `0x06C0` | `15 47 62 DB` |
 | Receive gain | register `0x08AC` | `0x96` (boosted) |
