@@ -1,6 +1,7 @@
 # Build output: the host workspace (root) and the two firmware workspaces.
 /target
 /firmware/*/target
+/hil/radio-spike/target
 
 # Release archives staged by the release build.
 /fiber-platform-v*

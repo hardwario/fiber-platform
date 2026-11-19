@@ -50,8 +50,9 @@ earlier software's LCD driver was read: ST7920, mode 3, 400 kHz, and the picture
 degrees, which T20's driver does too. Left, for someone at the bench: look at the LCD (does it
 show the agent's pages, upright?) and the backlight; press each button; listen to the buzzer, also
 at power-on; a RAK5146 card in the slot; a second unit; then a power cycle, after which `sudo
-fiber firmware chip south` should answer again (with the agent stopped). The test pattern script is
-`lcd_test.py` in the home directory of `fiber` on the unit.
+fiber firmware chip south` should answer again (with the agent stopped). The test pattern is
+`hil/lcd_test.py` (a copy is in the home directory of `fiber` on the unit; stop the agent first,
+it drives the LCD).
 
 What only a real board answers. Flashing, recovery, the LCD and the ChirpStack role all rest on
 these answers, and each takes minutes ([`docs/bench-checks.md`](docs/bench-checks.md), checks 1 to
@@ -687,6 +688,59 @@ user to copy.
 - Needs: T17 to T21 (the topics they use); T26 for the TOWER node's flow.
 - Done when: every example runs in CI, and once on a FIBER.
 
+### T22. The radio spike (M5)
+
+State (2026-11-19): what needs no TOWER Core Module is done, on the FIBER of T2; the rest waits for
+a Core Module at the pinned revision. The north bridge's flash was read out first through its
+bootloader (256 KB, sha256 `1690ce2d...`, in `north-backup.bin` in the home directory of `fiber`
+on the unit and in `target/bench/` on the maintainer's computer); `sudo python3 north_flash.py
+write north-backup.bin` puts the earlier firmware back. The spike (`hil/radio-spike/`) runs on
+the north bridge now and only listens. It is plain registers, not Embassy: `embassy-stm32` wants
+a section of shared memory to start on the dual-core WL55, and the spike needs nothing of the
+HAL. Results in `docs/bench-checks.md`, check 4: the radio up without a device error, the noise
+floor at -114 to -118 dBm, no sync word heard on channel 0 in 6 minutes. Next, with a Core
+Module running `radio_beacon`: the captures.
+
+TOWER nodes use a SPIRIT1 radio; the north bridge has another one. Whether the two understand
+each other is the biggest unknown of the plan, so it is answered before anything is built on it
+([`docs/bench-checks.md`](docs/bench-checks.md), check 4). About two days.
+
+- [x] A small firmware for the STM32WL55's M4 core (the M0+ core is never started), written to
+      the chip through its bootloader (`hil/north_flash.py`). Plain registers through the PAC,
+      not Embassy (State says why); the radio's SPI and busy line polled, no interrupt
+- [x] The radio up: the TCXO switched on (1.7 V, 1 ms to settle); the calibration for 863 to
+      870 MHz; the RF switch on PC3, PC4 and PC5 to receive (all high). The core runs on MSI,
+      not on the TCXO; transmit is not used yet
+- [x] GFSK as TOWER sends it: 19 216.6 bit/s (the rate a SPIRIT1 really produces, not the round
+      19 200), 19.8 kHz deviation, BT 1, sync word `0xDB624715`, a preamble detector of 16 bits,
+      117, 156 and 187 kHz receive bandwidth. Set, and the radio receives; not proven against a
+      node
+- [ ] Receive raw: fixed length, the radio's own whitening and CRC off, an interrupt at the sync
+      word. Capture the bytes after the sync word from a Core Module that runs TOWER's
+      `radio_beacon` at the pinned revision
+- [ ] From the captures settle the whitening (a 9-bit sequence that starts with all ones; in
+      which order its bits fall into a byte) and the CRC-16 (polynomial `0x1021`; its start
+      value; what it covers). Keep the captures as test vectors
+- [ ] Try the shorter way too: the radio's own variable length and whitening, with a correction
+      in software. It loses the two CRC bytes; every frame still carries an 8-byte tag
+- [ ] Send frames built in software to the Core Module, and read the frequency offset it
+      reports, on several modules
+- [ ] The error rate at -60, -90, -100 and -105 dBm, for 117, 156 and 187 kHz bandwidth
+- [x] The noise floor, with the linear regulator and with the switching one, with and without
+      the boosted receive gain: -114 to -118 dBm, the regulator makes no difference. Whether the
+      FIBER was closed and its antenna fitted was not looked at
+- [ ] The receiver's sensitivity against a known signal (the earlier firmware measured a weak
+      receiver)
+- [ ] The results into `docs/bench-checks.md` and `docs/firmware/radio.md`
+
+Watch out: by the documents the radio's own whitening has the right polynomial and seed and the
+wrong bit order, so it cannot be used as it is. That is read from documents and from a capture
+of a related chip, not seen on a SPIRIT1. This radio has no automatic frequency correction, so
+the receive filter has to be wide enough for both crystals' error.
+
+- Needs: T2 (the bootloader answers, to write the test firmware); a TOWER Core Module.
+- Done when: frames go both ways, and the captures are in the repository.
+
 ### T36. What the first bench run found (M1, M2)
 
 State (2026-11-19): all five fixes are written; `just check`, the roles' lint and the converge
@@ -759,46 +813,6 @@ Its tasks, T20 and T21, are in progress.
 Done when: two TOWER Core Modules at the pinned revision pair with the FIBER, their events arrive
 on MQTT and a `set` reaches them; at least 99 % of frames are acknowledged at the first try;
 replays are refused after a restart of either side; 24 hours pass without a fault.
-
-#### T22. The radio spike
-
-TOWER nodes use a SPIRIT1 radio; the north bridge has another one. Whether the two understand
-each other is the biggest unknown of the plan, so it is answered before anything is built on it
-([`docs/bench-checks.md`](docs/bench-checks.md), check 4). About two days.
-
-- [ ] A small Embassy firmware for the STM32WL55's M4 core (`stm32wl55jc-cm4`; the M0+ core is
-      never started), written to the chip through its bootloader. The released
-      `embassy-stm32` 0.6.0 has no driver for the radio: it takes a little glue for its SPI and
-      its interrupt
-- [ ] The radio up: the TCXO switched on (1.7 V, 1 ms to settle) and the system clock taken from
-      it; the calibration for 863 to 870 MHz; the RF switch on PC3, PC4 and PC5 (receive: all
-      high; transmit on the low-power PA: PC3 and PC4 high, PC5 low)
-- [ ] GFSK as TOWER sends it: 19 216.6 bit/s (the rate a SPIRIT1 really produces, not the round
-      19 200), 19.8 kHz deviation, BT 1, sync word `0xDB624715`, a preamble detector of 16 bits,
-      156 kHz receive bandwidth
-- [ ] Receive raw: fixed length, the radio's own whitening and CRC off, an interrupt at the sync
-      word. Capture the bytes after the sync word from a Core Module that runs TOWER's
-      `radio_beacon` at the pinned revision
-- [ ] From the captures settle the whitening (a 9-bit sequence that starts with all ones; in
-      which order its bits fall into a byte) and the CRC-16 (polynomial `0x1021`; its start
-      value; what it covers). Keep the captures as test vectors
-- [ ] Try the shorter way too: the radio's own variable length and whitening, with a correction
-      in software. It loses the two CRC bytes; every frame still carries an 8-byte tag
-- [ ] Send frames built in software to the Core Module, and read the frequency offset it
-      reports, on several modules
-- [ ] The error rate at -60, -90, -100 and -105 dBm, for 117, 156 and 187 kHz bandwidth
-- [ ] Inside the closed FIBER: the noise floor, with the linear regulator and with the switching
-      one, with and without the boosted receive gain (the earlier firmware measured a weak
-      receiver)
-- [ ] The results into `docs/bench-checks.md` and `docs/firmware/radio.md`
-
-Watch out: by the documents the radio's own whitening has the right polynomial and seed and the
-wrong bit order, so it cannot be used as it is. That is read from documents and from a capture
-of a related chip, not seen on a SPIRIT1. This radio has no automatic frequency correction, so
-the receive filter has to be wide enough for both crystals' error.
-
-- Needs: T2 (the bootloader answers, to write the test firmware); a TOWER Core Module.
-- Done when: frames go both ways, and the captures are in the repository.
 
 #### T23. The radio's command layer and the packet codec
 

@@ -4,7 +4,7 @@ Six questions that documents cannot answer. Each takes minutes on a real FIBER a
 risk from the plan, so they come before the work that depends on them (`TASKS.md`: T2 for checks
 1 to 3 and 6, T22 for check 4, T3 for check 5).
 
-**Status: checks 5 (2026-11-17) and 1 (2026-11-19) are answered; checks 2 and 6 in part (2026-11-19); 3 and 4 have not been run yet.** Fill in the
+**Status: checks 5 (2026-11-17) and 1 (2026-11-19) are answered; checks 2, 4 and 6 in part (2026-11-19); 3 has not been run yet.** Fill in the
 result and the date as they are answered.
 
 What is needed: a FIBER-R2 rev 2.1 reachable over SSH, written by FIBER Setup with the FIBER
@@ -87,7 +87,34 @@ The spike that opens the north bridge work (T22). With a Core Module running TOW
 3. Measure the packet error rate at 117, 156 and 187 kHz receive bandwidth, at several signal
    levels.
 
-Result: not run.
+**Result (2026-11-19): the radio is up; nothing heard from TOWER yet, as no Core Module was at
+hand.** A bench firmware (`hil/radio-spike/`, plain registers), written to the north bridge
+through its bootloader with `hil/north_flash.py` after a copy of its earlier firmware was read out
+(256 KB, sha256 `1690ce2d...`, kept on the FIBER and on the maintainer's computer). On the radio,
+from RM0453: the TCXO at 1.7 V and every calibration (the image one for 863 to 870 MHz) without a
+device error; the radio sets `XOSC_START_ERR` at its start, before it is told about the TCXO, and
+it stays clear once cleared. GFSK as TOWER sends it on 868.1 MHz (19 216.6 bit/s, 19.8 kHz
+deviation, BT 1, sync word `0xDB624715`, a preamble detector of 16 bits), received raw (fixed 64
+bytes, no whitening, no CRC); the RF switch to receive (PC3 to PC5 high); the radio stays in
+receive. The core runs on MSI at 16 MHz, not on the TCXO.
+
+The noise floor, as the radio's own RSSI reads it: 500 samples in each setting, the FIBER and its
+antenna as they were on the bench (whether its cover was on and an antenna fitted was not looked
+at). The average in dBm; the lowest reading was -127 dBm everywhere, the highest between -107 and
+-80 dBm (short spikes, from something else on the band).
+
+| Receive filter | LDO, normal gain | LDO, boosted | SMPS, normal | SMPS, boosted |
+|---|---|---|---|---|
+| 117.3 kHz | -116 | -118 | -116 | -117 |
+| 156.2 kHz | -115 | -116 | -114 | -116 |
+| 187.2 kHz | -114 | -116 | -114 | -116 |
+
+The floor rises with the filter about as thermal noise does (1.25 dB and 0.8 dB from one to the
+next), and is about what thermal noise and a receiver's usual noise figure give (-117 dBm at 117
+kHz). The switching regulator adds nothing measurable; the boosted gain reads 1 to 2 dB lower. In
+6 minutes no sync word was heard on channel 0. What this does not answer: the receiver's
+sensitivity (the earlier firmware measured a weak one; that takes a known signal), and everything
+that needs a Core Module (the whitening, the CRC, frames both ways, the error rates).
 
 ## 5. Does the south bridge firmware fit?
 

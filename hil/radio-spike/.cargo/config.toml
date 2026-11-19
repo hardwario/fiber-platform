@@ -1,0 +1,6 @@
+# The north bridge's M4 core: Cortex-M4 without an FPU in use. The M0+ core is never started.
+[build]
+target = "thumbv7em-none-eabi"
+
+[target.thumbv7em-none-eabi]
+linker = "flip-link"

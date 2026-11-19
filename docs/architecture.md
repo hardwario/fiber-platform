@@ -48,7 +48,7 @@ The directory `crates/X` holds the package `fiber-X`.
 | `firmware/south/` | `fiber-south` | Embassy, STM32C031C6 (thumbv6m). Own workspace. | built, 15.8 KB; not run on a chip |
 | `firmware/north/` | `fiber-north` | Embassy, STM32WL55 M4 core (thumbv7em). Own workspace. | no |
 | `provision/` | | `install.sh`, `components.yaml`, the Ansible roles, the `config.txt` block. | `components.yaml`, `install.sh`, `release.py` |
-| `hil/` | | Bench scripts, run by hand on a FIBER. | bootloader probe |
+| `hil/` | | Bench scripts, run by hand on a FIBER, and the radio spike's firmware (T22). | bootloader probe, the north bridge's flash read and written, an LCD test pattern, the radio spike |
 | `examples/` | | Clients of the MQTT API to copy: the command line, Python, Rust (a project of its own), Node-RED flows ([`examples.md`](examples.md)). | each run in the converge test |
 
 Two kinds of Cargo workspace, as in TOWER: the host workspace at the root, and one workspace per

@@ -92,7 +92,7 @@ jobs:
         run: just check-examples
       - name: shellcheck
         run: just shellcheck
-      # The bench scripts' protocol code, against a fake ROM bootloader on a pseudo-terminal.
+      # The bench scripts: the probe against a fake ROM bootloader, the radio spike built and linted.
       - name: bench scripts self-test (no hardware)
         run: just check-hil
       # AGENTS.md, "Writing style".
@@ -197,3 +197,4 @@ jobs:
           cargo-audit audit
           cargo-audit audit --file firmware/south/Cargo.lock
           cargo-audit audit --file examples/rust/Cargo.lock
+          cargo-audit audit --file hil/radio-spike/Cargo.lock
