@@ -1481,6 +1481,25 @@ slowness was mostly that a click is recognized on the release: the page turns on
 - Done when: the pictures match, and on the FIBER the pages look right and turn as the button
   goes down.
 
+### T39. The front panel shows local time (M4)
+
+State (2026-11-19): written and on the FIBER (`0.1.0-bench.8`); waiting for the maintainer to
+look. The FIBER page showed the time in UTC; FIBER Setup sets a time zone (Europe/Prague on the
+bench), in `/etc/localtime`, which the agent's user can read. Read with `tz-rs` 0.7 (pure Rust, no
+`unsafe`, no dependencies), which also follows the TZif file's closing rule
+(`CET-1CEST,M3.5.0,M10.5.0/3`). `just check` passes. Seen on the way, not from this change: four
+"unsound" advisories against `heapless` 0.9.3 (2026-11-18), through `cobs`, `postcard` and
+TOWER's crates; allowed as warnings by the audit; 0.9.4 is out.
+
+- [x] The agent reads the zone from `/etc/localtime` (TZif, with its rule for the years after its
+      last transition), again when the link or its file changes; UTC when there is none
+- [x] The FIBER page: the local time and the zone's abbreviation (`CET`, `CEST`); the day too
+- [x] Tests (the FIBER's own Europe/Prague file: winter, summer, 2040 from the rule, a link to
+      nothing), the stored picture, `docs/front-panel.md`
+- [ ] On the FIBER: the local time
+
+- Done when: the tests pass, and the FIBER shows its local time.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read

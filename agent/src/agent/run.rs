@@ -135,6 +135,8 @@ pub struct Sources {
     pub status: std::path::PathBuf,
     pub fib_trie: std::path::PathBuf,
     pub restart: std::path::PathBuf,
+    /// The local time zone, from `/etc/localtime`.
+    pub zone: super::zone::Zone,
 }
 
 /// A payload without its `ts`, to compare.
@@ -308,7 +310,7 @@ impl<B: Bus> Agent<B> {
     }
 
     /// What the pages show now.
-    fn facts(&self) -> Facts {
+    fn facts(&mut self) -> Facts {
         let read = |path: &std::path::Path| std::fs::read_to_string(path).unwrap_or_default();
         let mut facts = Facts {
             name: self.identity.name.clone(),
@@ -344,7 +346,8 @@ impl<B: Bus> Agent<B> {
             ],
             ..Facts::default()
         };
-        if let Some(sources) = &self.sources {
+        if let Some(sources) = &mut self.sources {
+            (facts.utc_offset, facts.zone) = sources.zone.at(facts.ts);
             facts.addresses = screen::local_addresses(&read(&sources.fib_trie));
             if let Ok(results) = crate::platform::results::Results::read(&sources.results) {
                 facts.components = results

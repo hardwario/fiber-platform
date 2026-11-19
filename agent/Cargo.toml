@@ -33,6 +33,9 @@ tower-protocol.workspace = true
 # The front panel: the 1-bit framebuffer and fonts the LCD's picture is drawn with, and the
 # buttons' gestures (click, hold, repeat), at the pinned TOWER revision.
 tower-hmi.workspace = true
+# The local time zone for the front panel's clock: /etc/localtime (TZif and its rule), in pure Rust
+# (no unsafe, no dependencies).
+tz-rs = "0.7"
 
 [dev-dependencies]
 # A paused clock for the tests of the agent's loop.

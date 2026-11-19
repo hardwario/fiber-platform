@@ -15,7 +15,10 @@ Each page has a title bar, white on black: the page's icon and title, and on the
 for each page, the one shown as a filled square.
 
 1. **FIBER:** its name, its first IPv4 address (`+1` when there are more), and below a line the
-   time in big digits, in UTC, with the day beside it (`Thu 19 Nov`).
+   local time in big digits, with the zone's abbreviation and the day beside it (`CET`,
+   `Thu 19 Nov`). The zone is the system's, `/etc/localtime`, which FIBER Setup sets and
+   `sudo timedatectl set-timezone` changes; the page follows a change within a second. Without
+   one, UTC.
 2. **Components:** each component that is on, with a check when its last apply ended `ok`, a
    cross and `failed`, or a ring and how it ended (`skipped`); four at most, the last saying how
    many more there are.

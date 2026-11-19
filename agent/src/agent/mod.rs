@@ -28,6 +28,7 @@ pub mod simulator;
 pub mod state;
 pub mod thermometers;
 pub mod topics;
+pub mod zone;
 
 pub use daemon::agent;
 pub use hardware::firmware_chip;

@@ -43,8 +43,11 @@ pub struct Facts {
     pub name: String,
     /// IPv4 addresses, the first two shown.
     pub addresses: Vec<String>,
-    /// Unix time.
+    /// Unix time, and the local zone at it: its offset from UTC in seconds and its abbreviation
+    /// (`UTC` and 0 when there is none).
     pub ts: u64,
+    pub utc_offset: i32,
+    pub zone: String,
     /// Each component that is on, and how its last apply ended.
     pub components: Vec<(String, String)>,
     /// `PoE`, `battery` or `not known`, and the two voltages when they are known; the battery's
@@ -156,7 +159,8 @@ fn line_with_icon(canvas: &mut Canvas<'_>, y: i32, icon: &Image, text: &str) {
     canvas.text(11, y, &text, &STYLE);
 }
 
-/// The date of a Unix time, in UTC: (year, month, day, weekday from Sunday = 0).
+/// The date of a Unix time (or of a local time counted the same way): (year, month, day, weekday
+/// from Sunday = 0).
 fn date(ts: u64) -> (i64, usize, u64, usize) {
     let days = (ts / 86_400) as i64;
     // 1 January 1970 was a Thursday.
@@ -184,13 +188,14 @@ fn day(ts: u64) -> String {
     format!("{} {day} {}", DAYS[weekday], MONTHS[month - 1])
 }
 
-/// `HH:MM`, in UTC.
+/// `HH:MM` of a Unix time (or of a local time counted the same way).
 fn clock(ts: u64) -> String {
     let seconds = ts % 86_400;
     format!("{:02}:{:02}", seconds / 3600, seconds / 60 % 60)
 }
 
-/// The first page: the name, the address, and the time in big digits with the day beside it.
+/// The first page: the name, the address, and the local time in big digits with its zone and the
+/// day beside it.
 fn page_fiber(canvas: &mut Canvas<'_>, facts: &Facts) {
     line_with_icon(canvas, 13, &icons::NAME, &facts.name);
     let address = match facts.addresses.as_slice() {
@@ -200,9 +205,15 @@ fn page_fiber(canvas: &mut Canvas<'_>, facts: &Facts) {
     };
     line_with_icon(canvas, 25, &icons::NETWORK, &address);
     canvas.hline(0, 38, 128, Color::Black);
-    canvas.text(1, 40, &clock(facts.ts), &BIG);
-    canvas.text(66, 41, "UTC", &STYLE);
-    canvas.text(66, 52, &day(facts.ts), &STYLE);
+    let local = facts.ts.saturating_add_signed(i64::from(facts.utc_offset));
+    let zone = if facts.zone.is_empty() {
+        "UTC"
+    } else {
+        facts.zone.as_str()
+    };
+    canvas.text(1, 40, &clock(local), &BIG);
+    canvas.text(66, 41, zone, &STYLE);
+    canvas.text(66, 52, &day(local), &STYLE);
 }
 
 /// How a component's last apply ended, as its mark shows it.
@@ -437,6 +448,8 @@ mod tests {
             name: "fiber-abcdef12".into(),
             addresses: vec!["192.168.1.23".into()],
             ts: 1_794_952_515,
+            utc_offset: 3600,
+            zone: "CET".into(),
             components: vec![
                 ("base".into(), "ok".into()),
                 ("mosquitto".into(), "ok".into()),
