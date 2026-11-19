@@ -216,6 +216,65 @@ impl super::buzzer::Line for GpioBuzzer {
     }
 }
 
+/// The LCD on `/dev/spidev6.0` and its reset line, GPIO16.
+#[cfg(target_os = "linux")]
+pub struct SpiLcd {
+    spi: spidev::Spidev,
+    reset: gpiocdev::Request,
+}
+
+#[cfg(target_os = "linux")]
+impl SpiLcd {
+    pub fn new() -> io::Result<SpiLcd> {
+        use gpiocdev::line::Value;
+        use spidev::{SpiModeFlags, Spidev, SpidevOptions};
+        let mut spi = Spidev::open(board::LCD_SPI)
+            .map_err(|e| io::Error::new(e.kind(), format!("{}: {e}", board::LCD_SPI)))?;
+        let mode = match super::lcd::SPI_MODE {
+            0 => SpiModeFlags::SPI_MODE_0,
+            1 => SpiModeFlags::SPI_MODE_1,
+            2 => SpiModeFlags::SPI_MODE_2,
+            _ => SpiModeFlags::SPI_MODE_3,
+        };
+        spi.configure(
+            &SpidevOptions::new()
+                .bits_per_word(8)
+                .max_speed_hz(super::lcd::SPEED_HZ)
+                .mode(mode)
+                .build(),
+        )?;
+        let reset = gpiocdev::Request::builder()
+            .on_chip(board::GPIO_CHIP)
+            .with_consumer("fiber-lcd")
+            .with_line(board::gpio::LCD_RESET)
+            .as_active_low()
+            .as_output(Value::Inactive)
+            .request()
+            .map_err(|e| io::Error::other(format!("GPIO: {e}")))?;
+        Ok(SpiLcd { spi, reset })
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl super::lcd::Bus for SpiLcd {
+    fn send(&mut self, packet: [u8; 3]) -> io::Result<()> {
+        self.spi.write_all(&packet)
+    }
+
+    fn reset(&mut self, low: bool) -> io::Result<()> {
+        use gpiocdev::line::Value;
+        let value = if low { Value::Active } else { Value::Inactive };
+        self.reset
+            .set_value(board::gpio::LCD_RESET, value)
+            .map(|_| ())
+            .map_err(|e| io::Error::other(format!("GPIO: {e}")))
+    }
+
+    fn sleep(&mut self, duration: Duration) {
+        std::thread::sleep(duration);
+    }
+}
+
 /// A chip as the command line names it, with its serial port and its two lines.
 #[derive(Clone, Copy, Debug)]
 pub struct Target {

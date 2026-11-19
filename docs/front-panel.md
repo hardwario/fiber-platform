@@ -5,7 +5,8 @@ and the buzzer. The agent drives them. A program of your own sees the buttons an
 message on the display through MQTT ([`mqtt-api.md`](mqtt-api.md)).
 
 **Status: a draft (T20, T21).** The pages are drawn and compared with stored pictures in the
-tests; the driver that sends them to the LCD waits for the bench (T2). Not run on a FIBER yet.
+tests. The driver that sends them to the LCD is written (`agent/src/agent/lcd.rs`). Nobody has
+looked at the LCD yet: whether the pages show, and the right way up, is not known.
 
 ## The pages
 

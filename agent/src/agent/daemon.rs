@@ -119,7 +119,7 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
     })
 }
 
-/// The front panel's buttons, buzzer and backlight. Each one that is not there is said once, and
+/// The front panel's LCD, buttons, buzzer and backlight. Each one that is not there is said once, and
 /// the rest goes on without it.
 fn front_panel<B: super::run::Bus>(agent: &mut Agent<B>, paths: &Paths) -> Result<()> {
     let (backlight, duties) = tokio::sync::mpsc::unbounded_channel();
@@ -140,6 +140,16 @@ fn front_panel<B: super::run::Bus>(agent: &mut Agent<B>, paths: &Paths) -> Resul
                 tokio::spawn(super::buzzer::play(line, patterns));
             }
             Err(e) => eprintln!("the buzzer: {e}"),
+        }
+        match super::hardware::SpiLcd::new() {
+            Ok(bus) => {
+                let (lcd, pictures) = std::sync::mpsc::channel();
+                agent.lcd = Some(lcd);
+                std::thread::Builder::new()
+                    .name("lcd".into())
+                    .spawn(move || super::lcd::drive(super::lcd::Lcd::new(bus), pictures))?;
+            }
+            Err(e) => eprintln!("the LCD: {e}"),
         }
         match super::hardware::GpioButtons::new() {
             Ok(lines) => {

@@ -42,3 +42,5 @@ tokio = { workspace = true, features = ["test-util"] }
 # device: Linux only. Elsewhere the agent builds for its tests, without lines.
 [target.'cfg(target_os = "linux")'.dependencies]
 gpiocdev = "0.8"
+# The LCD on /dev/spidev6.0: its mode and speed are set by ioctl.
+spidev = "0.7"

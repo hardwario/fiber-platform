@@ -14,6 +14,7 @@ pub mod display;
 pub mod firmware;
 mod hardware;
 pub mod images;
+pub mod lcd;
 pub mod leds;
 pub mod link;
 pub mod mqtt;

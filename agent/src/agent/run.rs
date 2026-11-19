@@ -119,6 +119,9 @@ pub struct Agent<B: Bus> {
     /// The front panel's pages and menu, and the picture they make for the LCD.
     pub screen: Screen,
     pub picture: Picture,
+    /// The LCD's thread, and the picture last sent to it; none without the LCD.
+    pub lcd: Option<std::sync::mpsc::Sender<super::lcd::Rows>>,
+    lcd_sent: Option<super::lcd::Rows>,
     /// Where the pages find what is not in the state; none in the tests.
     pub sources: Option<Sources>,
 }
@@ -167,6 +170,8 @@ impl<B: Bus> Agent<B> {
             backlight_sent: None,
             screen: Screen::default(),
             picture: Picture::new(),
+            lcd: None,
+            lcd_sent: None,
             sources: None,
         }
     }
@@ -364,10 +369,21 @@ impl<B: Bus> Agent<B> {
         facts
     }
 
-    /// Draws the picture again.
+    /// Draws the picture again, and sends it to the LCD when it changed.
     fn draw(&mut self) {
         let facts = self.facts();
         self.picture = screen::draw(&mut self.screen, &facts);
+        let rows = super::lcd::rows(&self.picture);
+        if let Some(lcd) = &self.lcd
+            && self.lcd_sent != Some(rows)
+        {
+            if lcd.send(rows).is_ok() {
+                self.lcd_sent = Some(rows);
+            } else {
+                // The thread has ended: nothing shows pictures any more.
+                self.lcd = None;
+            }
+        }
     }
 
     /// A gesture of the buttons: on MQTT, and the backlight lit. When it had dimmed, the press

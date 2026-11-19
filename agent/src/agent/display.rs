@@ -1,6 +1,5 @@
 //! The display (`docs/mqtt-api.md`, `display`): the backlight, a client's message, and the
-//! picture of that message. The driver that sends a picture to the LCD comes when the bench has
-//! answered how the LCD's bus works (T2).
+//! picture of that message. The LCD's driver is in [`super::lcd`].
 
 use std::time::Duration;
 
