@@ -746,7 +746,8 @@ display on the bench; D26 says how.
       the press only lights it, as before, and stops a pattern that sounds; the message goes
       with the next press
 - [x] Tests (the buzzer's silence, the agent's press); the alarm example's text
-- [x] On the FIBER: a message sent away with a press (2026-11-19)
+- [x] On the FIBER: a message sent away with a press (2026-11-19; again at 19:36:24 with the
+      simulated alarm, one press of *enter*)
 - [ ] On the FIBER: an alarm stopped by a press
 
 - Done when: the tests pass, and on the FIBER a press takes a message away and stops the alarm.
@@ -770,6 +771,23 @@ it again (three times an hour; the two writes of this evening count). The power 
 - [ ] On the FIBER: the maintainer sees the animation
 
 - Done when: the tests pass, and on the FIBER the maintainer sees red, dark, green after a start.
+
+### T46. A client's message shows at once (M4)
+
+State (2026-11-19): started. On the bench the alarm's beep came well before its message: the agent
+draws the display on its tick, once a second, and on a press, but not after a request, so a
+message waited up to 1 s (and about 90 ms more to reach the LCD) while the buzzer started at once.
+Fixed and tested, `just check` passes; on the FIBER as release `0.1.0-bench.15` (the south
+bridge's image unchanged), the alarm sent again at 19:41:11. Left: the maintainer sees the
+message come with the beep.
+
+- [x] The agent draws after every request, as after a press
+- [x] A test: the picture shows the message as soon as the request is handled, between two ticks
+      (it fails without the fix)
+- [x] `just check`
+- [ ] On the FIBER: the alarm's message and its beep together
+
+- Done when: the test passes, and on the FIBER the message comes with the beep.
 
 ## Tasks ahead
 

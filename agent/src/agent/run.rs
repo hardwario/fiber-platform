@@ -623,8 +623,10 @@ impl<B: Bus> Agent<B> {
                 Some(_) => self.flash = Some(Some(id)),
             },
         }
-        // A message lights the backlight, a new brightness shows: at once, not at the next tick.
+        // A message lights the backlight and shows, a new brightness too: at once, not at the next
+        // tick (the beep that comes with an alarm starts at once).
         self.light();
+        self.draw();
         self.publish_state(false).await;
     }
 }
@@ -1175,6 +1177,24 @@ mod tests {
         assert_eq!(latest(&mut duty), Some(80));
         assert_eq!(last(&published, "fiber/display").unwrap()["message"], Value::Null);
         assert!(matches!(agent.screen.view, View::Page(2)));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_message_shows_at_once() {
+        use crate::agent::display::{as_text, draw_message};
+        let published = Rc::new(RefCell::new(Vec::new()));
+        let (mut agent, _bus) = agent_with(Some(CRC), &published);
+        run_without_link(&mut agent, Duration::from_millis(1500)).await;
+        let page = as_text(&agent.picture);
+        // Between two ticks: the request alone draws it.
+        agent
+            .request(br#"{"id":"m1","op":"display.message","params":{"text":"Port 5: 31.2 C\nabove 30 C"}}"#)
+            .await;
+        assert_ne!(as_text(&agent.picture), page);
+        assert_eq!(
+            as_text(&agent.picture),
+            as_text(&draw_message("Port 5: 31.2 C\nabove 30 C"))
+        );
     }
 
     #[tokio::test(start_paused = true)]
