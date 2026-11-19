@@ -4,7 +4,7 @@
     "type": "tab",
     "label": "Thermometer alarm",
     "disabled": false,
-    "info": "When a thermometer on the FIBER goes above 30 °C, the display says which one and how warm, for 10 minutes, and the buzzer sounds the alarm. Once more only after it was a degree below. The limit is a line in the function node. docs/examples.md in the FIBER platform."
+    "info": "When a thermometer on the FIBER goes above 30 °C, the display says which one and how warm, for 10 minutes or until a button is pressed, and the buzzer sounds the alarm. Once more only after it was a degree below. The limit is a line in the function node. docs/examples.md in the FIBER platform."
   },
   {
     "id": "example-alarm-broker",

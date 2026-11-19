@@ -41,9 +41,12 @@ The radio's page comes with the north bridge (T26).
 - **Enter** opens the menu, when it comes up again: a hold of *enter* is something else (in the
   menu it goes back).
 - When the backlight has dimmed, the first press only lights it: nothing else of that press acts.
+- **A press sends a client's message away** and stops a pattern a client asked for (an alarm,
+  say): any button, as it goes down. That press does nothing else. On a dimmed display the first
+  press lights it and stops the pattern; the message goes with the next press, once it can be
+  read (D26).
 - **Each press clicks** the buzzer (25 ms) as the button goes down, the one that only lights the
-  backlight too. A click never sounds over a pattern a client asked for: a press does not cut an
-  alarm short.
+  backlight too. A click alone never sounds over a pattern a client asked for.
 
 In the menu, *up* and *down* move, *enter* chooses, and *Back* leaves.
 
@@ -65,5 +68,7 @@ row, and turns the page as the button goes down, not when it comes up.
 
 - **An apply that runs** (`fiber platform apply`) shows its progress: the component, a bar and
   the step, until it ends.
-- **A client's message** (`display.message`, `fiber display message`) shows until it is cleared
-  or its time is up. The buttons go on working below it.
+- **A client's message** (`display.message`, `fiber display message`) shows until it is cleared,
+  its time is up, or somebody presses a button: that press sends it away and does nothing else
+  (D26). Alarms are the clients' to make (a Node-RED flow, say); the agent shows and sounds what it
+  is asked to.

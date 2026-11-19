@@ -122,8 +122,11 @@ pub struct Agent<B: Bus> {
     /// The LCD's thread, and the picture last sent to it; none without the LCD.
     pub lcd: Option<std::sync::mpsc::Sender<super::lcd::Rows>>,
     lcd_sent: Option<super::lcd::Rows>,
-    /// The press that is down only lit the backlight: nothing else of it acts.
-    waking: bool,
+    /// The press that is down has done its work (lit the backlight, sent a message away or
+    /// stopped a pattern): nothing else of it acts.
+    spent: bool,
+    /// When the pattern a client asked for ends: a press before then stops it (D26).
+    sounding_until: Option<Instant>,
     /// Where the pages find what is not in the state; none in the tests.
     pub sources: Option<Sources>,
 }
@@ -176,7 +179,8 @@ impl<B: Bus> Agent<B> {
             picture: Picture::new(),
             lcd: None,
             lcd_sent: None,
-            waking: false,
+            spent: false,
+            sounding_until: None,
             sources: None,
         }
     }
@@ -388,24 +392,39 @@ impl<B: Bus> Agent<B> {
         }
     }
 
-    /// A gesture of the buttons: on MQTT, and the backlight lit. When it had dimmed, the press
-    /// only lights it, and nothing else of that press acts (its click, hold or repeats).
+    /// A gesture of the buttons: on MQTT, and the backlight lit. A press that lights the
+    /// backlight, sends a client's message away or stops a client's pattern does nothing else
+    /// (its click, hold or repeats act on nothing). On a dimmed display the message stays until
+    /// the next press, when it can be read (D26).
     async fn gesture(&mut self, event: ButtonEvent) {
         let at = Instant::now();
         let dimmed = self.state.display.duty(at) < self.state.display.backlight;
         self.state.display.last_press = at;
         self.light();
+        let mut sent_away = false;
         if event.kind == Kind::Press {
-            self.waking = dimmed;
-            // A click as the button goes down, also for the press that only lights the backlight.
+            let sounding = self.sounding_until.take().is_some_and(|until| until > at);
+            sent_away = !dimmed && self.state.display.message.is_some();
+            if sent_away {
+                self.state.display.message = None;
+                self.state.display.message_until = None;
+            }
+            self.spent = dimmed || sent_away || sounding;
             if let Some(buzzer) = &self.buzzer {
+                if sounding {
+                    let _ = buzzer.send(Pattern::Silence);
+                }
+                // A click as the button goes down, whatever else the press does.
                 let _ = buzzer.send(Pattern::Click);
             }
         }
-        if !dimmed && !self.waking && self.screen.press(event) == Some(Ask::Restart) {
+        if !dimmed && !self.spent && self.screen.press(event) == Some(Ask::Restart) {
             self.restart();
         }
         self.draw();
+        if sent_away {
+            self.publish_state(false).await;
+        }
         if let Some(gesture) = buttons::gesture(event.kind) {
             let payload = topics::button_event(event.buttons, gesture, now());
             self.bus
@@ -583,7 +602,10 @@ impl<B: Bus> Agent<B> {
             }
             Handled::Beep { id, pattern } => {
                 let answer = match &self.buzzer {
-                    Some(buzzer) if buzzer.send(pattern).is_ok() => Answer::ok(&id, None),
+                    Some(buzzer) if buzzer.send(pattern).is_ok() => {
+                        self.sounding_until = Some(Instant::now() + pattern.length());
+                        Answer::ok(&id, None)
+                    }
                     _ => Answer::error(&id, "the buzzer is not there"),
                 };
                 self.answer(answer).await;
@@ -1081,6 +1103,82 @@ mod tests {
             crate::agent::display::as_text(&agent.picture) != menu,
             "the press moved nothing"
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_press_sends_a_message_away() {
+        use crate::agent::buttons::DOWN;
+        use crate::agent::screen::View;
+        let published = Rc::new(RefCell::new(Vec::new()));
+        let (mut agent, bus) = agent_with(Some(CRC), &published);
+        let (gestures, rx) = mpsc::channel(4);
+        agent.gestures = Some(rx);
+        let (buzzer, mut beeps) = mpsc::unbounded_channel();
+        agent.buzzer = Some(buzzer);
+        let press = |buttons, kind| ButtonEvent { buttons, kind };
+        let request = |json: &str| BusEvent::Request(json.as_bytes().to_vec());
+
+        // An alarm as the example flow asks for it: a message for 10 minutes, and the pattern.
+        bus.send(request(
+            r#"{"id":"m1","op":"display.message","params":{"text":"Port 5: 30.8 C\nabove 30 C","seconds":600}}"#,
+        ))
+        .unwrap();
+        bus.send(request(
+            r#"{"id":"b1","op":"buzzer.beep","params":{"pattern":"alarm"}}"#,
+        ))
+        .unwrap();
+        run_without_link(&mut agent, Duration::from_millis(500)).await;
+        assert_eq!(beeps.try_recv().unwrap(), Pattern::Alarm);
+        assert_eq!(
+            last(&published, "fiber/display").unwrap()["message"],
+            "Port 5: 30.8 C\nabove 30 C"
+        );
+
+        // A press of down while it sounds: the message goes, the alarm stops, the page stays,
+        // and its click (on the release) acts on nothing.
+        gestures.send(press(DOWN, Kind::Press)).await.unwrap();
+        gestures.send(press(DOWN, Kind::Click)).await.unwrap();
+        run_without_link(&mut agent, Duration::from_millis(100)).await;
+        assert_eq!(beeps.try_recv().unwrap(), Pattern::Silence);
+        assert_eq!(beeps.try_recv().unwrap(), Pattern::Click);
+        assert!(beeps.try_recv().is_err());
+        assert_eq!(last(&published, "fiber/display").unwrap()["message"], Value::Null);
+        assert!(matches!(agent.screen.view, View::Page(0)));
+
+        // The next press acts as ever.
+        gestures.send(press(DOWN, Kind::Press)).await.unwrap();
+        run_without_link(&mut agent, Duration::from_millis(100)).await;
+        assert_eq!(beeps.try_recv().unwrap(), Pattern::Click);
+        assert!(matches!(agent.screen.view, View::Page(1)));
+
+        // A pattern that has ended is not stopped: the press moves the page.
+        bus.send(request(
+            r#"{"id":"b2","op":"buzzer.beep","params":{"pattern":"alarm"}}"#,
+        ))
+        .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(2)).await;
+        assert_eq!(beeps.try_recv().unwrap(), Pattern::Alarm);
+        gestures.send(press(DOWN, Kind::Press)).await.unwrap();
+        run_without_link(&mut agent, Duration::from_millis(100)).await;
+        assert_eq!(beeps.try_recv().unwrap(), Pattern::Click);
+        assert!(matches!(agent.screen.view, View::Page(2)));
+
+        // On a dimmed display the first press only lights it; the message goes with the next,
+        // once it can be read.
+        bus.send(request(
+            r#"{"id":"m2","op":"display.message","params":{"text":"hello"}}"#,
+        ))
+        .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(61)).await;
+        gestures.send(press(DOWN, Kind::Press)).await.unwrap();
+        run_without_link(&mut agent, Duration::from_millis(100)).await;
+        assert_eq!(beeps.try_recv().unwrap(), Pattern::Click);
+        assert_eq!(last(&published, "fiber/display").unwrap()["message"], "hello");
+        gestures.send(press(DOWN, Kind::Press)).await.unwrap();
+        run_without_link(&mut agent, Duration::from_millis(100)).await;
+        assert_eq!(beeps.try_recv().unwrap(), Pattern::Click);
+        assert_eq!(last(&published, "fiber/display").unwrap()["message"], Value::Null);
+        assert!(matches!(agent.screen.view, View::Page(2)));
     }
 
     #[tokio::test(start_paused = true)]

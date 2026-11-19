@@ -543,6 +543,9 @@ on `ports/3`) and `request.py` (an LED set and back to auto) were answered `ok`;
 and the Rust example connect and wait (no probe plugged in); both flows import into the FIBER's
 Node-RED and connect, and stay there; the button flow beeped on a hold of *enter* (the maintainer
 heard it). Not on the FIBER: a reading, the alarm (no probe). Left: those, and the TOWER flow (T26).
+Later the same day the alarm flow, still in the bench FIBER's Node-RED, fired from a real probe
+(port 5, warmed by hand to 30.75 °C): the maintainer saw "Port 5: ... / above 30 °C" and heard the
+alarm, and found no way to take the message off the display for its 10 minutes (D26).
 Earlier (2026-11-18): everything that runs without a FIBER is done and checked, commit `877ce39`, CI
 run 44262065157 green (the converge test with the examples in it, on the arm64 runner): `just check`
 (with `check-examples` and the example's lock file in `audit`) and the converge test pass. In step 10c, against the agent's service: `request.sh` and `request.py` put a message on
@@ -712,6 +715,26 @@ hopping (US 915), the remote shell, bulk transfer.
 
 - Needs: T23.
 - Done when: the vectors pass, and the flow tests cover the three cases above.
+
+### T42. A press sends a client's message away (D26) (M4)
+
+State (2026-11-19): written and tested on the computer, `just check` passes. On the bench's FIBER as
+release `0.1.0-bench.10`; a test message is on its display ("Press any button / to send this
+away", 1 hour) and `fiber-bench-watch` records `display` and `buttons/event` in
+`/tmp/fiber-bench-watch.log` there. Waiting for the maintainer to press. The alarm example's message could not be taken off the
+display on the bench; D26 says how.
+
+- [x] `docs/front-panel.md`, `docs/mqtt-api.md` (`display.message`, `display`, `buzzer.beep`),
+      `docs/examples.md` first
+- [x] A press while a client's message shows or a client's pattern sounds: the message goes,
+      the pattern stops (`Pattern::Silence`, the agent's own), `display` says `"message": null`
+      at once, and nothing else of that press acts (its click still sounds). On a dimmed display
+      the press only lights it, as before, and stops a pattern that sounds; the message goes
+      with the next press
+- [x] Tests (the buzzer's silence, the agent's press); the alarm example's text
+- [ ] On the FIBER: a message and an alarm sent away with a press
+
+- Done when: the tests pass, and on the FIBER a press takes a message away and stops the alarm.
 
 ## Tasks ahead
 
@@ -1697,3 +1720,9 @@ Done 2026-11-19, commit `a3acab3`. Checked: `just check`, and on the FIBER (benc
   no tag until T2 has run the platform on a FIBER from a release built by hand (`just release`,
   served to it). Until then FIBER Setup's work on T12 stays on this computer, as its catalog names
   an installer that is not published (T12).
+- **D26. How does a person at the FIBER get rid of a client's message, and do alarms belong in
+  the agent?** Alarms stay in the flows; a press takes a client's message off the display and
+  stops a pattern that sounds, and that press does nothing else; `display` then says
+  `"message": null` (the maintainer, 2026-11-19, after the example's alarm could not be sent
+  away on the bench). The other choices were: the message only stepping aside, a parameter that
+  keeps a message whatever is pressed, and alarms in the agent. Built in T42.

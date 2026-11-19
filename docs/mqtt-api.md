@@ -176,7 +176,7 @@ The display's own pages (M4) also follow the buttons; a client sees the same eve
 | Key | Meaning |
 |---|---|
 | `backlight` | The backlight's brightness when it is lit, 0 to 100 % |
-| `message` | The message a client put on the display (`display.message`), or `null` |
+| `message` | The message a client put on the display (`display.message`), or `null`: cleared, its time up, or sent away with a press of a button |
 
 The backlight dims to a fifth of its brightness 60 s after the last press of a button, and comes
 back with the next one.
@@ -279,12 +279,14 @@ Sounds the buzzer (about 2.4 kHz; it has one tone).
 |---|---|
 | `pattern` | `"beep"` (0.1 s), `"double"` (two of them), `"long"` (0.5 s), `"alarm"` (five beeps); `"beep"` when left out |
 
-`data`: none. It answers at once; a pattern that sounds while another is asked for is cut short.
+`data`: none. It answers at once; a pattern that sounds while another is asked for is cut short,
+and a press of a button stops it.
 
 ### `display.message`
 
-Puts a message on the display, over the pages, until it is cleared or its time is up. It shows
-5 lines of 21 characters (Spleen 6 x 12); what does not fit is cut.
+Puts a message on the display, over the pages, until it is cleared, its time is up, or somebody
+at the FIBER presses a button (`display` then says `"message": null`). It shows 5 lines of 21
+characters (Spleen 6 x 12); what does not fit is cut.
 
 | Param | Meaning |
 |---|---|

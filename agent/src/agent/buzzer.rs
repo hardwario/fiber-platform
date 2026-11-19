@@ -13,6 +13,9 @@ pub enum Pattern {
     /// The click of a button going down: the agent's own, not one a client asks for. It never
     /// cuts a pattern short.
     Click,
+    /// Stops the pattern that sounds, for the press that sends a client's message or alarm away
+    /// (D26): the agent's own too.
+    Silence,
 }
 
 impl Pattern {
@@ -34,12 +37,18 @@ impl Pattern {
             Pattern::Double => vec![(ms(100), ms(100)), (ms(100), ms(0))],
             Pattern::Long => vec![(ms(500), ms(0))],
             Pattern::Click => vec![(ms(25), ms(0))],
+            Pattern::Silence => vec![],
             Pattern::Alarm => {
                 let mut steps = vec![(ms(150), ms(100)); 5];
                 steps[4].1 = ms(0);
                 steps
             }
         }
+    }
+
+    /// How long the pattern takes.
+    pub fn length(self) -> Duration {
+        self.steps().iter().map(|(on, off)| *on + *off).sum()
     }
 }
 
@@ -49,11 +58,17 @@ pub trait Line {
 }
 
 /// Plays the patterns that come in, one at a time; a new one cuts the one that sounds short, but
-/// a click does not: it is dropped while another pattern sounds (a press must not end an alarm).
-/// Ends silent when `patterns` is closed.
+/// a click alone does not: it is dropped while another pattern sounds. The press that is meant to
+/// stop one sends [`Pattern::Silence`] first. Ends silent when `patterns` is closed.
 pub async fn play<L: Line>(mut line: L, mut patterns: tokio::sync::mpsc::UnboundedReceiver<Pattern>) {
     let mut next = patterns.recv().await;
     while let Some(pattern) = next.take() {
+        if pattern == Pattern::Silence {
+            // The pattern before it was cut short; a click after it is not dropped.
+            line.sound(false);
+            next = patterns.recv().await;
+            continue;
+        }
         {
             let steps = async {
                 for (on, off) in pattern.steps() {
@@ -159,6 +174,38 @@ mod tests {
         );
         // Not a pattern a client can ask for.
         assert_eq!(Pattern::parse("click"), None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn silence_stops_an_alarm_and_lets_the_click_through() {
+        let line = Recorded(Arc::new(Mutex::new(vec![(0, false)])), Instant::now());
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let player = tokio::spawn(play(line.clone(), rx));
+        tx.send(Pattern::Alarm).unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        // A press during its second beep: silence, then its click.
+        tx.send(Pattern::Silence).unwrap();
+        tx.send(Pattern::Click).unwrap();
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        // Silence with nothing sounding does nothing.
+        tx.send(Pattern::Silence).unwrap();
+        drop(tx);
+        player.await.unwrap();
+        assert_eq!(
+            *line.0.lock().unwrap(),
+            [
+                (0, false),
+                (0, true),
+                (150, false),
+                (250, true),
+                (300, false),
+                (300, true),
+                (325, false)
+            ]
+        );
+        assert_eq!(Pattern::parse("silence"), None);
+        assert_eq!(Pattern::Alarm.length(), Duration::from_millis(1150));
+        assert_eq!(Pattern::Silence.length(), Duration::ZERO);
     }
 
     #[test]

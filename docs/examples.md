@@ -83,8 +83,9 @@ Two flows to import (*Menu > Import*, then pick the file). Each brings its own b
 *FIBER (localhost:1883)*, so it imports into any Node-RED; the starter flow's broker works as well.
 
 - [`thermometer-alarm.json`](../examples/node-red/thermometer-alarm.json): when a thermometer goes
-  above 30 °C, the display says which one and how warm, for 10 minutes, and the buzzer sounds the
-  alarm. Once more only after it was a degree below. The limit is a line in its function node.
+  above 30 °C, the display says which one and how warm, for 10 minutes or until a button is
+  pressed, and the buzzer sounds the alarm. Once more only after it was a degree below. The limit
+  is a line in its function node.
 - [`button-beep.json`](../examples/node-red/button-beep.json): holding *enter*, the middle button
   beside the display, for 0.8 s sounds a beep. The display follows the buttons too: a click on
   *enter* opens its menu, but a hold does nothing on its pages (in the menu it goes back).
