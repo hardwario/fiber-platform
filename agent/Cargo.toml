@@ -38,6 +38,8 @@ tower-hmi.workspace = true
 tz-rs = "0.7"
 
 [dev-dependencies]
+# A node's Report, built in the radio's tests: the version tower-protocol uses.
+heapless = "0.9"
 # A paused clock for the tests of the agent's loop.
 tokio = { workspace = true, features = ["test-util"] }
 

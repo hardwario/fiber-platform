@@ -21,6 +21,7 @@ pub mod link;
 pub mod mqtt;
 pub mod notify;
 pub mod power;
+pub mod radio;
 pub mod requests;
 pub mod run;
 pub mod screen;

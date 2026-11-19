@@ -364,6 +364,7 @@ dependencies = [
  "fiber-protocol",
  "fiber-south-core",
  "gpiocdev",
+ "heapless",
  "rumqttc",
  "serde",
  "serde-saphyr",

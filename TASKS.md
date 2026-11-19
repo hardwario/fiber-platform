@@ -775,7 +775,12 @@ only its prefix; the node's `stack` (`tower`); the gateway's address chosen once
 kept; the nodes in `/var/lib/fiber/radio/nodes.json`, written to a new file and renamed; one
 queued value per property in the agent behind the north bridge's one message per node. Found on
 the way: the north link has no way to send at once to a node that listens (TOWER's `control`
-kind); written down as not yet. Next: the agent's side of the north link, against a simulator.
+kind); written down as not yet. The radio service's logic is written and tested
+(`agent/src/agent/radio/`: `store` for the nodes file, `values` for TOWER's property values with
+`tower-protocol`'s own parse and fixed-point writing, `service` turning each north message,
+request and client `set` into effects: publish, send north, save, say; 14 tests). Next: the north
+link's task in the agent (the port, the frames, one message at a time with its answer), wired into
+the agent's loop and MQTT, then the simulator.
 
 - [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
       pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
