@@ -17,3 +17,7 @@ workspace = true
 # TOWER's own code, so the two stacks cannot disagree about them.
 tower-net.workspace = true
 tower-radio.workspace = true
+# TOWER's application messages, for the one check that their MTU is the frame's (frame.rs).
+tower-protocol.workspace = true
+# AES-128 in software for the CCM (frame::SoftAes), as TOWER's own host tests use it; no_std.
+aes = "0.9"
