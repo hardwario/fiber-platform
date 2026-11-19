@@ -62,6 +62,7 @@ const V_STRUCT: u8 = 0x24;
 /// Where a link's hash starts: one for each link, so that two links with the same messages
 /// still have different tags.
 pub const SOUTH_LINK: u8 = 0x53;
+pub const NORTH_LINK: u8 = 0x4e;
 
 pub const fn feed(mut state: u64, bytes: &[u8]) -> u64 {
     let mut i = 0;

@@ -40,7 +40,7 @@ The directory `crates/X` holds the package `fiber-X`.
 
 | Path | Package | Role | Exists |
 |---|---|---|---|
-| `crates/protocol` | `fiber-protocol` | `no_std`, self-contained: COBS + CRC-32 + postcard framing with its own schema tag, and the two link schemas (south, north). The one wire contract between the agent and the firmware. | the frame and the south link |
+| `crates/protocol` | `fiber-protocol` | `no_std`, self-contained: COBS + CRC-32 + postcard framing with its own schema tag, and the two link schemas (south, north). The one wire contract between the agent and the firmware. | the frame, the south link, and the north link's messages (T25) |
 | `crates/flasher` | `fiber-flasher` | The ROM-bootloader engine (ST AN3155) for STM32C0 and STM32WL; reset lines behind a trait; a fake ROM for tests. | the engine and the simulated chip |
 | `crates/south-core` | `fiber-south-core` | `no_std`: the south bridge's logic, host-tested; also builds as a host simulator. | the logic, and the simulator (`fiber south-simulator`) |
 | `crates/tower-air` | `fiber-tower-air` | `no_std`: software packet codec, on-air frame codec and gateway flow of the TOWER personality, over a radio trait and the pinned TOWER kernels. | the packet codec and the frame codec, tested against captures of a Core Module (T23, T24); the gateway's flow for known nodes, tested against a made-up radio and the captured frames (T24); pairing a node and the keyed join, tested against a node made up from TOWER's kernels (T47); pin checks |

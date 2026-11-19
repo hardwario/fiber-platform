@@ -1,4 +1,5 @@
-//! The links between the agent and the FIBER's two microcontrollers (`docs/firmware/`).
+//! The links between the agent and the FIBER's two microcontrollers (`docs/firmware/`): the south
+//! link ([`south`]) and the north link ([`north`]), in the same frame, each with its own tag.
 //!
 //! The agent and the firmware build this one source, so they cannot disagree on a message. A
 //! peer built from another source is refused by the schema tag every frame carries.
@@ -15,6 +16,7 @@
 
 pub mod crc;
 pub mod fingerprint;
+pub mod north;
 pub mod south;
 
 use serde::{Deserialize, Serialize};

@@ -725,8 +725,12 @@ State (2026-11-19): started, without hardware (the maintainer away from the benc
 T47 (pushed, `f47d3bd`). The link document is written (`docs/firmware/north-link.md`, a draft
 the maintainer has not read): the south link's frame with a tag of its own; every message from
 the agent answered (`Answer`), sent again when no answer comes within 200 ms; the radio silent
-until `Settings`; uplinks acknowledged only while there is room to pass them on. Next: the
-messages in `crates/protocol` (`north`), then the firmware.
+until `Settings`; uplinks acknowledged only while there is room to pass them on. The messages
+are in `crates/protocol` (`north`, its tag `0xa5bc` pinned by a test; a node's payload as a byte
+string of at most 74). Seen on the way: adding the module moved the south bridge's image
+(`0xfbcd5b36` to `0xb79f9cb6`, 16240 bytes) with no change of its own (the crate's symbol names
+moved, and the linker's layout with them): the agent writes it once more at its next install.
+Next: the firmware, `firmware/north`.
 
 - [x] `docs/firmware/north-link.md` first: `Hello` (who it is, its image's CRC, the
       personalities it has and the one that is active, why it reset), `SetPersonality`, the
