@@ -1726,7 +1726,7 @@ hopping (US 915), the remote shell, bulk transfer.
 
 ### T47. Pairing over the air (M5)
 
-Done 2026-11-19 (the commit that closes it). Checked: `just check`, and 7 tests against a
+Done 2026-11-19, commit `ddf6d39`, CI run 44618074937 green. Checked: `just check`, and 7 tests against a
 joining node made up from `tower_net::handshake` (as a TOWER node runs it): the whole handshake
 (the same link key and code at both ends, the answers 20 ms after each frame), a wrong
 confirmation, a lost nonce (a fresh key pair for the next try), who may join (a known node, a
