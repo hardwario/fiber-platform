@@ -766,6 +766,43 @@ bench.
 - Done when: the firmware runs on a FIBER, says `Hello`, and takes its settings from a test
   program.
 
+### T26. The agent's radio service (M5)
+
+State (2026-11-19): started, without hardware, after T25's firmware (built, not run).
+`docs/mqtt-api.md` has the radio now ("The radio", a draft): TOWER's own gateway topics and
+payloads (its `docs/cli/mqtt-api.md`) under `fiber/radio/`, so a client of TOWER's bridge changes
+only its prefix; the node's `stack` (`tower`); the gateway's address chosen once at random and
+kept; the nodes in `/var/lib/fiber/radio/nodes.json`, written to a new file and renamed; one
+queued value per property in the agent behind the north bridge's one message per node. Found on
+the way: the north link has no way to send at once to a node that listens (TOWER's `control`
+kind); written down as not yet. Next: the agent's side of the north link, against a simulator.
+
+- [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
+      pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
+      `state/{prop}`, `event/{prop}` and `set/{prop}`, and the methods `radio.config`,
+      `radio.node_add`, `radio.node_remove`, `radio.node_rename`, `radio.pairing_open`,
+      `radio.pairing_cancel`. Every node says which stack it belongs to, so that LoRa later adds
+      nodes and not a second tree
+- [ ] The nodes in `/var/lib/fiber/radio/`: the gateway's address, and for each node its
+      address, key, name, kind and the last counter seen. Written so that a power cut cannot
+      tear it
+- [ ] The agent's own transmit-counter watermark; the counter starts from the higher of this and
+      the north bridge's own, so that a FIBER restored from a copy of its disk cannot use an
+      encryption nonce twice (D8)
+- [ ] Node messages read with `tower-protocol` (its schema tag checked first) and turned into
+      topics by its property tables
+- [ ] Pairing: opened from the command line, from MQTT or from the menu, for 60 s; the six-digit
+      code on the LCD and in `radio/pairing`
+- [ ] The north bridge's image built into the program, and flashed by the agent as the south
+      bridge's is (T17)
+- [ ] `fiber radio status | config | nodes | pair | watch`
+- [ ] The north bridge as a simulator, as the south bridge's (`agent/src/agent/simulator.rs`),
+      speaking `docs/firmware/north-link.md` (moved here from T25)
+- [ ] Tests against the north bridge simulator
+
+- Needs: T17, T25, T47; T21 for the code on the LCD.
+- Done when: the lines under "M5" hold with one Core Module.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -804,34 +841,6 @@ the pages. Held on a FIBER (2026-11-19); its tasks, T20 and T21, are done.
 Done when: two TOWER Core Modules at the pinned revision pair with the FIBER, their events arrive
 on MQTT and a `set` reaches them; at least 99 % of frames are acknowledged at the first try;
 replays are refused after a restart of either side; 24 hours pass without a fault.
-
-#### T26. The agent's radio service
-
-- [ ] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
-      pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
-      `state/{prop}`, `event/{prop}` and `set/{prop}`, and the methods `radio.config`,
-      `radio.node_add`, `radio.node_remove`, `radio.node_rename`, `radio.pairing_open`,
-      `radio.pairing_cancel`. Every node says which stack it belongs to, so that LoRa later adds
-      nodes and not a second tree
-- [ ] The nodes in `/var/lib/fiber/radio/`: the gateway's address, and for each node its
-      address, key, name, kind and the last counter seen. Written so that a power cut cannot
-      tear it
-- [ ] The agent's own transmit-counter watermark; the counter starts from the higher of this and
-      the north bridge's own, so that a FIBER restored from a copy of its disk cannot use an
-      encryption nonce twice (D8)
-- [ ] Node messages read with `tower-protocol` (its schema tag checked first) and turned into
-      topics by its property tables
-- [ ] Pairing: opened from the command line, from MQTT or from the menu, for 60 s; the six-digit
-      code on the LCD and in `radio/pairing`
-- [ ] The north bridge's image built into the program, and flashed by the agent as the south
-      bridge's is (T17)
-- [ ] `fiber radio status | config | nodes | pair | watch`
-- [ ] The north bridge as a simulator, as the south bridge's (`agent/src/agent/simulator.rs`),
-      speaking `docs/firmware/north-link.md` (moved here from T25)
-- [ ] Tests against the north bridge simulator
-
-- Needs: T17, T25, T47; T21 for the code on the LCD.
-- Done when: the lines under "M5" hold with one Core Module.
 
 #### T27. Keeping the two radio stacks together
 
