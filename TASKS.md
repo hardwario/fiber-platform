@@ -1653,7 +1653,8 @@ the buzzer started at once.
 
 ### T24. The frame codec and the gateway's flow (M5)
 
-Done 2026-11-19 (the frame codec `8ec3c7b`, `17ca877`; the flow in the commit that closes it).
+Done 2026-11-19 (the frame codec `8ec3c7b`, `17ca877`; the flow `7338409`, CI run 44615462418
+green).
 Checked: `just check`, the 11 flow tests and the 32 frames of a real Core Module through the
 gateway (each message taken in once, each copy answered). Not run on a FIBER: that needs the
 north bridge's firmware (T25). Pairing over the air is T47. Settled on the way: `recv` receives
