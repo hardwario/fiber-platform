@@ -77,7 +77,7 @@ these answers, and each takes minutes ([`docs/bench-checks.md`](docs/bench-check
       3 at 400 kHz, with `0xF8` before a command and `0xFA` before data). Nothing may object to
       the overlay taking GPIO19 (2026-11-19: the agent's pages show, sent that way)
 - [x] The backlight on PWM channel 1 (`dtoverlay=pwm,pin=13,func=4`): it lights, at the 80 % the
-      agent sets (the maintainer, 2026-11-19); the dimming not looked at
+      agent sets, and dims after a minute without a press (the maintainer, 2026-11-19)
 - [x] The buttons on GPIO23, 24 and 25 read low while pressed (2026-11-19: they read high when not
       pressed, and the agent's pages follow them)
 - [x] The buzzer sounds with GPIO17 low (2026-11-19, heard)
@@ -1319,9 +1319,9 @@ example flow, then `fiber buzzer beep`); `fiber display` answers. The panel is m
 down, so the driver turns the picture by 180 degrees, as the earlier software did; the first look
 ("the lcd module view is flipped") said so and was misread, and for one build (`20bdbb2`) the turn
 was out. The driver (`agent/src/agent/lcd.rs`): ST7920 packets over `/dev/spidev6.0` in mode 3 at
-400 kHz, reset on GPIO16, only the rows that changed, set up again after an error. Not looked at:
-the backlight's dimming after 60 s; `fiber buttons watch` itself (the flow read the same
-`buttons/event`). Commits `f68b657`, `20bdbb2`, `7cb8657`, on this computer only; `just check` and
+400 kHz, reset on GPIO16, only the rows that changed, set up again after an error. The backlight
+dims after 60 s without a press, as it should. Not run: `fiber buttons watch` itself (the flow
+read the same `buttons/event`). Commits `f68b657`, `20bdbb2`, `7cb8657`, on this computer only; `just check` and
 the converge test passed with the driver.
 Earlier (2026-11-18): all but the display driver is written and tested on the computer: the docs
 (drafts), the buttons (`agent/src/agent/buttons.rs`, `tower-hmi`'s recognizer on a thread that waits
