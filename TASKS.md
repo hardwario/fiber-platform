@@ -704,6 +704,44 @@ the receive filter has to be wide enough for both crystals' error.
 - Needs: T2 (the bootloader answers, to write the test firmware); a TOWER Core Module.
 - Done when: frames go both ways, and the captures are in the repository.
 
+### T23. The radio's command layer and the packet codec (M5)
+
+State (2026-11-19): started. T22 settled the air format (`docs/firmware/radio.md`) and the radio's
+settings, in the spike's own code. Now each in its place, host-tested: the packet codec in
+`crates/tower-air`, the sub-GHz commands in a crate of their own, `crates/subghz` (`fiber-subghz`,
+`no_std`, over a bus trait that the firmware fills with the SUBGHZSPI), so that the north bridge's
+firmware (T25) and the spike use the same code. The spike is the test firmware for "Done when":
+it moves onto the two crates and exchanges frames with a Core Module through them.
+
+- [ ] The packet codec in `fiber-tower-air`, as pure functions tested against the captures of
+      T22. To send: length, frame and CRC, whitened. To receive: the length byte as soon as it
+      is in (how many bytes follow), then the rest, de-whitened and checked
+- [ ] `crates/subghz`: the radio inside the STM32WL over a bus trait: standby, the regulator,
+      the TCXO, the calibrations, packet type, frequency, GFSK modulation and packet settings,
+      the sync word, the buffer, interrupts, signal strength of a packet and of the channel, the
+      low-power PA (+14 dBm at most, the limit of the 25 mW band), receive and send; the RF
+      switch as a trait of its own. Laid out so that LoRa is another packet type and not a
+      rewrite (D4). Tests: the bytes of each command, against the spike's, which the bench
+      proved
+- [ ] The spike on the two crates: the receive flow (the sync word, the length byte one byte
+      time later, the rest when it is in, read, receive again), and sending; frames both ways
+      with the Core Module r2 (`radio_beacon` as node, then as sniffer, flashed over its FTDI)
+- [ ] The `Radio` trait the gateway is written against: send a frame, receive one with its
+      signal strength, set the channel
+- [ ] `docs/firmware/radio.md` and `docs/architecture.md` (the new crate) as it is then
+
+Watch out: this radio gives a signal strength and nothing like the SPIRIT1's link quality
+numbers, so our messages carry the strength alone.
+
+- Needs: T22.
+- Done when: the codec passes every capture, and the test firmware exchanges frames with a Core
+  Module through it.
+
+## Tasks ahead
+
+In the order of the plan. Every task has its steps already; when a task starts, they are read
+again and brought up to date before the first one is ticked.
+
 ### M0. Foundations and bench checks
 
 Its tasks, T1 to T3, are in progress or done.
@@ -737,28 +775,6 @@ the pages. Held on a FIBER (2026-11-19); its tasks, T20 and T21, are done.
 Done when: two TOWER Core Modules at the pinned revision pair with the FIBER, their events arrive
 on MQTT and a `set` reaches them; at least 99 % of frames are acknowledged at the first try;
 replays are refused after a restart of either side; 24 hours pass without a fault.
-
-#### T23. The radio's command layer and the packet codec
-
-- [ ] The command layer for the radio inside the STM32WL (about 500 lines; no maintained crate
-      does GFSK): standby, packet type, frequency, modulation, packet settings, interrupts, the
-      buffer, the signal strength of a packet and of the channel, the transmit power on the
-      low-power PA (+14 dBm, the limit of the 25 mW band), the TCXO, the RF switch. Laid out so
-      that LoRa is another packet type and not a rewrite (D4)
-- [ ] The packet codec in `fiber-tower-air`, as pure functions tested against the captures of
-      T22. To send: length, frame and CRC, whitened. To receive: the length byte as soon as it
-      is in, then the rest, de-whitened and checked
-- [ ] The receive flow in the firmware: the interrupt at the sync word, one byte time later the
-      length, a timer for the rest, read, standby, receive again
-- [ ] The `Radio` trait the gateway is written against: send a frame, receive one with its
-      signal strength, set the channel
-
-Watch out: this radio gives a signal strength and nothing like the SPIRIT1's link quality
-numbers, so our messages carry the strength alone.
-
-- Needs: T22.
-- Done when: the codec passes every capture, and the test firmware exchanges frames with a Core
-  Module through it.
 
 #### T24. The frame codec and the gateway's flow
 
@@ -1480,11 +1496,6 @@ slowness was mostly that a click is recognized on the release: the page turns on
 
 - Done when: the pictures match, and on the FIBER the pages look right and turn as the button
   goes down.
-
-## Tasks ahead
-
-In the order of the plan. Every task has its steps already; when a task starts, they are read
-again and brought up to date before the first one is ticked.
 
 ### T39. The front panel shows local time (M4)
 
