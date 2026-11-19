@@ -149,6 +149,35 @@ afternoon the levels were 10 dB lower still in both directions (-85 dBm received
 sent at +10 and +14 dBm); the back-to-back runs rule the regulator out, so something on the bench
 moved.
 
+**Against a second Core Module** (2026-11-19, evening): two Core Modules r2 on the maintainer's
+computer, 10 cm apart, both about 20 cm from the FIBER's antenna (the second one tried). TOWER
+sends at about +12 dBm (its `firmware/src/radio/config.rs`).
+
+| From | To | Received | Lost on the way |
+|---|---|---|---|
+| Core Module B (its own node application, 12 frames) | Core Module A, 10 cm | -49 dBm | about 61 dB |
+| Core Module B, the same 12 frames | the north bridge, 20 cm | -66 to -68 dBm | about 79 dB |
+| Core Module A (`net_confirmed`) | the north bridge, 20 cm | -73 dBm (most of 36) | about 85 dB |
+| the north bridge, +14 dBm | Core Module A, 20 cm | -81 dBm | 95 dB |
+| the north bridge, +10 dBm | Core Module A, 20 cm | -84 dBm | 94 dB |
+
+- **The receiver is fine:** the same frames reach the north bridge 17 to 19 dB below a Core Module
+  at half the distance, which is about what twice the distance costs this close to the antennas
+  (both within half a wavelength, 17 cm, where the field falls faster than in the open). Its
+  readings are trustworthy: the noise floor reads what thermal noise gives (above).
+- **The RF switch is right, tried:** frames at +10 dBm through each of the 8 states of PC3, PC4
+  and PC5 (the spike's switch sweep, 6 rounds): only PC4 high with PC5 low gets them out, -84
+  dBm with PC3 high or low; with PC4 low and PC5 high (ST's state for the high-power PA) one of
+  6 was heard at -103 dBm; the other 5 states nothing, or one at -104 dBm. ST's state for the
+  low-power PA (PC3 and PC4 high, PC5 low) is the spike's.
+- **Sending is 10 dB short of receiving on the same pair** (A both ways: 95 against 85 dB), and
+  the two directions should lose the same. The PA follows its settings (+10 to +14 dBm gives 3
+  dB, -3 to +10 dBm gives 13 dB), so it is a fixed loss, not a PA that saturates. What is not
+  known: how far the SPIRIT1's RSSI is from the truth (TOWER takes the datasheet's `raw/2 - 130`)
+  and what a Core Module really sends. Settling it needs a calibrated receiver: a spectrum
+  analyser or a power meter on the north bridge's jack through an attenuator. The two Core
+  Modules differ too: B reaches the north bridge 6 dB stronger than A.
+
 Not done yet: the error rates at -60, -90, -100 and -105 dBm (they need attenuators), more than
 one Core Module, and the frequency offset in Hz.
 

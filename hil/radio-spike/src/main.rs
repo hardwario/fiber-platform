@@ -50,6 +50,9 @@ enum Mode {
     Receive,
     /// `radio_beacon`'s frames, made by the codec, sent on channel 0.
     Send,
+    /// The same frames at +10 dBm through each of the RF switch's 8 states in turn, to find the
+    /// one that gets the most to the antenna.
+    SwitchSweep,
 }
 
 const MODE: Mode = Mode::Receive;
@@ -451,6 +454,59 @@ fn send(radio: &mut Radio) -> ! {
     }
 }
 
+/// PC3, PC4 and PC5 as bits 0, 1 and 2 of `state`, whatever ST's table says.
+fn switch_pins(state: u32) {
+    pac::GPIOC.bsrr().write(|w| {
+        for (bit, pin) in [(0, 3), (1, 4), (2, 5)] {
+            if state & (1 << bit) != 0 {
+                w.set_bs(pin, true);
+            } else {
+                w.set_br(pin, true);
+            }
+        }
+    });
+}
+
+/// Frames numbered 2 000 000 + 8 x round + state, at +10 dBm, one every second, the switch in
+/// `state` (PC3 bit 0, PC4 bit 1, PC5 bit 2) while it sends; 6 rounds.
+fn switch_sweep(radio: &mut Radio) -> ! {
+    say!("switch sweep: +10 dBm, the 8 states of PC3/PC4/PC5 in turn, 6 rounds");
+    let mut packet = [0u8; MAX_PACKET];
+    for n in 0..48u32 {
+        let state = n % 8;
+        let seq = 2_000_000 + n;
+        let mut payload = [0xA5u8; 16];
+        payload[..4].copy_from_slice(&seq.to_le_bytes());
+        let len = packet::encode(&payload, &mut packet).unwrap_or(0);
+        tune(radio, CHANNELS[0], Bandwidth::Khz187, &SYNC_WORD, len as u8);
+        radio.set_low_power_pa(LowPowerPa::DBM_10, Ramp::Us200).ok();
+        radio.write_buffer(0, &packet[..len]).ok();
+        radio.clear_irq(Irq::ALL).ok();
+        switch_pins(state);
+        radio.send(Timeout::None).ok();
+        let start = now();
+        while micros_since(start) < 200_000 {
+            if radio.irq().unwrap_or_default().contains(Irq::TX_DONE) {
+                break;
+            }
+        }
+        radio.clear_irq(Irq::ALL).ok();
+        radio.standby(Standby::Rc).ok();
+        RfSwitch.set(Path::Off);
+        say!(
+            "sent #{seq}: PC3 {} PC4 {} PC5 {}",
+            state & 1,
+            (state >> 1) & 1,
+            (state >> 2) & 1
+        );
+        delay_us(1_000_000);
+    }
+    say!("switch sweep: done");
+    loop {
+        cortex_m::asm::wfi();
+    }
+}
+
 // ---- Capture and survey ------------------------------------------------------------------------
 
 /// The bytes kept after a preamble in capture mode.
@@ -593,5 +649,6 @@ fn main() -> ! {
         Mode::Capture => capture(&mut radio),
         Mode::Receive => receive(&mut radio),
         Mode::Send => send(&mut radio),
+        Mode::SwitchSweep => switch_sweep(&mut radio),
     }
 }

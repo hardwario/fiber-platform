@@ -58,7 +58,7 @@ From RM0453 (the STM32WL reference manual, section 5), as the spike sets it:
 | Sync word | registers `0x06C0` | `15 47 62 DB` |
 | Receive gain | register `0x08AC` | `0x96` (boosted) |
 | Transmit | `SetPaConfig`, `SetTxParams` | the low-power PA: `04 00 01 01` and 14 for +14 dBm, `01 00 01 01` and 13 for +10 dBm; a ramp of 200 us |
-| RF switch | PC3, PC4, PC5 | receive: all high; transmit on the low-power PA: PC3 and PC4 high, PC5 low; off: all low (ST's HAL for the module, `HAL_RADIO_SetSwitchConfig`) |
+| RF switch | PC3, PC4, PC5 | receive: all high; transmit on the low-power PA: PC3 and PC4 high, PC5 low; off: all low (ST's HAL for the module, `HAL_RADIO_SetSwitchConfig`; on the bench only PC4 high with PC5 low sends, whatever PC3) |
 
 Good to know:
 
@@ -78,9 +78,12 @@ Good to know:
   line brought out). ST's board schematic for the module (MB1779) was not read yet.
 - **The antenna is in the path** (the bench unit, 2026-11-19): with its tip 15 cm from a Core
   Module, +14 dBm arrived at -81 dBm and the Core Module's frames at -73 dBm with one 868 MHz
-  antenna, and 8 to 9 dB more both ways with another (-71 to -74 dBm, -64 to -68 dBm). Whether
-  that is as strong as it should be needs a reference (two Core Modules at the same distance);
-  see [`../bench-checks.md`](../bench-checks.md), check 4.
+  antenna, and 8 to 9 dB more both ways with another (-71 to -74 dBm, -64 to -68 dBm).
+- **Against a second Core Module the receiver is fine, and sending is 10 dB short:** the same
+  frames reach the north bridge at 20 cm 17 to 19 dB below a Core Module at 10 cm; between the
+  north bridge and one Core Module, the north bridge's +14 dBm loses 95 dB, the Core Module's
+  +12 dBm or so 85 dB. Whether the 10 dB are the PA's or the SPIRIT1's RSSI scale needs a
+  calibrated receiver; see [`../bench-checks.md`](../bench-checks.md), check 4.
 - **No frequency correction:** this radio does not follow the sender's offset. The receive filter
   has to pass both crystals' error: TOWER's own receiver uses about 216 kHz. Between the north
   bridge (a TCXO) and one Core Module the SPIRIT1's `AFC_CORR` read -4 to 0, a small offset.

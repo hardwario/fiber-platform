@@ -649,9 +649,15 @@ each other is the biggest unknown of the plan, so it is answered before anything
       settings match ST's code for the module (the RF switch, the switching regulator, now in the
       spike; the regulator measured the same as the linear one, both ways), and the board matches
       the module's datasheet. `docs/bench-checks.md`, check 4
-- [ ] Whether about 80 dB between the radios at 15 cm is right: a reference (two Core Modules at
-      the same distance, or the level against distance). The antenna-off runs earlier had no
-      measured distance (an "about a metre" in the documents was a guess, taken out)
+- [x] A reference (2026-11-19): a second Core Module, 10 cm from the first, both about 20 cm from
+      the antenna. The receiver is fine (the same frames 17 to 19 dB below a Core Module at half
+      the distance); the RF switch is right, tried in all 8 states (only PC4 high with PC5 low
+      sends); sending is 10 dB short of receiving on the same pair (95 against 85 dB).
+      `docs/bench-checks.md`, check 4. The antenna-off runs earlier had no measured distance (an
+      "about a metre" in the documents was a guess, taken out)
+- [ ] The north bridge's transmit power with a calibrated receiver (a spectrum analyser or a
+      power meter on its jack through an attenuator): whether the 10 dB are the PA's or the
+      SPIRIT1's RSSI scale
 - [ ] The receiver's sensitivity against a known signal (the earlier firmware measured a weak
       receiver)
 - [x] The results into `docs/bench-checks.md` and `docs/firmware/radio.md` (2026-11-19)
