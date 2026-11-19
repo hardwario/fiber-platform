@@ -704,42 +704,6 @@ the receive filter has to be wide enough for both crystals' error.
 - Needs: T2 (the bootloader answers, to write the test firmware); a TOWER Core Module.
 - Done when: frames go both ways, and the captures are in the repository.
 
-### T23. The radio's command layer and the packet codec (M5)
-
-State (2026-11-19): started. T22 settled the air format (`docs/firmware/radio.md`) and the radio's
-settings, in the spike's own code. Now each in its place, host-tested: the packet codec in
-`crates/tower-air`, the sub-GHz commands in a crate of their own, `crates/subghz` (`fiber-subghz`,
-`no_std`, over a bus trait that the firmware fills with the SUBGHZSPI), so that the north bridge's
-firmware (T25) and the spike use the same code. The spike is the test firmware for "Done when":
-it moves onto the two crates and exchanges frames with a Core Module through them.
-
-- [x] The packet codec in `fiber-tower-air`, as pure functions tested against the captures of
-      T22. To send: length, frame and CRC, whitened. To receive: the length byte as soon as it
-      is in (how many bytes follow), then the rest, de-whitened and checked (`packet::encode`,
-      `packet_len`, `decode`; every capture passes, and the encoder makes a captured packet byte
-      for byte)
-- [x] `crates/subghz`: the radio inside the STM32WL over a bus trait: standby, the regulator,
-      the TCXO, the calibrations, packet type, frequency, GFSK modulation and packet settings,
-      the sync word, the buffer, interrupts, signal strength of a packet and of the channel, the
-      low-power PA (+14 dBm at most, the limit of the 25 mW band), receive and send; the RF
-      switch as a trait of its own. Laid out so that LoRa is another packet type and not a
-      rewrite (D4). Tests: the bytes of each command, against the spike's, which the bench
-      proved. One difference found: the bit rate's word is 53 287 (32 x 32 MHz / 19 216.6,
-      rounded); the spike sent 53 286, a slip of 0.002 % in its comment's arithmetic
-- [ ] The spike on the two crates: the receive flow (the sync word, the length byte one byte
-      time later, the rest when it is in, read, receive again), and sending; frames both ways
-      with the Core Module r2 (`radio_beacon` as node, then as sniffer, flashed over its FTDI)
-- [ ] The `Radio` trait the gateway is written against: send a frame, receive one with its
-      signal strength, set the channel
-- [ ] `docs/firmware/radio.md` and `docs/architecture.md` (the new crate) as it is then
-
-Watch out: this radio gives a signal strength and nothing like the SPIRIT1's link quality
-numbers, so our messages carry the strength alone.
-
-- Needs: T22.
-- Done when: the codec passes every capture, and the test firmware exchanges frames with a Core
-  Module through it.
-
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -1536,6 +1500,46 @@ its power cycle (T2): install it there after that.
 - [x] CI (44541931261)
 
 - Done when: the audit is clean of these four, and CI passes.
+
+### T23. The radio's command layer and the packet codec (M5)
+
+Done 2026-11-19: the packet codec in `crates/tower-air` (`packet`), the radio's commands in a new
+crate, `crates/subghz` (`fiber-subghz`, `no_std`, no dependencies, over a bus trait the firmware
+fills with the SUBGHZSPI), the `Radio` trait for T24, and the spike on the two crates as the test
+firmware, with T23's receive flow. Checked: `just check` (the codec against every capture, the
+commands' bytes against the spike's, the thumbv7em builds), and on the bench frames both ways with
+a Core Module r2 through the crates. Commits `082a451`, `91ef7db` and the one that closes it; not
+pushed yet. Found on the way: the bit rate's word is 53 287, not the spike's 53 286.
+
+- [x] The packet codec in `fiber-tower-air`, as pure functions tested against the captures of
+      T22. To send: length, frame and CRC, whitened. To receive: the length byte as soon as it
+      is in (how many bytes follow), then the rest, de-whitened and checked (`packet::encode`,
+      `packet_len`, `decode`; every capture passes, and the encoder makes a captured packet byte
+      for byte)
+- [x] `crates/subghz`: the radio inside the STM32WL over a bus trait: standby, the regulator,
+      the TCXO, the calibrations, packet type, frequency, GFSK modulation and packet settings,
+      the sync word, the buffer, interrupts, signal strength of a packet and of the channel, the
+      low-power PA (+14 dBm at most, the limit of the 25 mW band), receive and send; the RF
+      switch as a trait of its own. Laid out so that LoRa is another packet type and not a
+      rewrite (D4). Tests: the bytes of each command, against the spike's, which the bench
+      proved. One difference found: the bit rate's word is 53 287 (32 x 32 MHz / 19 216.6,
+      rounded); the spike sent 53 286, a slip of 0.002 % in its comment's arithmetic
+- [x] The spike on the two crates: the receive flow (the sync word, the length byte two byte
+      times later, the rest when it is in, read, receive again), and sending; frames both ways
+      with the Core Module r2 (`radio_beacon` as node, then as sniffer, flashed over its FTDI):
+      every frame of the node passed the codec (20 in 20 s, none missed, -75 to -77 dBm), and the
+      sniffer took every frame sent (14 of 14: -100, -87 and -83 dBm from -3, +10 and +14 dBm),
+      the FIBER's antenna still off
+- [x] The `Radio` trait the gateway is written against: send a frame, receive one with its
+      signal strength, set the channel (`fiber_tower_air::radio`, async; its first user is T24)
+- [x] `docs/firmware/radio.md` and `docs/architecture.md` (the new crate) as it is then
+
+Watch out: this radio gives a signal strength and nothing like the SPIRIT1's link quality
+numbers, so our messages carry the strength alone.
+
+- Needs: T22.
+- Done when: the codec passes every capture, and the test firmware exchanges frames with a Core
+  Module through it.
 
 ## Decisions ahead
 

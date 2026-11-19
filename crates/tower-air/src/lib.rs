@@ -12,7 +12,8 @@
 //! * the gateway flow (confirmed delivery, replay protection, pairing) over a radio trait, with
 //!   every accept or reject decision taken by `tower-net`.
 //!
-//! The packet codec is here ([`packet`], T23); the frame codec and the gateway flow come with T24.
+//! The packet codec ([`packet`]) and the [`radio::Radio`] the gateway is written against are here
+//! (T23); the frame codec and the gateway flow come with T24.
 //! The crate also proves that the pinned TOWER kernels build for the host and for the north
 //! bridge's target (`thumbv7em-none-eabi`, `just check`), and holds tests that pin the on-air facts
 //! this stack relies on: captures of a real Core Module among them. A test that fails after the
@@ -22,6 +23,7 @@
 #![no_std]
 
 pub mod packet;
+pub mod radio;
 
 #[cfg(test)]
 mod tests {

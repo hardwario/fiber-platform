@@ -8,7 +8,9 @@ send and receive the same. The layers around it are in [`../architecture.md`](..
 **Status:** settled on the bench (2026-11-19, T22) with the radio spike (`hil/radio-spike`) and
 two TOWER Core Modules at the pinned revision running `radio_beacon`: frames go both ways. The
 settings below are the spike's. The packet is made and checked by `fiber-tower-air`'s `packet`,
-the commands by `fiber-subghz` (T23); the north bridge's firmware (T25) is not written yet. Not measured yet: the error rates at several levels, the frequency offset in Hz,
+the commands by `fiber-subghz` (T23), and the spike runs on both: through them it received every
+frame of a Core Module (20 in 20 s, none missed) and a Core Module received every frame it sent
+(14 of 14), on 2026-11-19. The north bridge's firmware (T25) is not written yet. Not measured yet: the error rates at several levels, the frequency offset in Hz,
 anything with the FIBER's antenna fitted.
 
 ## What a TOWER node sends
@@ -30,7 +32,14 @@ from 56 frames of `radio_beacon` (kept as test vectors in `crates/tower-air/test
 The STM32WL's own whitening fills each byte from its most significant bit, so it cannot make or
 undo this; its own CRC engine is not used either. The radio therefore runs raw: a fixed length and
 the sync word, no whitening, no CRC, and the packet is built and checked in software, by one pair
-of pure functions (T23).
+of pure functions (`fiber-tower-air`'s `packet`).
+
+**Receiving a packet of any length** with a fixed length set: the radio is set for the longest
+(255 bytes) and listens for the sync word. Two byte times (834 us) after it, the first byte is in
+the radio's buffer, and it says how long the packet is (`packet::packet_len`); one byte time after
+the packet's last byte the radio is put in standby, the packet read from the buffer and checked
+(`packet::decode`), and it listens again. So it is ready for the next packet as soon as this one
+ends, and not 106 ms later. Seen working on the bench (`hil/radio-spike`, receive mode).
 
 ## How the STM32WL is set
 
