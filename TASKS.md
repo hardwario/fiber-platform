@@ -706,13 +706,25 @@ the receive filter has to be wide enough for both crystals' error.
 
 ### T24. The frame codec and the gateway's flow (M5)
 
-State (2026-11-19): started with the frame codec. TOWER's `firmware/src/radio/frame.rs` written
-again in `crates/tower-air` (`frame`), over `tower_radio::ccm::Ccm` and a software AES (RustCrypto's
-`aes` 0.9, as TOWER's own host tests use; the STM32WL's AES engine can come later through the same
-`AesBlock`). The vectors from a real Core Module: TOWER's `net_confirmed` as the node on the r2
-(node `0x11111111`, gateway `0x22222222`, its known key, a confirmed `msg NNN` every 2 s, 3
-attempts), captured by the spike in its receive mode. The gateway's flow (the bulk of the task,
-TOWER's `radio/net/mod.rs` and `pairing.rs`, about 2 200 lines) comes after.
+State (2026-11-19): the frame codec and its vectors are done (`8ec3c7b`, `17ca877`, not pushed
+yet); the gateway's flow is next, and not begun. The codec: TOWER's `frame.rs` written again in
+`crates/tower-air` (`frame`), over `tower_radio::ccm::Ccm` and `SoftAes` (RustCrypto's `aes` 0.9, as
+TOWER's own host tests use; the STM32WL's AES engine can come later through the same `AesBlock`).
+The vectors: 32 frames of TOWER's `net_confirmed` (the node on the r2, which still runs it) through
+the spike's receive mode, each opening under the example's key.
+
+For the flow, read first TOWER's `firmware/src/radio/net/mod.rs` (`recv`, `send`, `await_ack`,
+`send_ack`, `add_peer`, `set_pending`, `alloc_counter`) and `pairing.rs`, and the `tower-net` kernels
+they call (`replay`, `txctr`, `ack`, `pairing`, `handshake`). To settle before writing it:
+- time: TOWER waits a turnaround before an acknowledgement and an acknowledgement window with
+  Embassy's timers; `tower-air` has none. A small timer trait beside `Radio` (sleep, and a
+  deadline on `receive`), so that the tests run on a made-up clock;
+- the peers: a fixed table (address, key, replay lane, one waiting downlink), filled by the agent
+  after every `Hello` (D8: the firmware keeps no registry);
+- the transmit counter: `tower_net::txctr` with its reserve, its watermark the one thing the
+  north bridge keeps (T25), started from the higher of its own and the agent's;
+- the tests: an executor of a few lines (a no-op waker) and a made-up radio that hands over
+  frames sealed by the same codec; the three cases of "Done when".
 
 What TOWER's own gateway does inside its firmware, written again over our radio. Every decision
 about security stays TOWER's code (D1).
@@ -1521,8 +1533,8 @@ crate, `crates/subghz` (`fiber-subghz`, `no_std`, no dependencies, over a bus tr
 fills with the SUBGHZSPI), the `Radio` trait for T24, and the spike on the two crates as the test
 firmware, with T23's receive flow. Checked: `just check` (the codec against every capture, the
 commands' bytes against the spike's, the thumbv7em builds), and on the bench frames both ways with
-a Core Module r2 through the crates. Commits `082a451`, `91ef7db` and the one that closes it; not
-pushed yet. Found on the way: the bit rate's word is 53 287, not the spike's 53 286.
+a Core Module r2 through the crates. Commits `082a451`, `91ef7db`, `c43abf4`; CI run
+44550531048 green. Found on the way: the bit rate's word is 53 287, not the spike's 53 286.
 
 - [x] The packet codec in `fiber-tower-air`, as pure functions tested against the captures of
       T22. To send: length, frame and CRC, whitened. To receive: the length byte as soon as it
