@@ -7,8 +7,9 @@
 //!
 //! - **At start** the power LED blinks green, and the ports come on one after another, 100 ms
 //!   apart, so that 1-Wire works without the agent and the inrush stays small.
-//! - **The LED test:** from 1 s to 4 s after the start every port's red LED, then 1 s dark, then
-//!   every port's green LED to 8 s, over every mode (a `Desired` shows on the port LEDs after it).
+//! - **The LED test:** from 1 s after the start, red, then green, then amber run from port 1 to
+//!   port 8, and the ports go dark from 8 back to 1; over every mode until it ends, 7 s after the
+//!   start (a `Desired` shows on the port LEDs after it).
 //! - **A `Desired`** sets every LED line and the ports, from the next tick on.
 //! - **No `Desired` for 5 s:** the power LED blinks yellow and the port LEDs are dark; the ports
 //!   stay as they were. The next `Desired` ends it.
@@ -26,11 +27,36 @@ pub const FALLBACK_AFTER: u32 = 5 * TICKS_PER_SECOND;
 /// Ticks between two ports switched on at start (100 ms).
 pub const PORT_STEP: u32 = 5;
 
-/// The LED test at start, in ticks since the start: every port's red LED, then every port's
-/// green LED, with a second dark before, between and after (`docs/firmware/south.md`).
-pub const TEST_RED: core::ops::Range<u32> = TICKS_PER_SECOND..4 * TICKS_PER_SECOND;
-pub const TEST_GREEN: core::ops::Range<u32> = 5 * TICKS_PER_SECOND..8 * TICKS_PER_SECOND;
-pub const TEST_END: u32 = TEST_GREEN.end;
+/// The LED test at start (`docs/firmware/south.md`), in ticks since the start: it begins after
+/// a second; each step runs from port 1 to port 8, one port every [`TEST_STEP`] ticks (160 ms),
+/// with [`TEST_HOLD`] ticks (0.3 s) after it.
+pub const TEST_START: u32 = TICKS_PER_SECOND;
+pub const TEST_STEP: u32 = 8;
+pub const TEST_HOLD: u32 = 15;
+/// One step over the eight ports, and its hold.
+const TEST_WIPE: u32 = TEST_STEP * PORTS as u32;
+const TEST_PHASE: u32 = TEST_WIPE + TEST_HOLD;
+/// The test's end: after red, green and amber, the last port goes dark (about 7 s).
+pub const TEST_END: u32 = TEST_START + 3 * TEST_PHASE + TEST_WIPE;
+
+/// A port's (red, green) at a tick of the LED test (0 is port 1): red from its turn in the first
+/// step, green from its turn in the second, both (amber) from the third, dark from its turn in
+/// the fourth, which runs from port 8 back to port 1.
+pub fn test_light(port: usize, since_start: u32) -> (bool, bool) {
+    let turn = TEST_STEP * port as u32;
+    let back = TEST_STEP * (PORTS - 1 - port) as u32;
+    if since_start < TEST_START + turn {
+        (false, false)
+    } else if since_start < TEST_START + TEST_PHASE + turn {
+        (true, false)
+    } else if since_start < TEST_START + 2 * TEST_PHASE + turn {
+        (false, true)
+    } else if since_start < TEST_START + 3 * TEST_PHASE + back {
+        (true, true)
+    } else {
+        (false, false)
+    }
+}
 
 /// A port's LED lines (0 is port 1): green, then red.
 pub const fn port_green(port: usize) -> usize {
@@ -165,10 +191,9 @@ impl Engine {
                 self.ports = ((1u16 << on) - 1) as u8;
             }
         }
-        if (TEST_RED.start..TEST_END).contains(&since_start) {
+        if (TEST_START..TEST_END).contains(&since_start) {
             for port in 0..PORTS {
-                leds[port_red(port)] = TEST_RED.contains(&since_start);
-                leds[port_green(port)] = TEST_GREEN.contains(&since_start);
+                (leds[port_red(port)], leds[port_green(port)]) = test_light(port, since_start);
             }
         }
         Outputs {
@@ -273,28 +298,39 @@ mod tests {
     #[test]
     fn the_led_test_at_start() {
         let mut engine = Engine::new();
-        let outs: [Outputs; 450] = core::array::from_fn(|_| engine.tick());
-        let reds = |o: &Outputs| (0..PORTS).filter(|&p| o.leds[port_red(p)]).count();
-        let greens = |o: &Outputs| (0..PORTS).filter(|&p| o.leds[port_green(p)]).count();
-        // Dark for 1 s, all red for 3 s, dark for 1 s, all green for 3 s, then dark.
-        for (tick, (red, green)) in [
-            (0, (0, 0)),
-            (49, (0, 0)),
-            (50, (8, 0)),
-            (199, (8, 0)),
-            (200, (0, 0)),
-            (249, (0, 0)),
-            (250, (0, 8)),
-            (399, (0, 8)),
-            (400, (0, 0)),
-            (449, (0, 0)),
+        let outs: [Outputs; 400] = core::array::from_fn(|_| engine.tick());
+        // Each port as a letter: dark, Red, Green, Amber.
+        let ports = |tick: usize| -> [char; PORTS] {
+            core::array::from_fn(
+                |p| match (outs[tick].leds[port_red(p)], outs[tick].leds[port_green(p)]) {
+                    (false, false) => '.',
+                    (true, false) => 'R',
+                    (false, true) => 'G',
+                    (true, true) => 'A',
+                },
+            )
+        };
+        let as_str = |c: [char; PORTS]| -> [u8; PORTS] { c.map(|c| c as u8) };
+        for (tick, want) in [
+            (0, b"........"),
+            (49, b"........"),
+            (50, b"R......."),
+            (58, b"RR......"),
+            (106, b"RRRRRRRR"),
+            (128, b"RRRRRRRR"),
+            (129, b"GRRRRRRR"),
+            (185, b"GGGGGGGG"),
+            (208, b"AGGGGGGG"),
+            (264, b"AAAAAAAA"),
+            (286, b"AAAAAAAA"),
+            (287, b"AAAAAAA."),
+            (342, b"A......."),
+            (343, b"........"),
+            (399, b"........"),
         ] {
-            assert_eq!(
-                (reds(&outs[tick]), greens(&outs[tick])),
-                (red, green),
-                "tick {tick}"
-            );
+            assert_eq!(&as_str(ports(tick)), want, "tick {tick}");
         }
+        assert_eq!(TEST_END, 351);
         // The power LED keeps its own pattern.
         assert!(outs[50].leds[POWER_GREEN] && !outs[75].leds[POWER_GREEN]);
     }

@@ -753,21 +753,21 @@ display on the bench; D26 says how.
 
 ### T45. An LED test at the south bridge's start (M2)
 
-State (2026-11-19): written and tested, `just check` passes; the image is 16216 bytes, CRC
-`0x6040a3a0`. On the bench's FIBER as release `0.1.0-bench.13`: the agent wrote the image at its
-start, and the south bridge runs it. Left: the maintainer sees the test (`fiber firmware flash
-south` restarts the chip to show it again, three times an hour). On the maintainer's word: 1 s
-after the firmware starts, every port's red LED for 3 s, 1 s dark, then every port's green LED for
-3 s, to see at a glance after boot that the LEDs work. The power LED keeps its own pattern. The test runs to its end also when a
+State (2026-11-19): the first form (all red 3 s, dark 1 s, all green 3 s) ran on the bench's FIBER
+(release `0.1.0-bench.13`, image `0x6040a3a0`). Then, on the maintainer's word ("an animation, so
+it is more interesting"), an animation in its place: from 1 s after the start, the ports light red
+one after another (port 1 to 8, 160 ms apart), turn green in the same order, then amber, then go
+dark from port 8 back to 1; a hold of 0.3 s between, about 6 s in all. Each LED shows red, green
+and both, and the order of the ports shows. Written and tested, `just check` passes; the image
+is 16248 bytes, CRC `0xfbcd5b36`; on the FIBER as release `0.1.0-bench.14`, written by the agent
+at 19:27:53. Left: the maintainer sees it. `fiber firmware flash south` restarts the chip to show
+it again (three times an hour; the two writes of this evening count). The power LED keeps its own pattern. The test runs to its end also when a
 `Desired` comes in the meantime (after a flash the agent is already there): 8 s at most.
 
-- [x] `docs/firmware/south.md`, `docs/firmware/south-link.md`, `docs/mqtt-api.md` (the port
-      lights) first
-- [x] `crates/south-core`: the test in the engine, from 1 s to 8 s over every mode; tests (the
-      sequence, over a `Desired`, the fallback after it)
-- [x] The firmware's size against 24 KB (16216 bytes); `just check`
-- [x] On the FIBER: the agent writes the new image (2026-11-19)
-- [ ] On the FIBER: the test seen
+- [x] The first form: docs, `crates/south-core`, tests, `just check`, written on the FIBER
+- [x] The animation: the docs first, then `crates/south-core` and its tests, `just check`
+- [x] On the FIBER: the agent writes the new image (2026-11-19, 19:27:53)
+- [ ] On the FIBER: the maintainer sees the animation
 
 - Done when: the tests pass, and on the FIBER the maintainer sees red, dark, green after a start.
 

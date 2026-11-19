@@ -113,8 +113,9 @@ One for each port, `ports/1` to `ports/8`:
 - **Off:** the port's power is off.
 
 Each time the south bridge starts (with the FIBER, or after its firmware is written), the port
-LEDs first show a test for 8 s: all red for 3 s, dark for 1 s, all green for 3 s. A client's
-`leds.set` and the agent's colours show after it.
+LEDs first show a test for about 6 s: red, then green, then amber running from port 1 to port 8,
+then dark from port 8 back to port 1. A client's `leds.set` and the agent's colours show after
+it.
 
 ### `thermometers/id`
 
