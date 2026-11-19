@@ -656,7 +656,8 @@ CRC, SQI 32, AFC -4 to 0, at -88 dBm from +14 dBm, -91 from +10, about -105 from
 "Done when" holds: frames go both ways and the captures are in the repository. Left: the error
 rates at four levels (attenuators), several Core Modules, `docs/firmware/radio.md`. The FIBER's
 antenna was disconnected through every radio measurement (the maintainer): hence the path loss of
-about 100 dB at a metre. Each level is to be measured again with it on.
+about 100 dB at a metre. Each level is to be measured again with it on. Pushed so far
+(`a3ea469..2bdc6fd`), CI run 44516902698 green.
 
 TOWER nodes use a SPIRIT1 radio; the north bridge has another one. Whether the two understand
 each other is the biggest unknown of the plan, so it is answered before anything is built on it
@@ -702,38 +703,6 @@ the receive filter has to be wide enough for both crystals' error.
 
 - Needs: T2 (the bootloader answers, to write the test firmware); a TOWER Core Module.
 - Done when: frames go both ways, and the captures are in the repository.
-
-### T36. What the first bench run found (M1, M2)
-
-State (2026-11-19): all five fixes are written; `just check`, the roles' lint and the converge
-test pass on the computer. Waiting for a push, for CI. Each was found on the FIBER of T2 and tried
-there with releases built by hand (`0.1.0-bench.2` and `.3`).
-
-- [x] **The south bridge read the wrong calibration word** for its voltages: `VREFINT_CAL` is at
-      0x1FFF 756A; 0x1FFF 7568 is the temperature sensor's `TS_CAL1` (1662 and 1048 on the
-      chip, read through its bootloader). Every voltage was 1.59 times too low (T16). On the
-      FIBER since: input 13.6 V, the source `poe`
-- [x] **ChirpStack refuses a password shorter than 8 characters,** and FIBER Setup suggests
-      `fiber`: the component failed at every try with "non-zero return code". The role now fails
-      before it sets anything, saying what is wrong and what to do; the converge test tries it
-      with `fiber` first (T9). What FIBER Setup should do: D25
-- [x] **npm kept everything it downloaded:** 127 MB in `/root/.npm` and 90 MB in
-      `/var/lib/node-red/.npm`, on 8 GB of eMMC. Each npm call gets a cache of its own, removed
-      after it; the converge test checks that none is left (T8)
-- [x] **After an update, a waiting apply ran the old release's roles:** the apply service's
-      process, started by release 0.1.0 and waiting to try again, served the request of the
-      next release's installer with its own roles. It now hands the process over to the current
-      release's program (`exec`) before it runs again for a new request; a test for which release
-      takes over (T6, T10)
-- [x] **A single voltage reading is too noisy for the 0.05 V rule:** `power` went out 38 times
-      in 2 minutes. The agent averages the last 8 readings (T17)
-- [x] The converge test passes with them, on the computer (2026-11-19)
-- [ ] CI passes with them
-- [x] On the FIBER (`0.1.0-bench.3`): 3 messages on `power` in 2 minutes (the retained one, then
-      once a minute), where there were 38; the apply with the new npm tasks changes nothing. That
-      a fresh install leaves no npm cache is for the converge test to show
-
-- Done when: the converge test and CI pass, and the step before is seen on the FIBER.
 
 ## Tasks ahead
 
@@ -1343,8 +1312,8 @@ down, so the driver turns the picture by 180 degrees, as the earlier software di
 was out. The driver (`agent/src/agent/lcd.rs`): ST7920 packets over `/dev/spidev6.0` in mode 3 at
 400 kHz, reset on GPIO16, only the rows that changed, set up again after an error. The backlight
 dims after 60 s without a press, as it should. Not run: `fiber buttons watch` itself (the flow
-read the same `buttons/event`). Commits `f68b657`, `20bdbb2`, `7cb8657`, on this computer only; `just check` and
-the converge test passed with the driver.
+read the same `buttons/event`). Commits `f68b657`, `20bdbb2`, `7cb8657`, pushed with the rest of the bench's
+commits; CI run 44516902698 green.
 Earlier (2026-11-18): all but the display driver is written and tested on the computer: the docs
 (drafts), the buttons (`agent/src/agent/buttons.rs`, `tower-hmi`'s recognizer on a thread that waits
 for the lines' edges), the buzzer's patterns, the backlight through sysfs PWM with its dimming, the
@@ -1444,6 +1413,39 @@ The toolchain moves with the TOWER pin and nothing else (D21).
 
 - [x] `.github/dependabot.yml`: the `rust-toolchain` entry taken out, and its comment says why
 - [x] Pull request #1 (1.99.1 to 1.100.0) closed, with a comment that names D21
+
+### T36. What the first bench run found (M1, M2)
+
+Done 2026-11-19: all five fixes, found on the FIBER of T2 and tried there with releases built by
+hand (`0.1.0-bench.2` and `.3`). Checked: `just check`, the roles' lint and the converge test on the
+computer, the FIBER, and CI run 44516902698, green. Commit `cee666c`, with the averaging and the
+apply's hand-over in it; pushed with the rest of the bench's commits (`a3ea469..2bdc6fd`).
+
+- [x] **The south bridge read the wrong calibration word** for its voltages: `VREFINT_CAL` is at
+      0x1FFF 756A; 0x1FFF 7568 is the temperature sensor's `TS_CAL1` (1662 and 1048 on the
+      chip, read through its bootloader). Every voltage was 1.59 times too low (T16). On the
+      FIBER since: input 13.6 V, the source `poe`
+- [x] **ChirpStack refuses a password shorter than 8 characters,** and FIBER Setup suggests
+      `fiber`: the component failed at every try with "non-zero return code". The role now fails
+      before it sets anything, saying what is wrong and what to do; the converge test tries it
+      with `fiber` first (T9). What FIBER Setup should do: D25
+- [x] **npm kept everything it downloaded:** 127 MB in `/root/.npm` and 90 MB in
+      `/var/lib/node-red/.npm`, on 8 GB of eMMC. Each npm call gets a cache of its own, removed
+      after it; the converge test checks that none is left (T8)
+- [x] **After an update, a waiting apply ran the old release's roles:** the apply service's
+      process, started by release 0.1.0 and waiting to try again, served the request of the
+      next release's installer with its own roles. It now hands the process over to the current
+      release's program (`exec`) before it runs again for a new request; a test for which release
+      takes over (T6, T10)
+- [x] **A single voltage reading is too noisy for the 0.05 V rule:** `power` went out 38 times
+      in 2 minutes. The agent averages the last 8 readings (T17)
+- [x] The converge test passes with them, on the computer (2026-11-19)
+- [x] CI passes with them (44516902698)
+- [x] On the FIBER (`0.1.0-bench.3`): 3 messages on `power` in 2 minutes (the retained one, then
+      once a minute), where there were 38; the apply with the new npm tasks changes nothing. That
+      a fresh install leaves no npm cache is for the converge test to show
+
+- Done when: the converge test and CI pass, and the step before is seen on the FIBER.
 
 ## Decisions ahead
 
