@@ -1481,10 +1481,15 @@ slowness was mostly that a click is recognized on the release: the page turns on
 - Done when: the pictures match, and on the FIBER the pages look right and turn as the button
   goes down.
 
+## Tasks ahead
+
+In the order of the plan. Every task has its steps already; when a task starts, they are read
+again and brought up to date before the first one is ticked.
+
 ### T39. The front panel shows local time (M4)
 
-State (2026-11-19): written and on the FIBER (`0.1.0-bench.8`); waiting for the maintainer to
-look. The FIBER page showed the time in UTC; FIBER Setup sets a time zone (Europe/Prague on the
+Done 2026-11-19, commit `4e513a2`: on the FIBER (`0.1.0-bench.8`) the maintainer looked and
+asked for it to be pushed. The FIBER page showed the time in UTC; FIBER Setup sets a time zone (Europe/Prague on the
 bench), in `/etc/localtime`, which the agent's user can read. Read with `tz-rs` 0.7 (pure Rust, no
 `unsafe`, no dependencies), which also follows the TZif file's closing rule
 (`CET-1CEST,M3.5.0,M10.5.0/3`). `just check` passes. Seen on the way, not from this change: four
@@ -1496,14 +1501,9 @@ TOWER's crates; allowed as warnings by the audit; 0.9.4 is out.
 - [x] The FIBER page: the local time and the zone's abbreviation (`CET`, `CEST`); the day too
 - [x] Tests (the FIBER's own Europe/Prague file: winter, summer, 2040 from the rule, a link to
       nothing), the stored picture, `docs/front-panel.md`
-- [ ] On the FIBER: the local time
+- [x] On the FIBER: the local time (the maintainer, 2026-11-19)
 
 - Done when: the tests pass, and the FIBER shows its local time.
-
-## Tasks ahead
-
-In the order of the plan. Every task has its steps already; when a task starts, they are read
-again and brought up to date before the first one is ticked.
 
 ## Decisions ahead
 
