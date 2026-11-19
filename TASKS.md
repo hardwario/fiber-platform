@@ -772,23 +772,6 @@ it again (three times an hour; the two writes of this evening count). The power 
 
 - Done when: the tests pass, and on the FIBER the maintainer sees red, dark, green after a start.
 
-### T46. A client's message shows at once (M4)
-
-State (2026-11-19): started. On the bench the alarm's beep came well before its message: the agent
-draws the display on its tick, once a second, and on a press, but not after a request, so a
-message waited up to 1 s (and about 90 ms more to reach the LCD) while the buzzer started at once.
-Fixed and tested, `just check` passes; on the FIBER as release `0.1.0-bench.15` (the south
-bridge's image unchanged), the alarm sent again at 19:41:11. Left: the maintainer sees the
-message come with the beep.
-
-- [x] The agent draws after every request, as after a press
-- [x] A test: the picture shows the message as soon as the request is handled, between two ticks
-      (it fails without the fix)
-- [x] `just check`
-- [ ] On the FIBER: the alarm's message and its beep together
-
-- Done when: the test passes, and on the FIBER the message comes with the beep.
-
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -1704,6 +1687,22 @@ dimmed display acts ("it works well", the maintainer).
 - [x] On the FIBER: a press on a dimmed display acts; a message lights the backlight
 
 - Done when: the tests pass, and on the FIBER the first press on a dimmed display acts.
+
+### T46. A client's message shows at once (M4)
+
+Done 2026-11-19, commit `a62cbbd`. Checked: `just check` (a test that fails without the fix), and
+on the FIBER (release `0.1.0-bench.15`) the alarm's message comes with its beep (the maintainer,
+19:41:49). The cause: the agent drew the display on its tick, once a second, and on a press, but
+not after a request, so a message waited up to 1 s (and about 90 ms more to reach the LCD) while
+the buzzer started at once.
+
+- [x] The agent draws after every request, as after a press
+- [x] A test: the picture shows the message as soon as the request is handled, between two ticks
+      (it fails without the fix)
+- [x] `just check`
+- [x] On the FIBER: the alarm's message and its beep together
+
+- Done when: the test passes, and on the FIBER the message comes with the beep.
 
 ## Decisions ahead
 
