@@ -226,13 +226,14 @@ Quick looks while the FIBER is on the bench, each against [`hardware.md`](hardwa
 | The I2C bus | `i2cdetect -y 10` (after `dtparam=i2c_vc=on`) shows 0x18, 0x19 and 0x51. The schematic leaves the bus's pull-up resistors unfitted | **Yes** (2026-11-19): all three answer, at 97.5 kHz. The LIS2DH12 answers `0x33` to `WHO_AM_I`, the DS2482 reads `0x18` after a reset, the PCF85063A holds the right time in UTC with its oscillator flag clear. With the platform's block, 0x18 and 0x51 show `UU` (taken by their drivers) |
 | The backlight | `dtoverlay=pwm,pin=13,func=4`, then PWM channel 1 dims it | **Yes** (2026-11-19): `pwmchip0` with two channels; channel 1 on GPIO13 (`PWM0_1`), set to 80 % by the agent, and the backlight lights (the maintainer looked), with `dtparam=audio=on` still in the file; it dims after a minute without a press |
 | The buttons | GPIO23, 24 and 25 read low while pressed | **Yes** (2026-11-19): all three read high, not pressed, against the CM4's own pull-downs, so the board's pull-ups are there; pressed, the agent's pages follow them (the maintainer) |
-| The buzzer | GPIO17 low sounds it. Listen at power-on too: until `config.txt` sets the line, only the Raspberry Pi's weak pull-down holds it | **Yes** (2026-11-19): it sounds (the maintainer heard the agent's beeps). On a plain Raspberry Pi OS the line reads high at start, against the CM4's pull-down, so the driver's pull-up should keep it quiet before `config.txt` sets it; at power-on: not listened to yet |
+| The buzzer | GPIO17 low sounds it. Listen at power-on too: until `config.txt` sets the line, only the Raspberry Pi's weak pull-down holds it | **Yes** (2026-11-19): it sounds (the maintainer heard the agent's beeps). On a plain Raspberry Pi OS the line reads high at start, against the CM4's pull-down, so the driver's pull-up keeps it quiet before `config.txt` sets it: through a power cycle it stayed silent (the maintainer listened) |
 
 More that the bench showed (2026-11-19), with the platform installed:
 
 - **The clock is set from the PCF85063A at start,** by the kernel itself when the driver registers
   `rtc0` (19 s after the start; before that the time comes from `systemd-timesyncd`'s file). No
-  `fake-hwclock` is installed. Seen across restarts; a power cycle without network: not tried.
+  `fake-hwclock` is installed. Seen across restarts, and across a power cycle of about a minute
+  with NTP off: set from the RTC 6.7 s into the start, within a second of the right time.
 - **The stock `config.txt`** of the image of 2026-10-06 is byte for byte the converge test's
   `provision/tests/fixtures/config.txt.stock`, and the file the `base` role wrote from it is byte
   for byte `config.txt.expected`. A kernel package installed again leaves `fiber-ds2482.dtbo` in
@@ -248,7 +249,8 @@ More that the bench showed (2026-11-19), with the platform installed:
   yellow, briefly once a second; the ports as they were). Not seen by eye.
 - **After SWD the CM4 cannot reach the south bridge's bootloader:** `fiber firmware chip south`
   got `0x00` where the bootloader's ACK should be, and the firmware started instead. It stays so
-  until the next power-on (to be checked). Keep a debug probe off the south bridge on a FIBER
-  whose firmware the agent should still be able to write.
+  until the next power-on: after a power cycle the bootloader answered again, and the agent wrote
+  the south bridge's next image at its first try. Keep a debug probe off the south bridge on a
+  FIBER whose firmware the agent should still be able to write.
 - **The voltages** with that fixed: input 13.6 V, battery 1.7 V (no cell fitted, by the look of
   it). The input's readings spread over 0.13 V. Not checked with a meter.

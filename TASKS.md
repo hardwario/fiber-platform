@@ -49,9 +49,9 @@ next power-on. The firmware runs; a new one would have to go through the J-Link.
 earlier software's LCD driver was read: ST7920, mode 3, 400 kHz, and the picture turned by 180
 degrees. The maintainer looked: the agent's pages show, and the panel is mounted upside down, so
 the turn stays (T20). The maintainer saw the pages upright, the backlight lit, the buttons and the
-buzzer working. Left, for someone at the bench: listen to the buzzer at power-on; a RAK5146 card in
-the slot; a second unit; then a power cycle, after which `sudo
-fiber firmware chip south` should answer again (with the agent stopped). The test pattern is
+buzzer working. After a power cycle (2026-11-19) the buzzer stayed silent at power-on, and the CM4
+reached the south bridge's bootloader again (the J-Link's reads had shut it out until then). Left,
+for someone at the bench: a RAK5146 card in the slot; a second unit. The test pattern is
 `hil/lcd_test.py` (a copy is in the home directory of `fiber` on the unit; stop the agent first,
 it drives the LCD).
 
@@ -81,8 +81,8 @@ these answers, and each takes minutes ([`docs/bench-checks.md`](docs/bench-check
 - [x] The buttons on GPIO23, 24 and 25 read low while pressed (2026-11-19: they read high when not
       pressed, and the agent's pages follow them)
 - [x] The buzzer sounds with GPIO17 low (2026-11-19, heard)
-- [ ] Listen at power-on too: until `config.txt` sets the line, only the Raspberry Pi's weak
-      pull-down holds it (the line reads high then, against that pull-down; not heard yet)
+- [x] Listen at power-on too: until `config.txt` sets the line, only the Raspberry Pi's weak
+      pull-down holds it (2026-11-19: silent through a power cycle, the maintainer listened)
 - [ ] With a RAK5146 USB card in the mini-PCIe slot: which level on GPIO11 (pin 22) lets the
       card appear on USB (`0483:5740`)
 - [ ] Write every result, with the date, into `docs/bench-checks.md`, and correct
@@ -94,66 +94,6 @@ STM32C0 keeps BOOT0 low until the next power-on, so do not mix a debug probe int
 
 - Needs: a FIBER-R2 rev 2.1 on the bench, reachable over SSH.
 - Done when: every result is in `docs/bench-checks.md`.
-
-### T7. The `base` role and `fiber doctor` (M1)
-
-State (2026-11-19): on a FIBER all but the power cycle is seen: the role wrote the block into the
-stock `config.txt`, byte for byte the fixture's expected file; after the restart `i2cdetect -y 10`
-shows 18 and 51 in use, both serial ports, `/dev/spidev6.0`, `/dev/rtc0` and eight 1-Wire masters
-are there, and `fiber doctor` finds nothing wrong. The stock file has `otg_mode=1` under `[cm4]`;
-the kernel sets the clock from the RTC 19 s into the start, with no `fake-hwclock`; a kernel
-package installed again leaves `fiber-ds2482.dtbo` in place. The questions under "Watch out": with
-`dtparam=audio=on` left in the stock file the backlight works on PWM channel 1, and with
-`camera_auto_detect=1` and `display_auto_detect=1` the board's three chips answer on their bus.
-Left: the time across a power cycle without network, which needs someone to pull the plug.
-Earlier (2026-11-17): everything that needs no board is done, commit `81f5cf4`, and its CI run (44192840178) is green: the fixture test on a real FAT
-filesystem in the converge test, `fiber doctor`, the board module and its check against the
-block. Settled: the stock `config.txt` is `pi-gen`'s at the tag of the pinned image
-(`provision/tests/fixtures/`), not one taken out of the image; the role uses `blockinfile`;
-`release.py` compiles the overlay, so `just check` and CI need `dtc`; turning `base` off with no
-`config.txt` is not an error.
-
-What makes the board's hardware work under plain Raspberry Pi OS. After `base` alone the clock,
-both serial links, the 1-Wire ports and the display's bus are there for anyone who knows Linux.
-
-- [x] `provision/boot/config-fiber.txt`: the block as `docs/provisioning.md` has it, under
-      `[cm4]`, comments on their own lines. Its GPIO numbers are checked against
-      `agent/src/board.rs` by a test, so that the two places cannot drift apart
-- [x] `provision/boot/fiber-ds2482.dts`: the DS2482 on the `i2c_csi_dsi` bus (`i2c0if` and
-      `i2c0mux` enabled, then `ds2482@18` with `compatible = "maxim,ds2482"`, as the kernel's
-      `i2c-rtc` overlay does it), compiled with `dtc -@` by `provision/release.py`, shipped in
-      the archive
-- [x] The role writes the block between `# BEGIN FIBER PLATFORM` and `# END FIBER PLATFORM`
-      only when it differs, keeps a copy of the file as it was before the first change, and
-      syncs. It copies the overlay to `/boot/firmware/overlays/` without owner or mode (the
-      partition is FAT). It writes `/etc/modules-load.d/fiber.conf` with `i2c-dev`, and makes
-      the groups. A changed `config.txt` or overlay ends the apply with "restart needed".
-      Turning `base` off takes the block, the overlay and the module file away again
-- [x] `settings.hardware.minipcie` (`none`, `lte`, `rak5146`): nothing drives GPIO10 and 11 at
-      start; the agent later sets them for the card that is fitted
-- [x] `fiber doctor`: fails on a line that breaks this board (`dtparam=spi=on`,
-      `dtoverlay=w1-gpio`, `ctsrts`, a bare `dtoverlay=pwm`), and checks what should be there
-      (the block, `/dev/ttyAMA3`, `/dev/ttyAMA4`, `/dev/spidev6.0`, `/dev/rtc0`, 0x18 and 0x51
-      taken by their drivers and 0x19 answering on bus 10, eight 1-Wire masters). Each finding
-      says what to do. Tested against a temporary root
-- [x] The fixture test, in the converge test: the stock `config.txt` becomes the expected file,
-      byte for byte; a second run changes nothing; a file edited by hand gets the block back
-- [x] On a FIBER: the list under "Done when" (but the power cycle); that the stock file already
-      has `otg_mode=1` under `[cm4]`; that the clock is set from the RTC at start without
-      `fake-hwclock`; that a kernel update leaves `fiber-ds2482.dtbo` in place (2026-11-19)
-- [ ] On a FIBER: the time survives a power cycle, with no network
-
-Watch out: `dtparam=spi=on` turns on SPI0, which takes GPIO7 to 11: the south bridge's reset,
-its serial link and the card's lines. A bare `dtoverlay=pwm` takes GPIO18, the LCD's chip
-select. The firmware applies `gpio=` lines a few seconds after power-on, not at once. The stock
-file has `dtparam=audio=on`: whether the CM4's analogue audio takes PWM channel 1 from the
-backlight is for the bench (T2), and so are `camera_auto_detect=1` and `display_auto_detect=1`,
-which probe the same I2C bus as the board's own chips.
-
-- Needs: T6; T2 for the part on a FIBER.
-- Done when: the fixture test passes in CI; on a FIBER `i2cdetect -y 10` shows 18 and 51 in use,
-  both serial ports and `/dev/spidev6.0` exist, eight 1-Wire masters exist, and the time
-  survives a power cycle.
 
 ### T9. The `chirpstack` role (M1)
 
@@ -1167,6 +1107,69 @@ Every `command` task has `creates` or a real `changed_when`, or the second run i
 
 - Needs: T5.
 - Done when: the three converge tests pass in CI.
+
+### T7. The `base` role and `fiber doctor` (M1)
+
+Done 2026-11-19, on a FIBER: the role wrote the block into the
+stock `config.txt`, byte for byte the fixture's expected file; after the restart `i2cdetect -y 10`
+shows 18 and 51 in use, both serial ports, `/dev/spidev6.0`, `/dev/rtc0` and eight 1-Wire masters
+are there, and `fiber doctor` finds nothing wrong. The stock file has `otg_mode=1` under `[cm4]`;
+the kernel sets the clock from the RTC 19 s into the start, with no `fake-hwclock`; a kernel
+package installed again leaves `fiber-ds2482.dtbo` in place. The questions under "Watch out": with
+`dtparam=audio=on` left in the stock file the backlight works on PWM channel 1, and with
+`camera_auto_detect=1` and `display_auto_detect=1` the board's three chips answer on their bus.
+And the time held across a power cycle with NTP off: the kernel set it from the RTC 6.7 s into
+the start, within a second of the computer's clock.
+Earlier (2026-11-17): everything that needs no board is done, commit `81f5cf4`, and its CI run (44192840178) is green: the fixture test on a real FAT
+filesystem in the converge test, `fiber doctor`, the board module and its check against the
+block. Settled: the stock `config.txt` is `pi-gen`'s at the tag of the pinned image
+(`provision/tests/fixtures/`), not one taken out of the image; the role uses `blockinfile`;
+`release.py` compiles the overlay, so `just check` and CI need `dtc`; turning `base` off with no
+`config.txt` is not an error.
+
+What makes the board's hardware work under plain Raspberry Pi OS. After `base` alone the clock,
+both serial links, the 1-Wire ports and the display's bus are there for anyone who knows Linux.
+
+- [x] `provision/boot/config-fiber.txt`: the block as `docs/provisioning.md` has it, under
+      `[cm4]`, comments on their own lines. Its GPIO numbers are checked against
+      `agent/src/board.rs` by a test, so that the two places cannot drift apart
+- [x] `provision/boot/fiber-ds2482.dts`: the DS2482 on the `i2c_csi_dsi` bus (`i2c0if` and
+      `i2c0mux` enabled, then `ds2482@18` with `compatible = "maxim,ds2482"`, as the kernel's
+      `i2c-rtc` overlay does it), compiled with `dtc -@` by `provision/release.py`, shipped in
+      the archive
+- [x] The role writes the block between `# BEGIN FIBER PLATFORM` and `# END FIBER PLATFORM`
+      only when it differs, keeps a copy of the file as it was before the first change, and
+      syncs. It copies the overlay to `/boot/firmware/overlays/` without owner or mode (the
+      partition is FAT). It writes `/etc/modules-load.d/fiber.conf` with `i2c-dev`, and makes
+      the groups. A changed `config.txt` or overlay ends the apply with "restart needed".
+      Turning `base` off takes the block, the overlay and the module file away again
+- [x] `settings.hardware.minipcie` (`none`, `lte`, `rak5146`): nothing drives GPIO10 and 11 at
+      start; the agent later sets them for the card that is fitted
+- [x] `fiber doctor`: fails on a line that breaks this board (`dtparam=spi=on`,
+      `dtoverlay=w1-gpio`, `ctsrts`, a bare `dtoverlay=pwm`), and checks what should be there
+      (the block, `/dev/ttyAMA3`, `/dev/ttyAMA4`, `/dev/spidev6.0`, `/dev/rtc0`, 0x18 and 0x51
+      taken by their drivers and 0x19 answering on bus 10, eight 1-Wire masters). Each finding
+      says what to do. Tested against a temporary root
+- [x] The fixture test, in the converge test: the stock `config.txt` becomes the expected file,
+      byte for byte; a second run changes nothing; a file edited by hand gets the block back
+- [x] On a FIBER: the list under "Done when" (but the power cycle); that the stock file already
+      has `otg_mode=1` under `[cm4]`; that the clock is set from the RTC at start without
+      `fake-hwclock`; that a kernel update leaves `fiber-ds2482.dtbo` in place (2026-11-19)
+- [x] On a FIBER: the time survives a power cycle, with no network (2026-11-19: NTP off, the
+      power off for about a minute; the kernel set the clock from the RTC 6.7 s into the start,
+      within a second of the computer's)
+
+Watch out: `dtparam=spi=on` turns on SPI0, which takes GPIO7 to 11: the south bridge's reset,
+its serial link and the card's lines. A bare `dtoverlay=pwm` takes GPIO18, the LCD's chip
+select. The firmware applies `gpio=` lines a few seconds after power-on, not at once. The stock
+file has `dtparam=audio=on`: whether the CM4's analogue audio takes PWM channel 1 from the
+backlight is for the bench (T2), and so are `camera_auto_detect=1` and `display_auto_detect=1`,
+which probe the same I2C bus as the board's own chips.
+
+- Needs: T6; T2 for the part on a FIBER.
+- Done when: the fixture test passes in CI; on a FIBER `i2cdetect -y 10` shows 18 and 51 in use,
+  both serial ports and `/dev/spidev6.0` exist, eight 1-Wire masters exist, and the time
+  survives a power cycle.
 
 ### T8. The `mosquitto` and `node-red` roles (M1)
 
