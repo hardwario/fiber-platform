@@ -48,8 +48,8 @@ next power-on. The firmware runs; a new one would have to go through the J-Link.
 `/dev/spidev6.0` and PWM channel 1 (check 2 and 6 in part, all in `docs/bench-checks.md`). The
 earlier software's LCD driver was read: ST7920, mode 3, 400 kHz, and the picture turned by 180
 degrees. The maintainer looked: the agent's pages show, and the panel is mounted upside down, so
-the turn stays (T20). Left, for someone at the bench: a last look that the pages are upright; the
-backlight; press each button; listen to the buzzer, also
+the turn stays (T20). The backlight lights. Left, for someone at the bench: a last look that the
+pages are upright; press each button; listen to the buzzer, also
 at power-on; a RAK5146 card in the slot; a second unit; then a power cycle, after which `sudo
 fiber firmware chip south` should answer again (with the agent stopped). The test pattern is
 `hil/lcd_test.py` (a copy is in the home directory of `fiber` on the unit; stop the agent first,
@@ -76,7 +76,8 @@ these answers, and each takes minutes ([`docs/bench-checks.md`](docs/bench-check
       display with chip select on GPIO18 and reset on GPIO16 (the earlier software used SPI mode
       3 at 400 kHz, with `0xF8` before a command and `0xFA` before data). Nothing may object to
       the overlay taking GPIO19 (2026-11-19: the agent's pages show, sent that way)
-- [ ] The backlight on PWM channel 1 (`dtoverlay=pwm,pin=13,func=4`)
+- [x] The backlight on PWM channel 1 (`dtoverlay=pwm,pin=13,func=4`): it lights, at the 80 % the
+      agent sets (the maintainer, 2026-11-19); the dimming not looked at
 - [ ] The buttons on GPIO23, 24 and 25 read low while pressed
 - [ ] The buzzer sounds with GPIO17 low. Listen at power-on too: until `config.txt` sets the
       line, only the Raspberry Pi's weak pull-down holds it
@@ -99,8 +100,10 @@ stock `config.txt`, byte for byte the fixture's expected file; after the restart
 shows 18 and 51 in use, both serial ports, `/dev/spidev6.0`, `/dev/rtc0` and eight 1-Wire masters
 are there, and `fiber doctor` finds nothing wrong. The stock file has `otg_mode=1` under `[cm4]`;
 the kernel sets the clock from the RTC 19 s into the start, with no `fake-hwclock`; a kernel
-package installed again leaves `fiber-ds2482.dtbo` in place. Left: the time across a power cycle
-without network, which needs someone to pull the plug.
+package installed again leaves `fiber-ds2482.dtbo` in place. The questions under "Watch out": with
+`dtparam=audio=on` left in the stock file the backlight works on PWM channel 1, and with
+`camera_auto_detect=1` and `display_auto_detect=1` the board's three chips answer on their bus.
+Left: the time across a power cycle without network, which needs someone to pull the plug.
 Earlier (2026-11-17): everything that needs no board is done, commit `81f5cf4`, and its CI run (44192840178) is green: the fixture test on a real FAT
 filesystem in the converge test, `fiber doctor`, the board module and its check against the
 block. Settled: the stock `config.txt` is `pi-gen`'s at the tag of the pinned image
@@ -572,8 +575,8 @@ picture being wrong, and the turn was taken out for one build (`20bdbb2`). It go
 the build goes on the FIBER for a last look.
 The display driver (`agent/src/agent/lcd.rs`): ST7920 packets over `/dev/spidev6.0` in mode 3 at
 400 kHz, reset on GPIO16, only the rows that changed, the controller set up again after an
-error. The backlight's channel is set
-to 80 % on the FIBER (its first write races udev and is tried again a second later). `fiber
+error. The backlight lights, at the 80 % the agent sets (the maintainer looked; its first write
+races udev and is tried again a second later; the dimming after 60 s not looked at). `fiber
 display message` works through MQTT. Left, at the bench: see the pages, hear `fiber buzzer beep`,
 press the buttons with `fiber buttons watch`.
 Earlier (2026-11-18): all but the display driver is written and tested on the computer: the docs

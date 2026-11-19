@@ -1,5 +1,5 @@
 //! The backlight: the TPS92612's PWM input on GPIO13, PWM channel 1 through Linux's sysfs
-//! (`dtoverlay=pwm,pin=13,func=4`). Set on a FIBER (2026-11-19); whether it lights: not seen.
+//! (`dtoverlay=pwm,pin=13,func=4`). Lights on a FIBER (2026-11-19); the dimming not looked at.
 
 use std::io;
 use std::path::PathBuf;
