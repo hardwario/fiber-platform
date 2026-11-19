@@ -121,9 +121,10 @@ not give its scale in Hz). The strength it reads follows the power asked of the 
 | about -3 dBm (the +10 dBm setting asked for 0 dBm) | -103 to -106 dBm; a few frames missed at the edge |
 
 The RF switch for the low-power PA (PC3 and PC4 high, PC5 low) is right: the earlier firmware had
-it wrong until 2026-09-26 and lost 26 dB to it. The path loss is high for a metre (about 100 dB from
-+14 dBm to -88 dBm; the Core Module's +11 dBm or so arrived at -75 dBm): whether the FIBER had an
-antenna on its jack was not looked at. Not done yet: the error rates at -60, -90, -100 and -105
+it wrong until 2026-09-26 and lost 26 dB to it. **The FIBER's antenna was disconnected** through
+all of these measurements (the maintainer, 2026-11-19): that is the path loss of about 100 dB at a
+metre (+14 dBm arrived at -88 dBm; the Core Module's +11 dBm or so at -75 dBm), and every level on
+this page is without it. Not done yet: the same with the antenna on, the error rates at -60, -90, -100 and -105
 dBm (they need attenuators), more than one Core Module, and the frequency offset in Hz.
 
 Before the Core Module (the same day): the radio up, the noise floor, and no TOWER traffic in the
@@ -137,9 +138,9 @@ deviation, BT 1, sync word `0xDB624715`, a preamble detector of 16 bits), receiv
 bytes, no whitening, no CRC); the RF switch to receive (PC3 to PC5 high); the radio stays in
 receive. The core runs on MSI at 16 MHz, not on the TCXO.
 
-The noise floor, as the radio's own RSSI reads it: 500 samples in each setting, the FIBER and its
-antenna as they were on the bench (whether its cover was on and an antenna fitted was not looked
-at). The average in dBm; the lowest reading was -127 dBm everywhere, the highest between -107 and
+The noise floor, as the radio's own RSSI reads it: 500 samples in each setting, with the FIBER's
+antenna disconnected (so this is the receiver's own floor, with little from outside; whether the
+cover was on was not looked at). The average in dBm; the lowest reading was -127 dBm everywhere, the highest between -107 and
 -80 dBm (short spikes, from something else on the band).
 
 | Receive filter | LDO, normal gain | LDO, boosted | SMPS, normal | SMPS, boosted |

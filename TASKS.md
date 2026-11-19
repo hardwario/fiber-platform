@@ -654,8 +654,9 @@ runs `radio_beacon` as the sniffer (flashed over its UART bootloader, no buttons
 receives the frames the north bridge builds and sends** (spike in its send mode): through its
 CRC, SQI 32, AFC -4 to 0, at -88 dBm from +14 dBm, -91 from +10, about -105 from -3. So T22's
 "Done when" holds: frames go both ways and the captures are in the repository. Left: the error
-rates at four levels (attenuators), several Core Modules, `docs/firmware/radio.md`. The path loss
-is high for a metre (about 100 dB): whether the FIBER has an antenna fitted is to be asked.
+rates at four levels (attenuators), several Core Modules, `docs/firmware/radio.md`. The FIBER's
+antenna was disconnected through every radio measurement (the maintainer): hence the path loss of
+about 100 dB at a metre. Each level is to be measured again with it on.
 
 TOWER nodes use a SPIRIT1 radio; the north bridge has another one. Whether the two understand
 each other is the biggest unknown of the plan, so it is answered before anything is built on it
@@ -687,8 +688,9 @@ each other is the biggest unknown of the plan, so it is answered before anything
 - [ ] The same on several modules
 - [ ] The error rate at -60, -90, -100 and -105 dBm, for 117, 156 and 187 kHz bandwidth
 - [x] The noise floor, with the linear regulator and with the switching one, with and without
-      the boosted receive gain: -114 to -118 dBm, the regulator makes no difference. Whether the
-      FIBER was closed and its antenna fitted was not looked at
+      the boosted receive gain: -114 to -118 dBm, the regulator makes no difference. With the
+      antenna disconnected: the receiver's own floor; with it on, still to be measured
+- [ ] The two-way levels again with the FIBER's antenna on
 - [ ] The receiver's sensitivity against a known signal (the earlier firmware measured a weak
       receiver)
 - [ ] The results into `docs/bench-checks.md` and `docs/firmware/radio.md`
