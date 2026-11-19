@@ -761,8 +761,10 @@ one after another (port 1 to 8, 160 ms apart), turn green in the same order, the
 dark from port 8 back to 1; a hold of 0.3 s between, about 6 s in all. Each LED shows red, green
 and both, and the order of the ports shows. Written and tested, `just check` passes; the image
 is 16248 bytes, CRC `0xfbcd5b36`; on the FIBER as release `0.1.0-bench.14`, written by the agent
-at 19:27:53. Left: the maintainer sees it. `fiber firmware flash south` restarts the chip to show
-it again (three times an hour; the two writes of this evening count). The power LED keeps its own pattern. The test runs to its end also when a
+at 19:27:53; commits `a836f50`, `3e60968`, CI run 44590725201 green. Shown again for the
+maintainer at 19:46:23 (`fiber firmware flash south`, the third write of the hour) and at 19:49:39
+(a 50 ms pulse on the south bridge's reset with `pinctrl`, which writes nothing; the agent saw
+`"reset":"pin"`). Left: the maintainer says whether every port shows all three colours in order. The power LED keeps its own pattern. The test runs to its end also when a
 `Desired` comes in the meantime (after a flash the agent is already there): 8 s at most.
 
 - [x] The first form: docs, `crates/south-core`, tests, `just check`, written on the FIBER
@@ -1690,7 +1692,7 @@ dimmed display acts ("it works well", the maintainer).
 
 ### T46. A client's message shows at once (M4)
 
-Done 2026-11-19, commit `a62cbbd`. Checked: `just check` (a test that fails without the fix), and
+Done 2026-11-19, commit `a62cbbd`, CI run 44590725201 green. Checked: `just check` (a test that fails without the fix), and
 on the FIBER (release `0.1.0-bench.15`) the alarm's message comes with its beep (the maintainer,
 19:41:49). The cause: the agent drew the display on its tick, once a second, and on a press, but
 not after a request, so a message waited up to 1 s (and about 90 ms more to reach the LCD) while
