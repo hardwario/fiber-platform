@@ -61,9 +61,10 @@ and GPIO19 to 21 its pins (`SPI6_MISO`, `SPI6_MOSI`, `SPI6_SCLK`), and nothing i
 objects. A test pattern was sent as an ST7920 takes it (SPI mode 3, 400 kHz, `0xF8` before a
 command, `0xFA` before data, reset on GPIO16): four lines of text from the controller's own font
 and a frame with a checkerboard. Since then the agent's driver sends its pages, without an error.
-The maintainer looked: the pages showed, flipped. So the bus, the mode, the speed and the packets
-are right, and the earlier software's 180-degree turn is wrong on this board; the agent now sends
-the picture as it is drawn. That the pages are upright now: waiting for a second look.
+The maintainer looked: the pages show, so the bus, the mode, the speed and the packets are right.
+Sent as drawn they are upside down: the panel is mounted upside down, and the agent turns the
+picture by 180 degrees, as the earlier software did. (For one build the turn was taken out, on a
+misreading of the first look.) That the pages are upright with it: waiting for a last look.
 
 ## 3. Which level does the RAK5146 USB card need on mini-PCIe pin 22?
 

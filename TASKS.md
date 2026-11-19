@@ -47,8 +47,9 @@ cannot reach the south bridge's bootloader (`fiber firmware chip south` gets `0x
 next power-on. The firmware runs; a new one would have to go through the J-Link. Answered: both bootloaders (check 1); the I2C bus and its three chips; the clock;
 `/dev/spidev6.0` and PWM channel 1 (check 2 and 6 in part, all in `docs/bench-checks.md`). The
 earlier software's LCD driver was read: ST7920, mode 3, 400 kHz, and the picture turned by 180
-degrees. The maintainer looked: the agent's pages show, flipped, so the turn is gone (T20). Left,
-for someone at the bench: the pages upright now?, the backlight; press each button; listen to the buzzer, also
+degrees. The maintainer looked: the agent's pages show, and the panel is mounted upside down, so
+the turn stays (T20). Left, for someone at the bench: a last look that the pages are upright; the
+backlight; press each button; listen to the buzzer, also
 at power-on; a RAK5146 card in the slot; a second unit; then a power cycle, after which `sudo
 fiber firmware chip south` should answer again (with the agent stopped). The test pattern is
 `hil/lcd_test.py` (a copy is in the home directory of `fiber` on the unit; stop the agent first,
@@ -563,9 +564,12 @@ cannot be used: the driver puts it on one master only, the master of the first D
 
 ### T20. LCD, backlight, buttons, buzzer (M4)
 
-State (2026-11-19): the maintainer looked: the LCD shows the agent's pages, flipped. So the bus,
-the mode, the speed and the packets are right, and the 180-degree turn taken from the earlier
-software is wrong on this board: it comes out, and the build goes on the FIBER for another look.
+State (2026-11-19): the LCD shows the agent's pages, so the bus, the mode, the speed and the
+packets are right. Sent as drawn they are upside down (the maintainer's second look): the panel
+is mounted upside down, and the picture is turned by 180 degrees, as the earlier software did.
+The first look ("the lcd module view is flipped") said that already; it was misread as the turned
+picture being wrong, and the turn was taken out for one build (`20bdbb2`). It goes back in, and
+the build goes on the FIBER for a last look.
 The display driver (`agent/src/agent/lcd.rs`): ST7920 packets over `/dev/spidev6.0` in mode 3 at
 400 kHz, reset on GPIO16, only the rows that changed, the controller set up again after an
 error. The backlight's channel is set
@@ -586,7 +590,7 @@ run on a FIBER.
       `buzzer.beep`, `display.message`, `display.backlight`
 - [x] The display driver over `/dev/spidev6.0`, with what T2 found (the mode, the speed, the
       bytes before a command and before data), reset on GPIO16. Seen on the LCD (2026-11-19);
-      the picture goes as drawn, without the earlier software's 180-degree turn
+      the picture turned by 180 degrees, as the panel is mounted upside down
 - [x] The picture is a `tower_hmi::Frame<16, 64>`; only the rows that changed are sent
 - [x] The backlight on PWM channel 1, with a brightness and a time after which it dims; the unit
       leaves `/sys` writable as its permissions have it

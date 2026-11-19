@@ -6,7 +6,8 @@
 Four lines of text from the controller's own font, and in its graphics memory a frame with a
 checkerboard on the right. Needs `python3-spidev`, `/dev/spidev6.0` (`dtoverlay=spi6-1cs`) and the
 agent stopped (it drives the LCD). Run on a FIBER (2026-11-19) without an error; what it showed
-was not seen. The agent's pages, sent the same way, show on the LCD.
+was not seen. The agent's pages, sent the same way, show on the LCD; the panel is mounted upside
+down, so this pattern's text (from the controller's own font, never turned) reads upside down.
 """
 import subprocess
 import sys

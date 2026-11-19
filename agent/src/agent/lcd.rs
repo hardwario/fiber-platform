@@ -10,8 +10,9 @@
 //!
 //! The picture goes into the controller's graphics memory, which is 256 x 32: the top half of
 //! the screen in its first 128 columns, the bottom half in the next 128. Only the rows that
-//! changed are sent. It goes as it is drawn: the earlier software turned it by 180 degrees, and
-//! on a FIBER that showed the pages upside down (2026-11-19).
+//! changed are sent. The panel is mounted upside down on the display board, so the picture is
+//! turned by 180 degrees on the way, as the earlier software did. Seen on a FIBER (2026-11-19):
+//! sent as drawn, the pages are upside down.
 
 use std::io;
 use std::time::Duration;
@@ -58,6 +59,14 @@ pub trait Bus {
     /// Pulls the reset line low, then lets it go high again.
     fn reset(&mut self, low: bool) -> io::Result<()>;
     fn sleep(&mut self, duration: Duration);
+}
+
+/// The controller's rows as the panel shows them: row `r` of the controller is row `63 - r` of
+/// the picture, its bytes in the other order and the bits of each byte too.
+pub fn turned(rows: &Rows, row: usize) -> [u8; 16] {
+    let mut bytes = rows[63 - row];
+    bytes.reverse();
+    bytes.map(u8::reverse_bits)
 }
 
 /// The LCD: what it shows now, as far as the agent knows.
@@ -116,7 +125,7 @@ impl<B: Bus> Lcd<B> {
             self.set_up()?;
         }
         for row in 0..64 {
-            let bytes = picture[row];
+            let bytes = turned(picture, row);
             let same = !fresh && self.shown.is_some_and(|shown| shown[row] == bytes);
             if same {
                 continue;
@@ -208,18 +217,14 @@ mod tests {
     }
 
     #[test]
-    fn the_picture_goes_as_it_is_drawn() {
+    fn the_picture_is_turned_by_half_a_turn() {
         let mut picture: Picture = Frame::new();
-        // The top left pixel and the one right of it: the first byte, its two highest bits.
+        // The top left pixel and the one right of it.
         picture.canvas().pixel(0, 0, Color::Black);
         picture.canvas().pixel(1, 0, Color::Black);
-        let mut lcd = Lcd::new(Recorder::default());
-        lcd.show(&rows(&picture)).unwrap();
-        let row0 = &lcd.bus.sent[7..7 + 18];
-        assert_eq!(row0[0], (COMMAND, 0x80));
-        assert_eq!(row0[1], (COMMAND, 0x80));
-        assert_eq!(row0[2], (DATA, 0b1100_0000));
-        assert!(row0[3..].iter().all(|&s| s == (DATA, 0)));
+        // The controller's last row, its last byte, its two lowest bits: the bottom right.
+        assert_eq!(turned(&rows(&picture), 63)[15], 0b0000_0011);
+        assert_eq!(turned(&rows(&picture), 0), [0; 16]);
     }
 
     #[test]
@@ -248,13 +253,13 @@ mod tests {
         lcd.bus.sent.clear();
         lcd.show(&rows(&picture)).unwrap();
         assert!(lcd.bus.sent.is_empty());
-        // The last pixel of row 61: vertical 29 of the bottom half, the lowest bit of the last byte.
-        picture.canvas().pixel(127, 61, Color::Black);
+        // Row 2 of the picture is the controller's row 61: vertical 29 of the bottom half.
+        picture.canvas().pixel(127, 2, Color::Black);
         lcd.show(&rows(&picture)).unwrap();
         assert_eq!(lcd.bus.sent.len(), 18);
         assert_eq!(lcd.bus.sent[0], (COMMAND, 0x80 | 29));
         assert_eq!(lcd.bus.sent[1], (COMMAND, 0x88));
-        assert_eq!(lcd.bus.sent[17], (DATA, 0x01));
+        assert_eq!(lcd.bus.sent[2], (DATA, 0x80));
     }
 
     #[test]
