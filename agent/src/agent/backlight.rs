@@ -45,10 +45,16 @@ impl Pwm {
 /// new files to the group `gpio` yet.
 const RETRY: std::time::Duration = std::time::Duration::from_secs(1);
 
+/// How long a write may keep failing before it is said: at the start udev gives the channel's
+/// files to the group `gpio` a moment after the agent's first write (seen on a FIBER, 2026-11-19,
+/// a second later).
+const SAY_AFTER: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// Sets the duty cycles that come in, and tries a failed one again every second until it is
-/// written or another comes; says once when it cannot.
+/// written or another comes; says once when it still cannot after [`SAY_AFTER`].
 pub async fn drive(mut pwm: Pwm, mut duties: tokio::sync::mpsc::UnboundedReceiver<u8>) {
     let mut said = false;
+    let mut failing_since: Option<tokio::time::Instant> = None;
     let mut unwritten: Option<u8> = None;
     loop {
         let next = match unwritten {
@@ -65,12 +71,15 @@ pub async fn drive(mut pwm: Pwm, mut duties: tokio::sync::mpsc::UnboundedReceive
                 Ok(()) => {
                     unwritten = None;
                     said = false;
+                    failing_since = None;
                 }
-                Err(e) if !said => {
-                    eprintln!("the backlight ({}): {e}", pwm.chip.display());
-                    said = true;
+                Err(e) => {
+                    let since = *failing_since.get_or_insert_with(tokio::time::Instant::now);
+                    if !said && since.elapsed() >= SAY_AFTER {
+                        eprintln!("the backlight ({}): {e}", pwm.chip.display());
+                        said = true;
+                    }
                 }
-                Err(_) => {}
             }
         }
     }

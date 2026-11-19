@@ -231,6 +231,11 @@ Switches the power of a port, or of all of them.
 `data`: `{"ports":[...]}`, the power of all eight ports after it, from port 1. A cycle answers
 when the port is on again.
 
+**Nothing of it is kept:** when the agent starts, every port is on and every LED `auto`, whatever
+a client had set before (seen on a FIBER, 2026-11-19). While the agent is stopped, the south bridge
+keeps the ports as they were and shows its fallback on the LEDs. A client that wants a port off
+asks again after `status` comes back `online`.
+
 ### `leds.set`
 
 Sets one LED, which then stays so until `leds.auto`.
