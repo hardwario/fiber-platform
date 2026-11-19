@@ -2,6 +2,8 @@
 //! [`Picture`], and what the buttons do to it. [`Facts`] is what the agent gathers for it; the
 //! drawing is a pure function of the two, so the tests compare pictures.
 
+use std::net::Ipv4Addr;
+
 use tower_hmi::fonts::{SPLEEN_5X8, SPLEEN_6X12, SPLEEN_8X16, SPLEEN_12X24};
 use tower_hmi::input::{ButtonEvent, Kind};
 use tower_hmi::menu::{Item, Menu, MenuState, MenuStyle, Nav, Outcome, Table};
@@ -41,7 +43,8 @@ pub enum Ask {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Facts {
     pub name: String,
-    /// IPv4 addresses, the first two shown.
+    /// The IPv4 addresses, each with the size of its network (`10.0.0.108/24`); the first is
+    /// shown.
     pub addresses: Vec<String>,
     /// Unix time, and the local zone at it: its offset from UTC in seconds and its abbreviation
     /// (`UTC` and 0 when there is none).
@@ -123,6 +126,9 @@ impl Screen {
 
 const SMALL: TextStyle = TextStyle::new(&SPLEEN_5X8);
 const STYLE: TextStyle = TextStyle::new(&SPLEEN_6X12);
+
+/// The characters of a line after an icon, in [`STYLE`].
+const LINE: usize = 19;
 const MEDIUM: TextStyle = TextStyle::new(&SPLEEN_8X16);
 const BIG: TextStyle = TextStyle::new(&SPLEEN_12X24);
 
@@ -155,7 +161,7 @@ fn lines(canvas: &mut Canvas<'_>, lines: &[String]) {
 /// An icon and a line of text beside it, in the row that starts at `y`.
 fn line_with_icon(canvas: &mut Canvas<'_>, y: i32, icon: &Image, text: &str) {
     canvas.image(1, y + 2, icon, Color::Black, None);
-    let text: String = text.chars().take(19).collect();
+    let text: String = text.chars().take(LINE).collect();
     canvas.text(11, y, &text, &STYLE);
 }
 
@@ -201,7 +207,15 @@ fn page_fiber(canvas: &mut Canvas<'_>, facts: &Facts) {
     let address = match facts.addresses.as_slice() {
         [] => "no address".to_owned(),
         [one] => one.clone(),
-        [first, rest @ ..] => format!("{first} +{}", rest.len()),
+        // The address first: `+N` only when the line has room for it.
+        [first, rest @ ..] => {
+            let both = format!("{first} +{}", rest.len());
+            if both.chars().count() <= LINE {
+                both
+            } else {
+                first.clone()
+            }
+        }
     };
     line_with_icon(canvas, 25, &icons::NETWORK, &address);
     canvas.hline(0, 38, 128, Color::Black);
@@ -418,24 +432,53 @@ pub fn draw(screen: &mut Screen, facts: &Facts) -> Picture {
     picture
 }
 
-/// The local IPv4 addresses in `/proc/net/fib_trie`, without the loopback: each `|-- a.b.c.d`
-/// followed by `/32 host LOCAL`.
+/// The local IPv4 addresses in `/proc/net/fib_trie`, without the loopback, each with the size of
+/// its network: `a.b.c.d/n`. An address is a leaf `|-- a.b.c.d` with a `/32 host LOCAL` line under
+/// it; its network, the longest leaf with a `/n link UNICAST` line that holds it (the route the
+/// kernel made for the address). An address in no such network is shown bare.
 pub fn local_addresses(fib_trie: &str) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    let mut last = None;
+    let mut locals: Vec<Ipv4Addr> = Vec::new();
+    let mut networks: Vec<(u32, u32)> = Vec::new();
+    let mut leaf = None;
     for line in fib_trie.lines() {
         let line = line.trim();
         if let Some(address) = line.strip_prefix("|-- ") {
-            last = Some(address.to_owned());
-        } else if line.starts_with("/32 host LOCAL")
-            && let Some(address) = last.take()
-            && !address.starts_with("127.")
-            && !out.contains(&address)
-        {
-            out.push(address);
+            leaf = address.parse::<Ipv4Addr>().ok();
+        } else if line.starts_with("+--") {
+            leaf = None;
+        } else if let (Some(address), Some(rest)) = (leaf, line.strip_prefix('/')) {
+            let mut words = rest.split_whitespace();
+            let (Some(Ok(bits)), Some(scope), Some(kind)) =
+                (words.next().map(str::parse::<u32>), words.next(), words.next())
+            else {
+                continue;
+            };
+            match (bits, scope, kind) {
+                (32, "host", "LOCAL") if !address.is_loopback() && !locals.contains(&address) => {
+                    locals.push(address)
+                }
+                (1..=31, "link", "UNICAST") => networks.push((u32::from(address), bits)),
+                _ => {}
+            }
         }
     }
-    out
+    locals
+        .into_iter()
+        .map(|address| {
+            let bits = networks
+                .iter()
+                .filter(|(network, bits)| {
+                    let mask = u32::MAX << (32 - bits);
+                    u32::from(address) & mask == *network
+                })
+                .map(|(_, bits)| *bits)
+                .max();
+            match bits {
+                Some(bits) => format!("{address}/{bits}"),
+                None => address.to_string(),
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -446,7 +489,7 @@ mod tests {
     fn facts() -> Facts {
         Facts {
             name: "fiber-abcdef12".into(),
-            addresses: vec!["192.168.1.23".into()],
+            addresses: vec!["192.168.1.23/24".into()],
             ts: 1_794_952_515,
             utc_offset: 3600,
             zone: "CET".into(),
@@ -622,7 +665,36 @@ mod tests {
                         \x20    |-- 192.168.1.23\n        /32 host LOCAL\n     |-- 192.168.1.255\n\
                         \x20       /32 link BROADCAST\nLocal:\n     |-- 192.168.1.23\n        /32 host LOCAL\n\
                         \x20    |-- 10.0.0.5\n        /32 host LOCAL\n";
+        // No `link UNICAST` route in this one: the addresses stay bare.
         assert_eq!(local_addresses(fib_trie), ["192.168.1.23", "10.0.0.5"]);
         assert!(local_addresses("").is_empty());
+    }
+
+    /// The bench's FIBER on Wi-Fi (2026-11-19), and a second network, on a cable, of another size.
+    #[test]
+    fn addresses_with_their_network_size() {
+        let fiber = include_str!("fib-trie-2026-11-19.txt");
+        assert_eq!(local_addresses(fiber), ["10.0.0.108/24"]);
+        let two = "Main:\n  +-- 0.0.0.0/0 3 0 5\n     |-- 0.0.0.0\n        /0 universe UNICAST\n\
+                   \x20    +-- 172.16.0.0/20 2 0 2\n        |-- 172.16.0.0\n           /20 link UNICAST\n\
+                   \x20       |-- 172.16.3.7\n           /32 host LOCAL\n\
+                   \x20    +-- 192.168.100.0/24 2 0 2\n        |-- 192.168.100.0\n           /24 link UNICAST\n\
+                   \x20       |-- 192.168.100.200\n           /32 host LOCAL\n\
+                   \x20       |-- 192.168.100.255\n           /32 link BROADCAST\n";
+        assert_eq!(local_addresses(two), ["172.16.3.7/20", "192.168.100.200/24"]);
+    }
+
+    #[test]
+    fn the_address_line_keeps_the_address() {
+        let mut screen = Screen::default();
+        let mut facts = facts();
+        // `+1` fits after a short address, not after a long one.
+        facts.addresses = vec!["10.0.0.108/24".into(), "172.16.3.7/20".into()];
+        let short = as_text(&draw(&mut screen, &facts));
+        facts.addresses = vec!["192.168.100.200/24".into(), "172.16.3.7/20".into()];
+        let long = as_text(&draw(&mut screen, &facts));
+        facts.addresses = vec!["192.168.100.200/24".into()];
+        assert_eq!(long, as_text(&draw(&mut screen, &facts)));
+        assert_ne!(short, long);
     }
 }

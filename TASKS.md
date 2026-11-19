@@ -741,6 +741,22 @@ display on the bench; D26 says how.
 
 - Done when: the tests pass, and on the FIBER a press takes a message away and stops the alarm.
 
+### T43. The address with its network size on the first page (M4)
+
+State (2026-11-19): written and tested, `just check` passes; on the bench's FIBER as release
+`0.1.0-bench.11`, waiting for the maintainer to look at page 1. The size comes from the same
+`/proc/net/fib_trie`: the longest `link UNICAST` route that holds the address (on the bench:
+`10.0.0.0 /24`).
+
+- [x] `docs/front-panel.md` first
+- [x] Each local address with the size of the network it is in; an address in no such network
+      stays bare. `+N` only when it fits the line (19 characters after the icon)
+- [x] Tests: the FIBER's own `fib_trie` as a vector (`agent/src/agent/fib-trie-2026-11-19.txt`),
+      two networks of other sizes, the `+N` rule, the stored picture
+- [ ] On the FIBER: seen on the display
+
+- Done when: the tests pass, and the FIBER's first page shows `10.0.0.108/24`.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read

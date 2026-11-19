@@ -14,7 +14,8 @@ down, so the driver (`agent/src/agent/lcd.rs`) turns the picture by 180 degrees.
 Each page has a title bar, white on black: the page's icon and title, and on the right a dot
 for each page, the one shown as a filled square.
 
-1. **FIBER:** its name, its first IPv4 address (`+1` when there are more), and below a line the
+1. **FIBER:** its name, its first IPv4 address with the size of its network (`10.0.0.108/24`;
+   `+1` after it when there are more and it fits), and below a line the
    local time in big digits, with the zone's abbreviation and the day beside it (`CET`,
    `Thu 19 Nov`). The zone is the system's, `/etc/localtime`, which FIBER Setup sets and
    `sudo timedatectl set-timezone` changes; the page follows a change within a second. Without
