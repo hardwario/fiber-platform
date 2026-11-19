@@ -6,7 +6,9 @@ the choice of components, take the seed, apply the choice, and update, roll back
 the platform. `apply` and the rest come with their tasks (`TASKS.md`, T6 and on).
 
 **Status:** tested on a computer, and in a bare Debian arm64 container in CI (no broker, no
-hardware, no settings). Not run on a FIBER yet.
+hardware, no settings). On a FIBER (2026-11-19): `version`, `doctor`, `platform status`, `seed`
+and `apply` (through the installer), and an update to the next release; not `rollback` and
+`uninstall`.
 
 ## Exit statuses
 
@@ -39,7 +41,9 @@ with, and the schema tag of the TOWER radio messages.
 
 **Built on the drafts of T13, which the maintainer has yet to read (T17).** Tested in a container
 against a simulated south bridge, through Mosquitto; flashing and `fiber firmware chip` are tested
-against a simulated bootloader only. Not run on a FIBER yet. These commands, but for `fiber firmware
+against a simulated bootloader. On a FIBER (2026-11-19): `status`, `power`, `ports`, `leds`,
+`display`, `firmware status`, `firmware flash` and `firmware chip`; not `buzzer`, `buttons` and
+`thermometers` with something to see (nobody at the bench, no probe). These commands, but for `fiber firmware
 chip`, are clients of the agent's MQTT API ([`mqtt-api.md`](mqtt-api.md)): each one reads its
 retained topics or sends a request on `fiber/cmd`, so whatever they do, a program of your own can
 do too. They connect to
@@ -212,7 +216,8 @@ What it looks at:
 - **The eight 1-Wire bus masters,** one for each port.
 
 Exit status 0 when everything is as it should be, 1 when not. Tested against prepared files,
-and in a container for the `config.txt` part; not run on a FIBER yet.
+and in a container for the `config.txt` part. On a FIBER with the platform (2026-11-19):
+everything as it should be.
 
 ## `fiber platform`
 

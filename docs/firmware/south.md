@@ -4,8 +4,9 @@ What runs on the south bridge (STM32C031C6): the status lights, the power of the
 two voltages, on the agent's word. The link it speaks is in [`south-link.md`](south-link.md); the
 board's pins in [`../hardware.md`](../hardware.md).
 
-**Status:** built, 16224 bytes (15.8 KB) of flash of the budget of 24 KB, and checked in CI. Not
-run on a chip yet: there is no FIBER on the bench (T2, T16).
+**Status:** built, 16224 bytes (15.8 KB) of flash of the budget of 24 KB, and checked in CI. Runs
+on a FIBER (2026-11-19), written by the agent: its pins follow `Desired` and the fallback comes,
+read over SWD; nobody has looked at the LEDs (T2, T16).
 
 ## Where it is
 
@@ -72,6 +73,7 @@ the chip; on a factory part the register then reads `0xDEFFE1AA`. A chip with re
 is left alone. It also clears the flash's "empty" flag at every start, so that a reset after a
 first write starts the firmware, not the bootloader.
 
-**Not tried on a chip yet.** A write of the option bytes that is cut short can leave the chip with
+**Not tried on a chip yet:** the unit on the bench had `nBOOT_SEL` = 0 already, so the firmware
+wrote nothing. A write of the option bytes that is cut short can leave the chip with
 readout protection on and its bootloader out of reach, which only SWD can undo: try it on the
 bench first, with a debug probe at hand (T2, T16).

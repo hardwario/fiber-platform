@@ -6,7 +6,8 @@ it is applied again later.
 **Status: partly built** (`TASKS.md`, T4 to T12, T18). Built so far: `provision/components.yaml`;
 the `fiber platform` commands that read and change `/etc/fiber/platform.yaml` and take the seed
 ([`cli.md`](cli.md)); the release archive and the installer; the roles `base`, `mosquitto`,
-`node_red`, `chirpstack` and `agent`, tested in containers and not run on a FIBER yet. The
+`node_red`, `chirpstack` and `agent`, tested in containers, and on a FIBER (2026-11-19) with every
+component, by the installer from a release built by hand (`TASKS.md`, T2 and T12). The
 package sources and versions below were checked against the upstream documentation and
 repositories on 2026-11-17; check them again when each role is changed.
 
@@ -86,7 +87,9 @@ version] | rollback | uninstall`. The ones that exist are described in [`cli.md`
 - `uninstall` turns every component off and removes the platform's files; data stays.
 - All three are tested in the converge test: an update to a test release
   (`release.py --version`; the program in it still says its own version), a rollback, an update
-  to the current release (nothing happens), and an uninstall. Not run on a FIBER yet.
+  to the current release (nothing happens), and an uninstall. On a FIBER: updates by the
+  installer to two newer releases (2026-11-19); not `fiber platform update`, rollback and
+  uninstall.
 
 ### How an apply runs
 
@@ -219,8 +222,9 @@ platform writes `/etc/mosquitto/conf.d/fiber.conf`:
 
 Both are tested in the converge test: the login from the seed works and nothing works without it,
 in the editor and on the dashboard; a password the owner changes stays changed; a second apply
-changes nothing; only ports 1880, 1883 (loopback) and 1884 listen. Not run on a FIBER yet; the
-dashboard's page has not been looked at in a browser.
+changes nothing; only ports 1880, 1883 (loopback) and 1884 listen. On a FIBER (2026-11-19) the
+same from another computer: the editor and the dashboard ask for the login, 1884 refuses without
+it, 1883 does not answer. The dashboard's page has not been looked at in a browser.
 
 ### ChirpStack
 
@@ -257,7 +261,8 @@ the mini-PCIe slot:
   component, as the card can appear long after the start. `0483:5740` is any STM32 serial port,
   not this card alone.
 
-Tested in the converge test, without a card. Not run on a FIBER yet.
+Tested in the converge test, without a card. On a FIBER without a card (2026-11-19): it runs
+once its password is long enough (T36); not with a card.
 
 ### The agent
 
@@ -283,8 +288,9 @@ The `agent` role runs `fiber agent` ([`cli.md`](cli.md)) as a service:
   FIBER. Both microcontrollers keep their firmware; the south bridge shows its fallback pattern
   after 5 s.
 
-Tested in the converge test against the simulated south bridge. Not run on a FIBER yet: the
-device classes and the groups of the devices are Raspberry Pi OS's, not seen on a FIBER yet.
+Tested in the converge test against the simulated south bridge. On a FIBER (2026-11-19) the
+service runs with these device classes and groups: it holds the port, flashes the south bridge,
+drives the LCD's SPI and the backlight's PWM (after udev has given its files to `gpio`).
 
 ### Sources (checked 2026-11-17)
 
@@ -357,7 +363,8 @@ What the role does:
 
 The converge test runs it on a real FAT filesystem: the stock `config.txt` of the image FIBER
 Setup pins becomes the expected file byte for byte (`provision/tests/fixtures/`), a second
-apply changes nothing, and a file edited by hand gets its block back. Not run on a FIBER yet.
+apply changes nothing, and a file edited by hand gets its block back. On a FIBER (2026-11-19) the
+stock file was that fixture byte for byte, and the role made the expected file of it.
 
 ## The release archive and the installer
 

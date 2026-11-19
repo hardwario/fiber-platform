@@ -5,7 +5,7 @@
 //! lines, the serial link, the ADC, the watchdog, the faults kept across a reset, and the one
 //! change it ever makes to the option bytes.
 //!
-//! Not run on a chip yet (TASKS.md, T16).
+//! Runs on a FIBER (TASKS.md, T16): its pins read over SWD follow `Desired`.
 #![no_std]
 #![no_main]
 

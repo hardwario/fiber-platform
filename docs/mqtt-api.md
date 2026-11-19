@@ -5,7 +5,9 @@ anyone who talks to a FIBER through its broker: a Node-RED flow, a program of yo
 `fiber` command line itself, which is a client of exactly these topics (D19).
 
 **Status: a draft for the maintainer to read (T13).** Built in the agent (T17) and tested against
-a simulated south bridge through Mosquitto; not run on a FIBER yet. This first part covers the
+a simulated south bridge through Mosquitto; on a FIBER (2026-11-19) `status`, `power`, `ports`,
+`firmware/south`, `display` and the requests `ports.power`, `leds.set`, `leds.auto`,
+`display.message` and `firmware.flash` work, also from another computer on port 1884. This first part covers the
 agent's core and the south bridge (M2); the thermometers (M3), the front panel (M4) and the radio
 (M5) add their topics with their tasks.
 
