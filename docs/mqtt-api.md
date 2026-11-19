@@ -112,6 +112,10 @@ One for each port, `ports/1` to `ports/8`:
   until Linux drops it: about 100 s after it was unplugged.
 - **Off:** the port's power is off.
 
+Each time the south bridge starts (with the FIBER, or after its firmware is written), the port
+LEDs first show a test for 8 s: all red for 3 s, dark for 1 s, all green for 3 s. A client's
+`leds.set` and the agent's colours show after it.
+
 ### `thermometers/id`
 
 One for each DS18B20 on the ports. The id is the name Linux gives the probe: its family `28`,

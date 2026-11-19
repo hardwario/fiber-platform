@@ -72,8 +72,12 @@ GPIO11 drives that pin. On the LTE modem it is PERST# (low = reset). RAK documen
 active-high reset on the SPI variants of the card; the USB variant is not documented. Until this is
 known, nothing drives GPIO11 at boot.
 
-Result: not run. The unit on the bench (2026-11-19) has no card in the slot: `lsusb` shows only
-the root hub.
+Result: not answered yet. A RAK5146 USB card in the slot (2026-11-19, evening), GPIO11 an input
+with the CM4's pull-down (reads low), nothing on the USB-B socket (so the USB switch gives the bus
+to the card): `lsusb` shows only the root hub. **The card has no power on this unit:** its 3.3 V
+comes from its own converter (`U27`, TPS62933, at least 3.8 V in) whose input is `BAT+`, the
+charger's battery node, and the unit has no cell (`fiber power`: input 13.62 V from PoE, no
+battery). Pin 22 was not driven; next with a charged cell fitted.
 
 ## 4. Radio: can the STM32WL55 exchange frames with a TOWER Core Module?
 

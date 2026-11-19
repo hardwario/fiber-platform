@@ -7,6 +7,8 @@
 //!
 //! - **At start** the power LED blinks green, and the ports come on one after another, 100 ms
 //!   apart, so that 1-Wire works without the agent and the inrush stays small.
+//! - **The LED test:** from 1 s to 4 s after the start every port's red LED, then 1 s dark, then
+//!   every port's green LED to 8 s, over every mode (a `Desired` shows on the port LEDs after it).
 //! - **A `Desired`** sets every LED line and the ports, from the next tick on.
 //! - **No `Desired` for 5 s:** the power LED blinks yellow and the port LEDs are dark; the ports
 //!   stay as they were. The next `Desired` ends it.
@@ -23,6 +25,20 @@ pub const TICKS_PER_SECOND: u32 = 50;
 pub const FALLBACK_AFTER: u32 = 5 * TICKS_PER_SECOND;
 /// Ticks between two ports switched on at start (100 ms).
 pub const PORT_STEP: u32 = 5;
+
+/// The LED test at start, in ticks since the start: every port's red LED, then every port's
+/// green LED, with a second dark before, between and after (`docs/firmware/south.md`).
+pub const TEST_RED: core::ops::Range<u32> = TICKS_PER_SECOND..4 * TICKS_PER_SECOND;
+pub const TEST_GREEN: core::ops::Range<u32> = 5 * TICKS_PER_SECOND..8 * TICKS_PER_SECOND;
+pub const TEST_END: u32 = TEST_GREEN.end;
+
+/// A port's LED lines (0 is port 1): green, then red.
+pub const fn port_green(port: usize) -> usize {
+    2 + 2 * port
+}
+pub const fn port_red(port: usize) -> usize {
+    3 + 2 * port
+}
 
 /// The power LED's lines.
 pub const POWER_GREEN: usize = 0;
@@ -65,6 +81,8 @@ pub enum Mode {
 #[derive(Clone, Debug)]
 pub struct Engine {
     tick: u32,
+    /// Ticks since start, up to [`TEST_END`]: the test runs once, also when `tick` wraps.
+    since_start: u32,
     since_desired: u32,
     desired: Option<Desired>,
     ports: u8,
@@ -92,6 +110,7 @@ impl Engine {
     pub const fn new() -> Self {
         Self {
             tick: 0,
+            since_start: 0,
             since_desired: 0,
             desired: None,
             ports: 0,
@@ -126,7 +145,9 @@ impl Engine {
     /// One tick (20 ms): what the lines should be now.
     pub fn tick(&mut self) -> Outputs {
         let tick = self.tick;
+        let since_start = self.since_start;
         self.tick = self.tick.wrapping_add(1);
+        self.since_start = (self.since_start + 1).min(TEST_END);
         self.since_desired = self.since_desired.saturating_add(1);
 
         let mut leds = [false; LED_LINES];
@@ -142,6 +163,12 @@ impl Engine {
                 // The ports, one after another: port n at tick n x 100 ms.
                 let on = (tick / PORT_STEP).min(PORTS as u32);
                 self.ports = ((1u16 << on) - 1) as u8;
+            }
+        }
+        if (TEST_RED.start..TEST_END).contains(&since_start) {
+            for port in 0..PORTS {
+                leds[port_red(port)] = TEST_RED.contains(&since_start);
+                leds[port_green(port)] = TEST_GREEN.contains(&since_start);
             }
         }
         Outputs {
@@ -244,8 +271,65 @@ mod tests {
     }
 
     #[test]
+    fn the_led_test_at_start() {
+        let mut engine = Engine::new();
+        let outs: [Outputs; 450] = core::array::from_fn(|_| engine.tick());
+        let reds = |o: &Outputs| (0..PORTS).filter(|&p| o.leds[port_red(p)]).count();
+        let greens = |o: &Outputs| (0..PORTS).filter(|&p| o.leds[port_green(p)]).count();
+        // Dark for 1 s, all red for 3 s, dark for 1 s, all green for 3 s, then dark.
+        for (tick, (red, green)) in [
+            (0, (0, 0)),
+            (49, (0, 0)),
+            (50, (8, 0)),
+            (199, (8, 0)),
+            (200, (0, 0)),
+            (249, (0, 0)),
+            (250, (0, 8)),
+            (399, (0, 8)),
+            (400, (0, 0)),
+            (449, (0, 0)),
+        ] {
+            assert_eq!(
+                (reds(&outs[tick]), greens(&outs[tick])),
+                (red, green),
+                "tick {tick}"
+            );
+        }
+        // The power LED keeps its own pattern.
+        assert!(outs[50].leds[POWER_GREEN] && !outs[75].leds[POWER_GREEN]);
+    }
+
+    #[test]
+    fn the_led_test_goes_over_a_desired() {
+        let mut engine = Engine::new();
+        run(&mut engine, 10);
+        engine.desired(Desired {
+            leds: [Light::On; LED_LINES],
+            ports: 0xff,
+        });
+        let out = run(&mut engine, 100);
+        assert!((0..PORTS).all(|p| out.leds[port_red(p)] && !out.leds[port_green(p)]));
+        assert!(
+            out.leds[POWER_GREEN] && out.leds[POWER_YELLOW],
+            "the power LED as desired"
+        );
+        // After it, the Desired shows (kept alive, so no fallback).
+        for _ in 0..TEST_END {
+            engine.desired(Desired {
+                leds: [Light::On; LED_LINES],
+                ports: 0xff,
+            });
+            engine.tick();
+        }
+        let out = engine.tick();
+        assert!(out.leds.iter().all(|l| *l));
+    }
+
+    #[test]
     fn without_a_desired_for_5_s_the_fallback() {
         let mut engine = Engine::new();
+        // After the LED test, which would light the port LEDs.
+        run(&mut engine, TEST_END);
         let leds = [Light::On; LED_LINES];
         engine.desired(Desired { leds, ports: 0x0f });
         run(&mut engine, FALLBACK_AFTER - 1);

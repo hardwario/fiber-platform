@@ -131,7 +131,8 @@ has to wait for the firmware to restart to learn who it is.
 
 - **At start** the firmware sends a `Hello`, shows a start pattern on the LEDs, and switches the
   eight ports on one after another, 100 ms apart, so that 1-Wire works without the agent and the
-  inrush stays small.
+  inrush stays small. From 1 s to 8 s after the start the port LEDs show the LED test (red 3 s,
+  dark 1 s, green 3 s) over any `Desired` ([`south.md`](south.md)).
 - **The agent sends a `Desired` every second.** The firmware applies it at its next tick (within
   20 ms) and answers with a `Status`.
 - **No `Desired` for 5 s:** the LEDs show the "agent down" pattern (the power LED blinks yellow,

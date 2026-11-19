@@ -183,7 +183,9 @@ off; do not copy it.
 
 PoE (12 V) or the Li-Ion cell feed a buck-boost converter (LT3120) that makes 5 V for the CM4. The
 board's 3.3 V rail is the CM4's own output. The north bridge has its own regulator from 5 V, the
-mini-PCIe card its own from the battery rail. The power button cuts the 5 V converter while it is
+mini-PCIe card its own from the battery rail: `U27` (TPS62933, a buck converter that needs at least
+3.8 V) takes `BAT+`, the charger's battery node, and starts with the 5 V converter (`POWER_EN`).
+**Without a cell the card has no power** (seen on the bench, 2026-11-19). The power button cuts the 5 V converter while it is
 held: it is a hardware switch that no GPIO reads.
 
 ## Not determined from the schematic

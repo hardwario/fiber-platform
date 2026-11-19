@@ -32,6 +32,10 @@ memory, so an overflow faults at once (the chip has no MPU), and with the profil
 - **At start:** it sends a `Hello` (its version, the CRC-32 of its own image, its unique id, why it
   started, a fault kept from before the reset, its option bytes), blinks the power LED green, and
   switches the ports on one after another, 100 ms apart.
+- **The LED test, at every start:** 1 s after the start every port's red LED lights for 3 s, then
+  1 s dark, then every port's green LED for 3 s, so that a broken LED shows at a glance. For
+  those 8 s the port LEDs show the test whatever a `Desired` says (after a flash the agent is
+  already there); the power LED keeps its own pattern.
 - **On a `Desired`:** every LED line and the ports, from the next tick on, and a `Status` back
   with the three raw ADC counts. On a `HelloRequest`: a `Hello`.
 - **No `Desired` for 5 s:** the power LED blinks yellow, the port LEDs are dark, the ports stay.

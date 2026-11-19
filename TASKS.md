@@ -86,7 +86,8 @@ these answers, and each takes minutes ([`docs/bench-checks.md`](docs/bench-check
 - [x] Listen at power-on too: until `config.txt` sets the line, only the Raspberry Pi's weak
       pull-down holds it (2026-11-19: silent through a power cycle, the maintainer listened)
 - [ ] With a RAK5146 USB card in the mini-PCIe slot: which level on GPIO11 (pin 22) lets the
-      card appear on USB (`0483:5740`)
+      card appear on USB (`0483:5740`). 2026-11-19: the card is in, but has no power: its
+      converter (`U27`) runs from `BAT+`, and the unit has no cell; next with a cell fitted
 - [ ] Write every result, with the date, into `docs/bench-checks.md`, and correct
       `docs/hardware.md` where the board disagrees with it
 
@@ -749,6 +750,26 @@ display on the bench; D26 says how.
 - [ ] On the FIBER: an alarm stopped by a press
 
 - Done when: the tests pass, and on the FIBER a press takes a message away and stops the alarm.
+
+### T45. An LED test at the south bridge's start (M2)
+
+State (2026-11-19): written and tested, `just check` passes; the image is 16216 bytes, CRC
+`0x6040a3a0`. On the bench's FIBER as release `0.1.0-bench.13`: the agent wrote the image at its
+start, and the south bridge runs it. Left: the maintainer sees the test (`fiber firmware flash
+south` restarts the chip to show it again, three times an hour). On the maintainer's word: 1 s
+after the firmware starts, every port's red LED for 3 s, 1 s dark, then every port's green LED for
+3 s, to see at a glance after boot that the LEDs work. The power LED keeps its own pattern. The test runs to its end also when a
+`Desired` comes in the meantime (after a flash the agent is already there): 8 s at most.
+
+- [x] `docs/firmware/south.md`, `docs/firmware/south-link.md`, `docs/mqtt-api.md` (the port
+      lights) first
+- [x] `crates/south-core`: the test in the engine, from 1 s to 8 s over every mode; tests (the
+      sequence, over a `Desired`, the fallback after it)
+- [x] The firmware's size against 24 KB (16216 bytes); `just check`
+- [x] On the FIBER: the agent writes the new image (2026-11-19)
+- [ ] On the FIBER: the test seen
+
+- Done when: the tests pass, and on the FIBER the maintainer sees red, dark, green after a start.
 
 ## Tasks ahead
 
