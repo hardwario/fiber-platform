@@ -89,7 +89,7 @@ The spike that opens the north bridge work (T22). With a Core Module running TOW
 
 **Result (2026-11-19): the north bridge hears a TOWER Core Module, and the air format is settled
 from the captures.** The Core Module (r1) ran TOWER's `radio_beacon` at the pinned revision as the
-node, about a metre from the FIBER: a 16-byte frame every second on channel 0, `[seq:4 LE][0xA5 x
+node, on the maintainer's computer near the FIBER (the distance was not measured): a 16-byte frame every second on channel 0, `[seq:4 LE][0xA5 x
 12]`. With TOWER's sync word in its register order (`DB 62 47 15`) nothing matched, while the
 preamble detector fired once a second; without a sync word the radio handed over the 64 bytes after
 each preamble, and in them:
@@ -122,9 +122,8 @@ not give its scale in Hz). The strength it reads follows the power asked of the 
 
 The RF switch for the low-power PA (PC3 and PC4 high, PC5 low) is right: the earlier firmware had
 it wrong until 2026-09-26 and lost 26 dB to it. **The FIBER's antenna was disconnected** through
-all of these measurements (the maintainer, 2026-11-19): that is the path loss of about 100 dB at a
-metre (+14 dBm arrived at -88 dBm; the Core Module's +11 dBm or so at -75 dBm), and every level on
-this page is without it, except the next paragraph.
+all of these measurements (the maintainer, 2026-11-19), and every level on this page is without
+it, except the next paragraph. How far the Core Modules were from the FIBER was not measured.
 
 **With the antenna on** (2026-11-19, the same afternoon): an external antenna on the north bridge's
 jack, its tip 15 cm from the Core Module r2 (the maintainer). The spike's settings were checked
@@ -133,20 +132,22 @@ switching regulator, `HAL_RADIO_IsDCDC`), and the board against the module's dat
 (`docs/firmware/radio.md`, "Good to know"): they match. The levels, each regulator run twice, back
 to back:
 
-| | Linear regulator | Switching regulator | Antenna off, about a metre (above) |
-|---|---|---|---|
-| North bridge sends +14 dBm | -80 to -83 dBm | -80 to -81 dBm | -88 dBm |
-| North bridge sends +10 dBm | -83 to -85 dBm | -83 to -84 dBm | -91 dBm |
-| North bridge sends about -3 dBm | -97 to -99 dBm | -97 dBm | -103 to -106 dBm |
-| North bridge receives the Core Module (`net_confirmed`) | -71 to -78 dBm | -72 to -76 dBm | -75 dBm |
+| | Linear regulator | Switching regulator | Another 868 MHz antenna, switching | Antenna off (above; distance not measured) |
+|---|---|---|---|---|
+| North bridge sends +14 dBm | -80 to -83 dBm | -80 to -81 dBm | -71 to -74 dBm | -88 dBm |
+| North bridge sends +10 dBm | -83 to -85 dBm | -83 to -84 dBm | -74 to -77 dBm | -91 dBm |
+| North bridge sends about -3 dBm | -97 to -99 dBm | -97 dBm | -87 to -90 dBm | -103 to -106 dBm |
+| North bridge receives the Core Module (`net_confirmed`) | -71 to -78 dBm | -72 to -76 dBm | -64 to -68 dBm | -75 dBm |
 
-The regulator makes no difference. The antenna, at a seventh of the distance, gives 2 to 9 dB:
-a connected antenna that much closer should give tens of dB more, so the signal still leaves and
-arrives about as it did with the jack open. Not found yet. Earlier the same afternoon the levels
-were 10 dB lower still in both directions (-85 dBm received, -91 to -95 dBm sent at +10 and
-+14 dBm); the back-to-back runs rule the regulator out, so something on the bench moved. What is
-left to try is on the hardware: `R63` fitted and soldered, the jack `JP16`, the antenna and its
-cable, and the module's `ANT` pad.
+The regulator makes no difference. The second antenna (the maintainer swapped it, the same place)
+gives 8 to 9 dB more in both directions: so the antenna is in the radio's path, and the switch and
+the path to the jack work. Whether about 80 dB between the two radios at 15 cm is what this pair
+should give is not settled: the Core Module's chip antenna, on a board with its USB cables, may
+well be the weaker side, and the two antennas' orientation counts. A known reference is still
+missing (two Core Modules at the same distance, or the level against distance). Earlier the same
+afternoon the levels were 10 dB lower still in both directions (-85 dBm received, -91 to -95 dBm
+sent at +10 and +14 dBm); the back-to-back runs rule the regulator out, so something on the bench
+moved.
 
 Not done yet: the error rates at -60, -90, -100 and -105 dBm (they need attenuators), more than
 one Core Module, and the frequency offset in Hz.

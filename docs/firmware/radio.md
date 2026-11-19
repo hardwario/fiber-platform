@@ -11,8 +11,8 @@ settings below are the spike's. The packet is made and checked by `fiber-tower-a
 the commands by `fiber-subghz` (T23), and the spike runs on both: through them it received every
 frame of a Core Module (20 in 20 s, none missed) and a Core Module received every frame it sent
 (14 of 14), on 2026-11-19. The north bridge's firmware (T25) is not written yet. With the
-FIBER's antenna fitted the levels hardly rise (see "Good to know"); the settings were checked
-against ST's own code for the module and match it. Not measured yet: the error rates at several
+FIBER's antenna fitted the levels rise, and depend on the antenna (see "Good to know"); the
+settings were checked against ST's own code for the module and match it. Not measured yet: the error rates at several
 levels, the frequency offset in Hz.
 
 ## What a TOWER node sends
@@ -76,11 +76,11 @@ Good to know:
   `SW_CTL`, is not connected: the datasheet gives it no function beyond its name, and answers on
   ST's forum disagree on it (one, from a community member, says it is PC4, the switch's control
   line brought out). ST's board schematic for the module (MB1779) was not read yet.
-- **With the antenna on, the levels hardly rise** (the bench unit, 2026-11-19): its tip 15 cm
-  from a Core Module, +14 dBm arrived at -81 dBm and the Core Module's frames at -73 dBm; with
-  the antenna off and the Core Module about a metre away it was -88 and -75 dBm. A connected
-  antenna that much closer should give tens of dB more. Not found yet; see
-  [`../bench-checks.md`](../bench-checks.md), check 4.
+- **The antenna is in the path** (the bench unit, 2026-11-19): with its tip 15 cm from a Core
+  Module, +14 dBm arrived at -81 dBm and the Core Module's frames at -73 dBm with one 868 MHz
+  antenna, and 8 to 9 dB more both ways with another (-71 to -74 dBm, -64 to -68 dBm). Whether
+  that is as strong as it should be needs a reference (two Core Modules at the same distance);
+  see [`../bench-checks.md`](../bench-checks.md), check 4.
 - **No frequency correction:** this radio does not follow the sender's offset. The receive filter
   has to pass both crystals' error: TOWER's own receiver uses about 216 kHz. Between the north
   bridge (a TCXO) and one Core Module the SPIRIT1's `AFC_CORR` read -4 to 0, a small offset.

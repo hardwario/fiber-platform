@@ -605,8 +605,8 @@ receives the frames the north bridge builds and sends** (spike in its send mode)
 CRC, SQI 32, AFC -4 to 0, at -88 dBm from +14 dBm, -91 from +10, about -105 from -3. So T22's
 "Done when" holds: frames go both ways and the captures are in the repository. Left: the error
 rates at four levels (attenuators), several Core Modules, `docs/firmware/radio.md`. The FIBER's
-antenna was disconnected through every radio measurement (the maintainer): hence the path loss of
-about 100 dB at a metre. Each level is to be measured again with it on. Pushed so far
+antenna was disconnected through every radio measurement (the maintainer); the distance was not
+measured. Each level is to be measured again with it on. Pushed so far
 (`a3ea469..2bdc6fd`), CI run 44516902698 green.
 
 TOWER nodes use a SPIRIT1 radio; the north bridge has another one. Whether the two understand
@@ -643,12 +643,14 @@ each other is the biggest unknown of the plan, so it is answered before anything
       antenna disconnected: the receiver's own floor; with it on, still to be measured
 - [x] The two-way levels again with the FIBER's antenna on (2026-11-19: an external antenna on
       the north bridge, its tip 15 cm from the Core Module r2): +14 dBm arrives at -81 dBm, the
-      Core Module at -73 dBm; only 2 to 9 dB above the antenna-off levels at a metre. The spike's
+      Core Module at -73 dBm; with another 868 MHz antenna 8 to 9 dB more both ways (-71 to -74
+      dBm, -64 to -68 dBm), so the antenna is in the path. The spike's
       settings match ST's code for the module (the RF switch, the switching regulator, now in the
       spike; the regulator measured the same as the linear one, both ways), and the board matches
       the module's datasheet. `docs/bench-checks.md`, check 4
-- [ ] Find why the antenna adds so little: on the hardware (`R63`, `JP16`, the antenna and its
-      cable, the module's `ANT` pad); the maintainer offered to try another antenna path
+- [ ] Whether about 80 dB between the radios at 15 cm is right: a reference (two Core Modules at
+      the same distance, or the level against distance). The antenna-off runs earlier had no
+      measured distance (an "about a metre" in the documents was a guess, taken out)
 - [ ] The receiver's sensitivity against a known signal (the earlier firmware measured a weak
       receiver)
 - [x] The results into `docs/bench-checks.md` and `docs/firmware/radio.md` (2026-11-19)
@@ -718,10 +720,12 @@ hopping (US 915), the remote shell, bulk transfer.
 
 ### T42. A press sends a client's message away (D26) (M4)
 
-State (2026-11-19): written and tested on the computer, `just check` passes. On the bench's FIBER as
-release `0.1.0-bench.10`; a test message is on its display ("Press any button / to send this
-away", 1 hour) and `fiber-bench-watch` records `display` and `buttons/event` in
-`/tmp/fiber-bench-watch.log` there. Waiting for the maintainer to press. The alarm example's message could not be taken off the
+State (2026-11-19): written and tested on the computer, `just check` passes, commit `1fc485b` (not
+pushed). On the bench's FIBER as release `0.1.0-bench.10`: a test message ("Press any button / to
+send this away") went with the maintainer's second press of *up*, at 17:57:18; the first, 2 s
+before, met a dimmed display and only lit it, as D26 has it (`fiber-bench-watch` recorded both
+clicks and `"message": null`). Left: an alarm stopped by a press on the FIBER, and whether the page
+stayed (the maintainer looks). The alarm example's message could not be taken off the
 display on the bench; D26 says how.
 
 - [x] `docs/front-panel.md`, `docs/mqtt-api.md` (`display.message`, `display`, `buzzer.beep`),
@@ -732,7 +736,8 @@ display on the bench; D26 says how.
       the press only lights it, as before, and stops a pattern that sounds; the message goes
       with the next press
 - [x] Tests (the buzzer's silence, the agent's press); the alarm example's text
-- [ ] On the FIBER: a message and an alarm sent away with a press
+- [x] On the FIBER: a message sent away with a press (2026-11-19)
+- [ ] On the FIBER: an alarm stopped by a press
 
 - Done when: the tests pass, and on the FIBER a press takes a message away and stops the alarm.
 
