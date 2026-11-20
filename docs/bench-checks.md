@@ -50,6 +50,12 @@ If the south bridge does not answer on a unit whose firmware runs, its `nBOOT_SE
 probably still 1 (the BOOT0 pin is ignored): that unit can only be reached over SWD, and the new
 firmware's one-time option-byte fix matters for every unit like it.
 
+**A J-Link on the south bridge's SWD header shuts the CM4 out** (seen 2026-11-19 and 2026-11-20):
+the bootloader then answers the start byte with `0x00`, until a power cycle. On 2026-11-19 it
+followed the J-Link's reads; on 2026-11-20 nothing had touched SWD since the last power cycle, the
+J-Link was only wired to the header. Unplug it from the header before the CM4 writes the south
+bridge. Not tried yet: the same unit with the J-Link off the header for a day.
+
 ## 2. Does the LCD work on `/dev/spidev6.0`?
 
 Add `dtoverlay=spi6-1cs` and check that `/dev/spidev6.0` appears and that the display accepts data
@@ -218,6 +224,16 @@ are also LoRaWAN's three default channels in EU 868: the spikes are probably LoR
 (not checked). The preamble detector of 16 bits also fires on noise now and then. What this does not answer: the receiver's
 sensitivity (the earlier firmware measured a weak one; that takes a known signal), and everything
 that needed a Core Module (answered above, but frames sent the other way and the error rates).
+
+**Result (2026-11-20): the FIBER is a TOWER gateway.** The north bridge's firmware
+(`firmware/north`, written by the agent) and two Core Modules r2 running TOWER's `radio_button` at
+the pinned revision, 10 cm apart and about 20 cm from the FIBER's antenna: both paired over the air
+(the code on the FIBER's display and in the node's log), their clicks arrived on MQTT at -65 to
+-70 dBm, a `set` reached a node after its next uplink, and the nodes' counters went on across a
+power cycle of the FIBER and restarts of the nodes. At the first try: 19 of 20 clicks before a fix
+of the north bridge's firmware (a packet still arriving at the end of a 100 ms receive slice was
+cut off), then 40 of 40 from one node and 15 of 15 from each of two alternating. Not tried yet: a
+day of it (T27), a replay sent on air, other distances.
 
 ## 5. Does the south bridge firmware fit?
 

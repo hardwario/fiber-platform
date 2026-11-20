@@ -24,7 +24,7 @@ to tell that it is done. The facts it works with are in the documents: the board
 | M2 | The agent's core and the south bridge | T13 to T18 | The agent flashes the south bridge on its own and shows the board on MQTT |
 | M3 | Thermometers | T19 | A DS18B20 shows up on MQTT and in a Node-RED flow |
 | M4 | The front panel | T20, T21 | The LCD shows the name and the address; the buttons move through the pages (held on a FIBER, 2026-11-19) |
-| M5 | The north bridge | T22 to T27, T47 | TOWER nodes pair with the FIBER and their events arrive on MQTT |
+| M5 | The north bridge | T22 to T27, T47 | TOWER nodes pair with the FIBER and their events arrive on MQTT (held on a FIBER with two nodes, 2026-11-20; the 24 hours and a replay on air are left, T27) |
 | M6 | Bluetooth | T28, T29 | A phone puts a FIBER on Wi-Fi |
 | M7 | Documentation and polish | T30 to T33 | A new user gets from the box to a thermometer in a flow with the documentation alone |
 
@@ -307,6 +307,8 @@ refuses while the agent holds the port; the agent wrote and verified the south b
 (about 6 s each); a flash stopped hard at page 22 of 64 (the agent killed) left the chip in its
 bootloader, and the next start flashed it again by itself. Left: the same with the power cut,
 which also takes the south bridge's power, and needs someone at the bench.
+2026-11-20: the power cut is tried on the north bridge (its write takes 22 s, the south bridge's
+about 6 s): `fiber firmware flash north`, the maintainer cuts the FIBER's power in the middle.
 Earlier (2026-11-18): `crates/flasher` is built and its 11 tests pass against the simulated chip: the image written and started; another chip, readout
 protection and a bad image refused before anything is erased; three attempts with BOOT0 held
 longer; a write cut short by a power cut leaves the chip waiting in its bootloader, and the next
@@ -543,69 +545,6 @@ A new, small profile (D3), agreed with the people who make the app before any co
 
 - Done when: the app's side has said yes to the document.
 
-### T31. Examples (M7)
-
-State (2026-11-20): the TOWER flow is written (`examples/node-red/tower-nodes.json`): a click on a
-node's button puts its name and "clicked" on the display for 5 s and asks for a double beep (a
-frame counter already seen is dropped, as QoS 1 can bring one twice); the thermometers go to the
-debug sidebar by name; an inject node sets a node's LED off. Its three function nodes were run
-under Node.js against the topics of `docs/mqtt-api.md` (a name learned and forgotten, a click
-twice, a hold, a cleared state). The converge test deploys it with the other two and checks a
-click on `fiber/cmd` and on the display. Its first CI run (44681160509, commit `ef888b3`) failed
-there: the click came with the address, not the name, as Node-RED gives every function node a
-`node` of its own, and `const node` in "Their names" stopped it from loading (Node.js alone does
-not show it). Fixed, and the whole flow run in Node-RED 5.0.10 (the pinned one) on the computer
-against a broker: a click with the name, the same counter dropped, a removed node back to its
-address, a thermometer in the debug output by name, a cleared state ignored, the inject node
-publishing `false` on `set/led`. Commit `b79eb8d`, CI run 44682874771 green in every job: in
-step 10c of the converge test the flow asks for the message with the node's name and the double
-beep, and the display shows it. On a FIBER (2026-11-20, release `0.1.0-bench.18`): the flow
-deployed into its Node-RED through the API (user `fiber`), a click of the real node `button:0`
-(Core Module A, `radio_button` at the pin): "button:0 / clicked" on the display, and the flow's
-`display.message` and double `buzzer.beep` on `fiber/cmd`. Left: each example once on a FIBER
-(T2).
-Earlier (2026-11-19): on a FIBER, against the real agent: `request.sh` (a message, a port cycled, seen
-on `ports/3`) and `request.py` (an LED set and back to auto) were answered `ok`; `thermometers.py`
-and the Rust example connect and wait (no probe plugged in); both flows import into the FIBER's
-Node-RED and connect, and stay there; the button flow beeped on a hold of *enter* (the maintainer
-heard it). Not on the FIBER: a reading, the alarm (no probe). Left: those, and the TOWER flow (T26).
-Later the same day the alarm flow, still in the bench FIBER's Node-RED, fired from a real probe
-(port 5, warmed by hand to 30.75 °C): the maintainer saw "Port 5: ... / above 30 °C" and heard the
-alarm, and found no way to take the message off the display for its 10 minutes (D26).
-Earlier (2026-11-18): everything that runs without a FIBER is done and checked, commit `877ce39`, CI
-run 44262065157 green (the converge test with the examples in it, on the arm64 runner): `just check`
-(with `check-examples` and the example's lock file in `audit`) and the converge test pass. In step 10c, against the agent's service: `request.sh` and `request.py` put a message on
-the display and get "the buzzer is not there" for a beep; `thermometers.py` and the Rust example
-print the probe's reading; at 31.5 °C the alarm flow puts "Port 3: 31.5 °C / above 30 °C" on the
-display and asks for the alarm, and the Rust example asks for it too and prints the answer; a hold of
-*enter* (published as the agent would) makes the button flow ask for a beep. The Python examples use
-paho-mqtt 2.1, Debian trixie's; the button flow beeps on a hold of *enter*, as a click opens the
-display's menu. Left: the TOWER node's flow (T26) and a run on a FIBER (T2). Learned the hard way:
-the converge test reads its script while it runs, so the script must not be edited during a run.
-
-Small programs that use the agent's MQTT API ([`docs/mqtt-api.md`](docs/mqtt-api.md)), for a
-user to copy.
-
-- [x] `docs/examples.md` first: each example, what it shows, how to run it on a FIBER
-- [x] The command line: `mosquitto_sub` and `mosquitto_pub`, and a request with its answer
-      (`examples/shell/request.sh`)
-- [x] Python, with Debian's `python3-paho-mqtt`: the thermometers as they change, and a request
-      with its answer (`examples/python/`)
-- [x] Rust, with `rumqttc` as the agent has it: a project of its own (`examples/rust/`, its own
-      lock file), built, linted and audited by `just check`, built for the FIBER and run in the
-      converge test
-- [x] Node-RED flows to import: a thermometer above a limit puts a message on the display and
-      sounds the buzzer; the *enter* button sounds a beep. Each with its own broker node, so it
-      imports into any Node-RED. In the converge test they are deployed through Node-RED's API,
-      and what they ask the agent for is checked on `fiber/cmd`
-- [x] Node-RED: what a TOWER node sends (`tower-nodes.json`): a click shows the node's name and
-      beeps twice; the thermometers by name; a node's LED set. In the converge test, a click
-      published as the agent would is checked on `fiber/cmd` and on the display
-- [ ] On a FIBER: each example once (with T2)
-
-- Needs: T17 to T21 (the topics they use); T26 for the TOWER node's flow.
-- Done when: every example runs in CI, and once on a FIBER.
-
 ### T22. The radio spike (M5)
 
 State (2026-11-19): what needs no TOWER Core Module is done, on the FIBER of T2; the rest waits for
@@ -697,52 +636,6 @@ the receive filter has to be wide enough for both crystals' error.
 
 - Needs: T2 (the bootloader answers, to write the test firmware); a TOWER Core Module.
 - Done when: frames go both ways, and the captures are in the repository.
-
-### T42. A press sends a client's message away (D26) (M4)
-
-State (2026-11-19): written and tested on the computer, `just check` passes, commit `1fc485b`, CI run
-44577573971 green. On the bench's FIBER as release `0.1.0-bench.10`: a test message ("Press any button / to
-send this away") went with the maintainer's second press of *up*, at 17:57:18; the first, 2 s
-before, met a dimmed display and only lit it, as D26 has it (`fiber-bench-watch` recorded both
-clicks and `"message": null`). Left: an alarm stopped by a press on the FIBER, and whether the page
-stayed (the maintainer looks). The alarm example's message could not be taken off the
-display on the bench; D26 says how.
-
-- [x] `docs/front-panel.md`, `docs/mqtt-api.md` (`display.message`, `display`, `buzzer.beep`),
-      `docs/examples.md` first
-- [x] A press while a client's message shows or a client's pattern sounds: the message goes,
-      the pattern stops (`Pattern::Silence`, the agent's own), `display` says `"message": null`
-      at once, and nothing else of that press acts (its click still sounds). On a dimmed display
-      the press only lights it, as before, and stops a pattern that sounds; the message goes
-      with the next press
-- [x] Tests (the buzzer's silence, the agent's press); the alarm example's text
-- [x] On the FIBER: a message sent away with a press (2026-11-19; again at 19:36:24 with the
-      simulated alarm, one press of *enter*)
-- [ ] On the FIBER: an alarm stopped by a press
-
-- Done when: the tests pass, and on the FIBER a press takes a message away and stops the alarm.
-
-### T45. An LED test at the south bridge's start (M2)
-
-State (2026-11-19): the first form (all red 3 s, dark 1 s, all green 3 s) ran on the bench's FIBER
-(release `0.1.0-bench.13`, image `0x6040a3a0`). Then, on the maintainer's word ("an animation, so
-it is more interesting"), an animation in its place: from 1 s after the start, the ports light red
-one after another (port 1 to 8, 160 ms apart), turn green in the same order, then amber, then go
-dark from port 8 back to 1; a hold of 0.3 s between, about 6 s in all. Each LED shows red, green
-and both, and the order of the ports shows. Written and tested, `just check` passes; the image
-is 16248 bytes, CRC `0xfbcd5b36`; on the FIBER as release `0.1.0-bench.14`, written by the agent
-at 19:27:53; commits `a836f50`, `3e60968`, CI run 44590725201 green. Shown again for the
-maintainer at 19:46:23 (`fiber firmware flash south`, the third write of the hour) and at 19:49:39
-(a 50 ms pulse on the south bridge's reset with `pinctrl`, which writes nothing; the agent saw
-`"reset":"pin"`). Left: the maintainer says whether every port shows all three colours in order. The power LED keeps its own pattern. The test runs to its end also when a
-`Desired` comes in the meantime (after a flash the agent is already there): 8 s at most.
-
-- [x] The first form: docs, `crates/south-core`, tests, `just check`, written on the FIBER
-- [x] The animation: the docs first, then `crates/south-core` and its tests, `just check`
-- [x] On the FIBER: the agent writes the new image (2026-11-19, 19:27:53)
-- [ ] On the FIBER: the maintainer sees the animation
-
-- Done when: the tests pass, and on the FIBER the maintainer sees red, dark, green after a start.
 
 ### T26. The agent's radio service (M5)
 
@@ -1533,6 +1426,41 @@ waits for `socat` first; pushed with T34's fixes (`2a04dff`, CI run 44219055224 
 - Needs: T20.
 - Done when: the pictures match, and on a FIBER the buttons move through the pages.
 
+### T31. Examples (M7)
+
+Done 2026-11-20 (`877ce39`, the TOWER flow `ef888b3`, `b79eb8d`; CI runs 44262065157 and
+44682874771 green, the converge test with every example in it).
+Checked: in CI, step 10c of the converge test runs each example against the agent (the shell, the
+Python, the Rust and the three flows, what the flows ask for read on `fiber/cmd`). On the FIBER of
+T2: `request.sh` and `request.py` answered `ok` (a message on the display); `thermometers.py` and
+the Rust example print the three probes on ports 1, 2 and 5 (22.8 to 22.9 °C, 2026-11-20); the
+button flow beeped on a hold of *enter* and the alarm flow fired from a probe warmed by hand to
+30.75 °C (2026-11-19, the maintainer heard and saw both); the TOWER flow put "button:0 / clicked"
+on the display for a real node's click (2026-11-20). Found on the way: Node-RED gives every
+function node a `node` of its own, so a flow is now run in a real Node-RED before it is pushed;
+the alarm's message could not be taken off the display, which became D26 and T42. Not run on a
+FIBER: the Rust example's alarm (the converge test runs it).
+
+- [x] `docs/examples.md` first: each example, what it shows, how to run it on a FIBER
+- [x] The command line: `mosquitto_sub` and `mosquitto_pub`, and a request with its answer
+      (`examples/shell/request.sh`)
+- [x] Python, with Debian's `python3-paho-mqtt`: the thermometers as they change, and a request
+      with its answer (`examples/python/`)
+- [x] Rust, with `rumqttc` as the agent has it: a project of its own (`examples/rust/`, its own
+      lock file), built, linted and audited by `just check`, built for the FIBER and run in the
+      converge test
+- [x] Node-RED flows to import: a thermometer above a limit puts a message on the display and
+      sounds the buzzer; the *enter* button sounds a beep. Each with its own broker node, so it
+      imports into any Node-RED. In the converge test they are deployed through Node-RED's API,
+      and what they ask the agent for is checked on `fiber/cmd`
+- [x] Node-RED: what a TOWER node sends (`tower-nodes.json`): a click shows the node's name and
+      beeps twice; the thermometers by name; a node's LED set. In the converge test, a click
+      published as the agent would is checked on `fiber/cmd` and on the display
+- [x] On a FIBER: each example once (with T2)
+
+- Needs: T17 to T21 (the topics they use); T26 for the TOWER node's flow.
+- Done when: every example runs in CI, and once on a FIBER.
+
 ### T34. Review of the night's code (M2 to M4)
 
 Done 2026-11-18, commit `2a04dff`. Checked: `just check`, the roles' lint and the converge test
@@ -1738,6 +1666,30 @@ Done 2026-11-19, commit `a3acab3`, CI run 44577573971 green. Checked: `just chec
 
 - Done when: the tests pass, and on the FIBER each press clicks.
 
+### T42. A press sends a client's message away (D26) (M4)
+
+Done 2026-11-20 (`1fc485b`; CI run 44577573971 green).
+Checked: the tests (the buzzer's silence, the agent's press), `just check`. On the FIBER of T2: a
+message sent away with the second press of *up* on a dimmed display (2026-11-19, the first only lit
+it), again with one press of *enter* on a simulated alarm; and on release `0.1.0-bench.18` an alarm
+("Alarm test / Press any button" for 600 s with the buzzer's `alarm`) sent away by one click of
+*enter* 4 s after it began: `display` said `"message": null` at once, and the maintainer heard the
+alarm stop at the press.
+
+- [x] `docs/front-panel.md`, `docs/mqtt-api.md` (`display.message`, `display`, `buzzer.beep`),
+      `docs/examples.md` first
+- [x] A press while a client's message shows or a client's pattern sounds: the message goes,
+      the pattern stops (`Pattern::Silence`, the agent's own), `display` says `"message": null`
+      at once, and nothing else of that press acts (its click still sounds). On a dimmed display
+      the press only lights it, as before, and stops a pattern that sounds; the message goes
+      with the next press
+- [x] Tests (the buzzer's silence, the agent's press); the alarm example's text
+- [x] On the FIBER: a message sent away with a press (2026-11-19; again at 19:36:24 with the
+      simulated alarm, one press of *enter*)
+- [x] On the FIBER: an alarm stopped by a press (2026-11-20)
+
+- Done when: the tests pass, and on the FIBER a press takes a message away and stops the alarm.
+
 ### T43. The address with its network size on the first page (M4)
 
 Done 2026-11-19, commit `d9d44a6`, CI run 44577573971 green. Checked: `just check`, and on the bench's FIBER (release
@@ -1768,6 +1720,22 @@ dimmed display acts ("it works well", the maintainer).
 - [x] On the FIBER: a press on a dimmed display acts; a message lights the backlight
 
 - Done when: the tests pass, and on the FIBER the first press on a dimmed display acts.
+
+### T45. An LED test at the south bridge's start (M2)
+
+Done 2026-11-20 (`a836f50`, `3e60968`; CI run 44590725201 green).
+Checked: the tests of `crates/south-core`, `just check`. On the FIBER of T2: the agent wrote the
+image; the animation shown at 19:46:23 and 19:49:39 on 2026-11-19, and on 2026-11-20 after the
+agent wrote the south bridge's image `0xb79f9cb6` and once more after a 50 ms pulse on its reset
+(12:34:39, `"reset":"pin"`): the maintainer saw every port light red, green and amber in order and
+go dark from port 8 back to 1. The power LED keeps its own pattern.
+
+- [x] The first form: docs, `crates/south-core`, tests, `just check`, written on the FIBER
+- [x] The animation: the docs first, then `crates/south-core` and its tests, `just check`
+- [x] On the FIBER: the agent writes the new image (2026-11-19, 19:27:53)
+- [x] On the FIBER: the maintainer sees the animation (2026-11-20)
+
+- Done when: the tests pass, and on the FIBER the maintainer sees red, dark, green after a start.
 
 ### T46. A client's message shows at once (M4)
 
