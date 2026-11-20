@@ -58,6 +58,7 @@ settings:
 | `/var/lib/fiber/` | State |
 | `/var/lib/fiber/platform/results.json` | The last result of each component: what it was brought to (`on` or `off`), `ok`, `failed` or `skipped`, when, and why. Written by `apply` as each component finishes; read by `fiber platform status` |
 | `/var/lib/fiber/platform/pending` | There while an apply is asked for and not finished |
+| `/var/lib/fiber/radio/nodes.json` | The radio's nodes, their keys and names, and the gateway's address: the agent's (D8; `docs/mqtt-api.md`, "The radio") |
 | `/var/log/fiber/platform.log` | Every apply |
 | `/run/fiber/platform/status.json` | Live progress: state, step, result per component, reboot needed |
 
@@ -274,7 +275,8 @@ The `agent` role runs `fiber agent` ([`cli.md`](cli.md)) as a service:
   runs, and its loop feeds a watchdog of 30 s, also while the south bridge's port is missing and
   while it flashes. When the loop stops, systemd restarts it after 5 s.
 - **What the unit allows:** the system read-only but for `/var/lib/fiber/agent` (the flash tries),
-  `/run/lock` (the lock on the south bridge's port) and `/sys` as its permissions have it (the
+  `/var/lib/fiber/radio` (the radio's nodes and their keys, D8), `/run/lock` (the locks on the two
+  bridges' ports) and `/sys` as its permissions have it (the
   backlight's PWM); of the devices only the classes `ttyAMA`, `gpiochip`, `i2c` and `spi`; no
   capabilities; IPv4, IPv6 and Unix sockets only.
 - **A restart from the front panel's menu** (D23): the agent writes `/run/fiber-agent/restart`,
