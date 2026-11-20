@@ -19,6 +19,13 @@ just := just_executable()
 # the digest of its multi-platform index (looked up 2026-11-17).
 debian_image := "debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2"
 
+# TOWER's files written again here (docs/firmware/radio-compat.md): the drift report shows each in
+# full when it changes, and `check-north` keeps the list true.
+tower_watched := "firmware/src/radio/frame.rs firmware/src/radio/net/mod.rs firmware/src/radio/net/pairing.rs firmware/apps/radio_gateway.rs firmware/src/radio/config.rs firmware/examples/net_confirmed.rs docs/firmware/radio.md docs/cli/mqtt-api.md cli/src/gateway/topics.rs cli/src/gateway/payload.rs"
+
+# The rest of TOWER that matters here and is not written again: the drift report shows it by size.
+tower_sized := "crates/net crates/radio crates/protocol crates/hmi firmware/src/radio/net/afa.rs firmware/src/radio/net/fhss.rs firmware/src/radio/net/bulk.rs rust-toolchain.toml"
+
 # List the available recipes.
 default:
     @{{just}} --list
@@ -84,6 +91,79 @@ check-north: north
         exit 1
     }
     echo "north bridge firmware: TOWER at the root's pin"
+    # The drift report's list (docs/firmware/radio-compat.md), against cargo's checkout of the pin,
+    # which holds TOWER's whole tree: each file there, each named on the page, and every TOWER file
+    # our radio code names in the list.
+    checkout=$(cargo metadata --locked --format-version 1 | python3 -c 'import json, pathlib, sys
+    print(next(pathlib.Path(p["manifest_path"]).parents[2] for p in json.load(sys.stdin)["packages"] if p["name"] == "tower-net"))')
+    watched=({{tower_watched}})
+    for f in "${watched[@]}"; do
+        [ -f "$checkout/$f" ] || { echo "error: TOWER has no $f at the pin: the drift report would miss it"; exit 1; }
+        grep -qF "\`$f\`" docs/firmware/radio-compat.md || { echo "error: docs/firmware/radio-compat.md does not name $f"; exit 1; }
+    done
+    for f in $(grep -rhoE '(firmware/(src|apps|examples)|cli/src)/[A-Za-z0-9_/]+\.rs' \
+        crates/tower-air crates/subghz firmware/north/src agent/src/agent/radio hil/radio-spike/src | sort -u); do
+        [[ " ${watched[*]} " == *" $f "* ]] || { echo "error: our code names TOWER's $f, which the drift report does not watch"; exit 1; }
+    done
+    echo "drift report: ${#watched[@]} TOWER files watched, each there at the pin"
+
+# It fetches TOWER into target/tower-drift, so it needs the internet; not part of `check`.
+# The drift report: what changed in TOWER between the pin and REV, for a person to read before the pin moves.
+tower-drift rev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rev={{quote(rev)}}
+    pin=$(sed -n 's/^tower-net = .*rev = "\([0-9a-f]*\)".*/\1/p' Cargo.toml)
+    repo=target/tower-drift
+    if [ -d "$repo/.git" ]; then
+        git -C "$repo" fetch --quiet --tags origin
+    else
+        git clone --quiet https://github.com/hardwario/tower "$repo"
+    fi
+    git() { command git -C "$repo" "$@"; }
+    new=$(git rev-parse --verify --quiet "$rev^{commit}") || { echo "error: TOWER has no revision $rev"; exit 1; }
+    watched=({{tower_watched}})
+    sized=({{tower_sized}})
+    echo "# TOWER from the pin ${pin:0:7} to ${new:0:7} ($rev)"
+    echo
+    echo "Read with docs/firmware/radio-compat.md: for each change, nothing to do here, a change here,"
+    echo "or not compatible."
+    range="$pin..$new"
+    git merge-base --is-ancestor "$pin" "$new" || {
+        range="$new..$pin"
+        echo
+        echo "Note: $rev does not come after the pin. The diffs go from the pin back to it; the commits"
+        echo "are those between the two."
+    }
+    echo
+    echo "## The commits that touch a watched file"
+    echo
+    out=$(git log --reverse --format='%h %ad %s' --date=short "$range" -- "${watched[@]}")
+    echo "${out:-None.}"
+    echo
+    echo "## The watched files"
+    for f in "${watched[@]}"; do
+        echo
+        if ! git cat-file -e "$new:$f" 2> /dev/null; then
+            echo "### $f: GONE at ${new:0:7}; find where it went"
+        elif git diff --quiet "$pin" "$new" -- "$f"; then
+            echo "### $f: unchanged"
+        else
+            echo "### $f"
+            echo
+            git --no-pager diff "$pin" "$new" -- "$f"
+        fi
+    done
+    echo
+    echo "## The rest, by size"
+    echo
+    out=$(git --no-pager diff --stat=110 "$pin" "$new" -- "${sized[@]}")
+    echo "${out:-No change.}"
+    echo
+    echo "## The commits of the pinned crates"
+    echo
+    out=$(git log --reverse --format='%h %ad %s' --date=short "$range" -- crates/net crates/radio crates/protocol crates/hmi)
+    echo "${out:-None.}"
 
 # rust-lld links it with the target's own musl (.cargo/config.toml): no C toolchain needed. It
 # carries the south bridge's firmware as a binary image (llvm-objcopy, from llvm-tools), to flash

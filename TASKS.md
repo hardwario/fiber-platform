@@ -856,6 +856,61 @@ firmwares).
 - Needs: T17, T25, T47; T21 for the code on the LCD.
 - Done when: the lines under "M5" hold with one Core Module.
 
+### T27. Keeping the two radio stacks together (M5)
+
+State (2026-11-20): started, without hardware (the maintainer at home), after T31's flow. The pin
+(`cb3b25c`) is TOWER's newest commit on `main` today, so there is no drift to report yet; what can
+be done now is the procedure, the tool that makes the report, and a check that keeps its list
+true. The list of TOWER files written again here, read from our code's own references: the
+frame (`firmware/src/radio/frame.rs`), the net and pairing (`firmware/src/radio/net/mod.rs`,
+`pairing.rs`), the gateway app's delivery (`firmware/apps/radio_gateway.rs`), the radio's
+settings (`firmware/src/radio/config.rs`), the captured frames (`firmware/examples/
+net_confirmed.rs`), TOWER's radio guide (`docs/firmware/radio.md`), and the bridge's MQTT API
+that the agent mirrors (`docs/cli/mqtt-api.md`, `cli/src/gateway/topics.rs`, `payload.rs`).
+Not written here, so only their size of change is shown: AFA, FHSS and bulk (`net/afa.rs`,
+`fhss.rs`, `bulk.rs`; off unless an app turns them on, and no app does), the four pinned crates
+(compiled in; the tests hold them), the toolchain. Cargo's checkout of the pin holds TOWER's whole
+tree, so `just check` can look at it with nothing more to fetch.
+Done the same day, on the computer: `docs/firmware/radio-compat.md` (the table of what is written
+again and where, moving the pin in 7 steps, the report, the bench run); `just tower-drift <rev>`,
+run against TOWER's `main` (the pin itself: every file unchanged, each section says so) and
+against an older revision (the diffs in full, a file not there yet flagged as gone, the commits
+in between, the crates by size), and a revision TOWER does not have refused; `just check-north`
+now fails, with its own message, when a watched file is not at the pin, when the page does not
+name one, and when our radio code names a TOWER file the list leaves out (each made to fail once
+on purpose). AGENTS.md, `docs/architecture.md`, the docs index and the pin's comment point at the
+page. Found on the way: a TOWER node repeats a frame whose acknowledgement it missed byte for
+byte and counts none of its tries, so the share acknowledged at the first try is counted on air,
+by a second Core Module listening (`radio_beacon` as the gateway, as in T22): the bench's two
+Core Modules do it as one node and one listener; and no TOWER example sends a captured frame
+again, so a replay on air is not part of the bench run (the refusal is tested on the computer;
+the bench shows each node's counter going on across each restart). The agent never sends
+`ListNodes`, so the north bridge's counters are not seen from outside. Left: the bench run's
+script in `hil/` and the bench run itself (two Core Modules flashed from the pin; flashing Core
+Module B, which runs the maintainer's own app, needs the maintainer's yes), the 24-hour run, and
+the first real move of the pin.
+
+TOWER promises nothing about its radio between two revisions, and its nodes cannot be updated
+over the air. So a FIBER works with TOWER nodes built from the pinned revision, and this task
+makes moving the pin a procedure and not an adventure.
+
+- [x] `docs/firmware/radio-compat.md`: what is written again here and from which TOWER file,
+      moving the pin step by step (AGENTS.md, "The TOWER pin"), the drift report, and the bench
+      run: what is done, what is measured, what passes
+- [x] `just tower-drift <rev>`: the drift report between the pin and a revision of TOWER, for a
+      person to read: the commits, the watched files in full, the rest by size. Needs the
+      internet; not part of `just check`
+- [x] The list kept true by `just check-north`: every watched file exists at the pin, every TOWER
+      file our radio code names is watched, and the document lists each
+- [ ] The bench run in `hil/`: two Core Modules flashed from the pinned revision; pairing; what
+      they send arrives; a `set` reaches them; the share of frames acknowledged at the first
+      try; a replay after a restart of each side
+- [ ] The 24-hour run, with what it found
+- [ ] The procedure used once, for real, on the next move of the pin
+
+- Needs: T26.
+- Done when: the bench run and the 24 hours pass, and their results are written down.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -893,25 +948,8 @@ the pages. Held on a FIBER (2026-11-19); its tasks, T20 and T21, are done.
 
 Done when: two TOWER Core Modules at the pinned revision pair with the FIBER, their events arrive
 on MQTT and a `set` reaches them; at least 99 % of frames are acknowledged at the first try;
-replays are refused after a restart of either side; 24 hours pass without a fault.
-
-#### T27. Keeping the two radio stacks together
-
-TOWER promises nothing about its radio between two revisions, and its nodes cannot be updated
-over the air. So a FIBER works with TOWER nodes built from the pinned revision, and this task
-makes moving the pin a procedure and not an adventure.
-
-- [ ] `docs/firmware/radio-compat.md`: moving the pin, step by step (AGENTS.md, "The TOWER
-      pin"), with the drift report: what changed in TOWER's `radio/frame.rs` and `radio/net/`
-      between the two revisions
-- [ ] The bench run in `hil/`: two Core Modules flashed from the pinned revision; pairing; what
-      they send arrives; a `set` reaches them; the share of frames acknowledged at the first
-      try; a replay after a restart of each side
-- [ ] The 24-hour run, with what it found
-- [ ] The procedure used once, for real, on the next move of the pin
-
-- Needs: T26.
-- Done when: the bench run and the 24 hours pass, and their results are written down.
+replays are refused after a restart of either side; 24 hours pass without a fault. Its tasks, T22
+to T27 and T47, are in progress or done.
 
 ### M6. Bluetooth
 

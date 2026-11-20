@@ -157,9 +157,11 @@ not changed for FIBER's sake. What keeps them compatible:
   security decisions and the radio arithmetic are therefore TOWER's own code.
 - **Vectors.** Frames captured from a real Core Module with a known key (the bytes on the air, the
   frame, the nonce, the encrypted payload) are test vectors here.
-- **A drift report.** The parts of the protocol that live in TOWER's firmware SDK and are mirrored
-  here (`firmware/src/radio/frame.rs`, `firmware/src/radio/net/`) are diffed between the old and
-  the new revision whenever the pin moves, and a person reads the diff.
+- **A drift report.** The parts of TOWER that are written again here (its frame, its net and
+  pairing, its gateway application, its radio settings, its gateway's MQTT API) are diffed
+  between the old and the new revision whenever the pin moves (`just tower-drift`), and a person
+  reads the diff. The list and the steps of a move are in
+  [`firmware/radio-compat.md`](firmware/radio-compat.md).
 - **A bench run** against Core Modules flashed from the pinned revision before any release that
   touches the radio.
 

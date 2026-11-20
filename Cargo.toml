@@ -27,7 +27,7 @@ repository = "https://github.com/hardwario/fiber-platform"
 #
 # TOWER promises no wire compatibility between revisions, so the radio of a FIBER is "compatible
 # with TOWER nodes built from this revision". Moving the pin is a task of its own, with the drift
-# report and the bench interop run of docs/architecture.md ("Two radio stacks").
+# report (`just tower-drift`) and the bench run of docs/firmware/radio-compat.md.
 tower-net = { git = "https://github.com/hardwario/tower", rev = "cb3b25c2448ff63d493a5faddc9238f1fa5cfe87" }
 tower-radio = { git = "https://github.com/hardwario/tower", rev = "cb3b25c2448ff63d493a5faddc9238f1fa5cfe87" }
 tower-protocol = { git = "https://github.com/hardwario/tower", rev = "cb3b25c2448ff63d493a5faddc9238f1fa5cfe87" }

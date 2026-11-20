@@ -110,11 +110,11 @@ The hardware-free crates of the TOWER radio stack (`tower-net`, `tower-radio`, `
 repository is never changed for the FIBER's sake (D1).
 
 TOWER promises nothing about its radio between two revisions. Moving the pin is therefore a task
-of its own in `TASKS.md`, never part of another change, and never Dependabot's:
+of its own in `TASKS.md`, never part of another change, and never Dependabot's. The steps in
+full are in [`docs/firmware/radio-compat.md`](docs/firmware/radio-compat.md):
 
-1. Compare the parts of TOWER's firmware that are written again here
-   (`firmware/src/radio/frame.rs`, `firmware/src/radio/net/`) between the old revision and the
-   new one, and read what changed.
+1. Make the drift report (`just tower-drift <new revision>`) and read what changed in the parts
+   of TOWER written again here; write down in the task what each change means here.
 2. Move the `rev` of all four crates together, and the north bridge firmware's with them. If
    TOWER needs a newer Rust, move `rust-toolchain.toml` and the workflows too.
 3. Run the tests that hold the pin (`crates/tower-air`, `agent`). One that fails means TOWER
@@ -133,7 +133,7 @@ just fmt       # rustfmt
 crates, rustdoc, the static arm64 build of `fiber`, the release archive built twice and compared,
 `shellcheck`, the bench scripts' self-test, the long-dash check and `cargo audit`, the south
 bridge's firmware (fmt, clippy, rustdoc, its size against 24 KB), and the north bridge's (fmt,
-clippy, rustdoc, its TOWER revision the root's). It needs `cargo-audit`,
+clippy, rustdoc, its TOWER revision the root's, the drift report's list of TOWER files). It needs `cargo-audit`,
 `python3`, `shellcheck`, `dtc`, `flip-link` and the internet. Run it before you call a step done.
 
 `just check-container`, `just check-install` and `just check-converge` run the program, the
