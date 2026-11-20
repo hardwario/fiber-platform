@@ -45,7 +45,7 @@
     "type": "function",
     "z": "example-tower-tab",
     "name": "Their names",
-    "func": "// fiber/radio/nodes/<addr>: {\"addr\":\"0x1a2b3c4d\",\"name\":\"button:0\",...}, retained, or an empty\n// message when the node was removed (docs/mqtt-api.md, \"The radio\"). The names are kept for the\n// other function nodes of this flow.\nconst addr = msg.topic.split(\"/\")[3];\nconst names = flow.get(\"names\") || {};\nconst node = msg.payload;\nif (node && typeof node === \"object\" && node.name) {\n    names[addr] = node.name;\n} else {\n    delete names[addr];\n}\nflow.set(\"names\", names);\nreturn null;",
+    "func": "// fiber/radio/nodes/<addr>: {\"addr\":\"0x1a2b3c4d\",\"name\":\"button:0\",...}, retained, or an empty\n// message when the node was removed (docs/mqtt-api.md, \"The radio\"). The names are kept for the\n// other function nodes of this flow.\nconst addr = msg.topic.split(\"/\")[3];\nconst names = flow.get(\"names\") || {};\nconst info = msg.payload;\nif (info && typeof info === \"object\" && info.name) {\n    names[addr] = info.name;\n} else {\n    delete names[addr];\n}\nflow.set(\"names\", names);\nreturn null;",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,

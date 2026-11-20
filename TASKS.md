@@ -547,9 +547,15 @@ frame counter already seen is dropped, as QoS 1 can bring one twice); the thermo
 debug sidebar by name; an inject node sets a node's LED off. Its three function nodes were run
 under Node.js against the topics of `docs/mqtt-api.md` (a name learned and forgotten, a click
 twice, a hold, a cleared state). The converge test deploys it with the other two and checks a
-click on `fiber/cmd` and on the display; not run yet, as Docker is not running on the
-maintainer's computer: CI runs it after the next push. Left: CI green on it, a real node on a
-FIBER (with T26's bench step), each example once on a FIBER (T2).
+click on `fiber/cmd` and on the display. Its first CI run (44681160509, commit `ef888b3`) failed
+there: the click came with the address, not the name, as Node-RED gives every function node a
+`node` of its own, and `const node` in "Their names" stopped it from loading (Node.js alone does
+not show it). Fixed, and the whole flow run in Node-RED 5.0.10 (the pinned one) on the computer
+against a broker: a click with the name, the same counter dropped, a removed node back to its
+address, a thermometer in the debug output by name, a cleared state ignored, the inject node
+publishing `false` on `set/led`. Docker is not running on the maintainer's computer, so the
+converge test runs in CI. Left: CI green on it, a real node on a FIBER (with T26's bench step),
+each example once on a FIBER (T2).
 Earlier (2026-11-19): on a FIBER, against the real agent: `request.sh` (a message, a port cycled, seen
 on `ports/3`) and `request.py` (an LED set and back to auto) were answered `ok`; `thermometers.py`
 and the Rust example connect and wait (no probe plugged in); both flows import into the FIBER's
@@ -751,7 +757,8 @@ link's messages between them; the watermark in the last two pages, `memory.x` ke
 below them; the watchdog at 8 s. The gateway gained `counts`, `duty_left_ms` and `peers` for the
 link. The simulator for the agent's tests moved to T26, where its first user is (the south
 bridge's simulator lives in the agent too). Left: everything on a FIBER, which waits for the
-bench.
+bench. Pushed with T26 (`55771c8` to `69adb72`); CI run 44680585087 green, the north
+bridge's job included.
 
 - [x] `docs/firmware/north-link.md` first: `Hello` (who it is, its image's CRC, the
       personalities it has and the one that is active, why it reset), `SetPersonality`, the
@@ -816,7 +823,9 @@ a pairing window over the pages with its seconds (any press closes it), and a no
 with its code in big digits, lit, until a press or 60 s; tested with stored pictures and through
 the simulated north bridge. Left on the computer: nothing but the simulator as a command of its
 own for the container tests (optional: the tests run it in-process). Left on the bench: all of
-"Done when", with one Core Module.
+"Done when", with one Core Module. Pushed with T25's firmware (`b063459` to `5f863ea`); CI run
+44680585087 green in every job (the host workspace, the audit, the arm64 containers, both
+firmwares).
 
 - [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
       pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
