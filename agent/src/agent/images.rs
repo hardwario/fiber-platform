@@ -18,3 +18,19 @@ pub fn south() -> Option<&'static [u8]> {
 pub fn south_crc() -> Option<u32> {
     south().map(crc32)
 }
+
+/// The north bridge's firmware, as a binary image from the start of its flash.
+#[cfg(fiber_north_image)]
+pub fn north() -> Option<&'static [u8]> {
+    Some(include_bytes!(concat!(env!("OUT_DIR"), "/north.bin")))
+}
+
+#[cfg(not(fiber_north_image))]
+pub fn north() -> Option<&'static [u8]> {
+    None
+}
+
+/// The CRC-32 of the north bridge's image: what its `Hello` names when it runs it.
+pub fn north_crc() -> Option<u32> {
+    north().map(crc32)
+}

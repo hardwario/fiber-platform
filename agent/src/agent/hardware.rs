@@ -349,6 +349,18 @@ pub fn flash_south(image: &[u8]) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Writes `image` to the north bridge through its bootloader (the north link has closed the
+/// port). Blocking: the north link runs it off the agent's loop.
+pub fn flash_north(image: &'static [u8]) -> Result<(), String> {
+    let target = target("north").ok_or("no north bridge")?;
+    let mut flasher = open(&target)?;
+    flasher
+        .flash(image, &mut |progress| {
+            eprintln!("flashing the north bridge: {progress:?}")
+        })
+        .map_err(|e| e.to_string())
+}
+
 /// Starts the chip's bootloader, asks it what it is, and starts the firmware again, also when
 /// the asking failed.
 pub fn read_chip<P: Port, L: fiber_flasher::Lines>(

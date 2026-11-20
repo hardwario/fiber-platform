@@ -96,6 +96,24 @@ pub fn firmware(chip: &Chip, ts: u64) -> Value {
     })
 }
 
+/// `firmware/north`: as `firmware/south`, from the north bridge's `Hello`.
+pub fn firmware_north(
+    state: super::state::FirmwareState,
+    hello: Option<fiber_protocol::north::Hello>,
+    carried: Option<u32>,
+    ts: u64,
+) -> Value {
+    json!({
+        "state": state.name(),
+        "version": hello.map(|h| format!("{}.{}.{}", h.version[0], h.version[1], h.version[2])),
+        "crc": hello.map(|h| format!("0x{:08x}", h.image_crc)),
+        "carried": carried.map(|crc| format!("0x{crc:08x}")),
+        "reset": hello.map(|h| reset_name(h.reset)),
+        "fault": hello.and_then(|h| h.fault).map(|f| json!({"code": f.code, "address": format!("0x{:08x}", f.address)})),
+        "ts": ts,
+    })
+}
+
 fn reset_name(reset: fiber_protocol::south::Reset) -> &'static str {
     use fiber_protocol::south::Reset;
     match reset {

@@ -1,7 +1,9 @@
 //! The north link in the agent (`docs/firmware/north-link.md`): a task of its own owns the port,
 //! takes the frames apart, and sends the agent's messages one at a time, each again when its
 //! answer does not come within 200 ms. The radio service ([`super::radio`]) sees only whole
-//! messages, and [`Event::Lost`] when the north bridge falls silent.
+//! messages, and [`Event::Lost`] when the north bridge falls silent. The task also writes the
+//! north bridge's firmware when the agent asks: it closes the port, runs the flasher (which uses
+//! the same port, through the bootloader), and opens the port again.
 //!
 //! [`simulate`] is a north bridge made up in software, for the tests.
 
@@ -25,60 +27,111 @@ pub const SILENT_AFTER: Duration = Duration::from_secs(30);
 const REOPEN: Duration = Duration::from_secs(5);
 
 /// What the link tells the agent.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
     Message(Message),
     /// The north bridge stopped answering, or the port broke: what it held is gone.
     Lost,
     /// A whole frame with another schema tag: a firmware from another build.
     OtherSchema,
+    /// Its firmware is being written: the port is closed meanwhile.
+    Flashing,
+    /// How the writing ended. The port opens again, and a `Hello` follows when it starts.
+    Flashed(Result<(), String>),
 }
 
 /// The agent's end of the link.
 pub struct North {
     pub to: mpsc::UnboundedSender<Message>,
     pub from: mpsc::Receiver<Event>,
+    /// An image to write to the north bridge.
+    pub flash: mpsc::UnboundedSender<&'static [u8]>,
 }
 
-/// The link on the serial port `port`, opened again whenever it breaks.
-pub fn spawn(port: String) -> North {
-    let (to, mut outgoing) = mpsc::unbounded_channel();
+/// Writes an image to the north bridge, through its bootloader; blocks until done.
+pub type Flasher = fn(&'static [u8]) -> Result<(), String>;
+
+/// The link on the serial port `port`, opened again whenever it breaks; `flasher` writes the
+/// firmware when the agent asks.
+pub fn spawn(port: String, flasher: Flasher) -> North {
+    let (to, outgoing) = mpsc::unbounded_channel();
+    let (flash, flashes) = mpsc::unbounded_channel();
     let (events, from) = mpsc::channel(64);
-    tokio::spawn(async move {
+    let open = move || {
         use tokio_serial::SerialPortBuilderExt;
-        let mut said: Option<String> = None;
-        loop {
-            let result = match tokio_serial::new(&port, 115_200).open_native_async() {
-                Ok(stream) => {
-                    said = None;
-                    serve(stream, &mut outgoing, &events).await
-                }
-                Err(e) => Err(io::Error::other(format!("cannot open {port}: {e}"))),
-            };
-            if let Err(e) = result {
+        tokio_serial::new(&port, 115_200)
+            .open_native_async()
+            .map_err(|e| io::Error::other(format!("cannot open {port}: {e}")))
+    };
+    tokio::spawn(run(open, flasher, outgoing, flashes, events));
+    North { to, from, flash }
+}
+
+/// The link's whole life: opens the port with `open`, serves it until it breaks, writes the
+/// firmware when asked, and opens it again; ends when the agent's end is dropped.
+pub async fn run<S, O>(
+    mut open: O,
+    flasher: Flasher,
+    mut outgoing: mpsc::UnboundedReceiver<Message>,
+    mut flashes: mpsc::UnboundedReceiver<&'static [u8]>,
+    events: mpsc::Sender<Event>,
+) where
+    S: AsyncRead + AsyncWrite + Unpin,
+    O: FnMut() -> io::Result<S>,
+{
+    let mut said: Option<String> = None;
+    loop {
+        let result = match open() {
+            Ok(stream) => serve(stream, &mut outgoing, &mut flashes, &events).await,
+            Err(e) => Err(e),
+        };
+        let image = match result {
+            Ok(Some(image)) => Some(image),
+            Ok(None) => return,
+            Err(e) => {
                 let message = format!("the north link: {e}");
                 if said.as_deref() != Some(&message) {
                     eprintln!("{message}");
                     said = Some(message);
                 }
+                if events.send(Event::Lost).await.is_err() || outgoing.is_closed() {
+                    return;
+                }
+                // Before the port is opened again, unless the agent asks for a flash meanwhile.
+                tokio::select! {
+                    () = tokio::time::sleep(REOPEN) => None,
+                    image = flashes.recv() => match image {
+                        Some(image) => Some(image),
+                        None => return,
+                    },
+                }
             }
-            if events.send(Event::Lost).await.is_err() || outgoing.is_closed() {
+        };
+        if let Some(image) = image {
+            said = None;
+            if events.send(Event::Flashing).await.is_err() {
                 return;
             }
-            tokio::time::sleep(REOPEN).await;
+            let result = tokio::task::spawn_blocking(move || flasher(image))
+                .await
+                .unwrap_or_else(|e| Err(format!("the flasher stopped: {e}")));
+            if events.send(Event::Flashed(result)).await.is_err() {
+                return;
+            }
         }
-    });
-    North { to, from }
+    }
 }
 
-/// One connection, until the stream breaks, the north bridge falls silent, or the agent's end is
-/// dropped (`Ok`). What the agent sent before it began is dropped: the north bridge's `Hello`
-/// makes the agent send everything again.
+/// One connection, until the stream breaks, the north bridge falls silent (`Err`), the agent asks
+/// for a flash (`Ok(Some(image))`: the port is to be closed for the flasher), or the agent's end is
+/// dropped (`Ok(None)`). What the agent sent before it began is dropped: the north bridge's
+/// `Hello` makes the agent send everything again.
 pub async fn serve<S: AsyncRead + AsyncWrite + Unpin>(
     stream: S,
     outgoing: &mut mpsc::UnboundedReceiver<Message>,
+    flashes: &mut mpsc::UnboundedReceiver<&'static [u8]>,
     events: &mpsc::Sender<Event>,
-) -> io::Result<()> {
+) -> io::Result<Option<&'static [u8]>> {
     while outgoing.try_recv().is_ok() {}
     let (mut reader, mut writer) = tokio::io::split(stream);
     let mut seq = 0u16;
@@ -100,12 +153,14 @@ pub async fn serve<S: AsyncRead + AsyncWrite + Unpin>(
         enum Step {
             Read(usize),
             Out(Option<Message>),
+            Flash(Option<&'static [u8]>),
             NoAnswer,
             Silent,
         }
         let step = tokio::select! {
             n = reader.read(&mut buf) => Step::Read(n?),
             m = outgoing.recv() => Step::Out(m),
+            image = flashes.recv() => Step::Flash(image),
             () = async {
                 match answer_by {
                     Some(by) => tokio::time::sleep_until(by).await,
@@ -139,12 +194,13 @@ pub async fn serve<S: AsyncRead + AsyncWrite + Unpin>(
                         Err(_) => continue,
                     };
                     if events.send(event).await.is_err() {
-                        return Ok(());
+                        return Ok(None);
                     }
                 }
             }
             Step::Out(Some(message)) => queue.push_back(message),
-            Step::Out(None) => return Ok(()),
+            Step::Out(None) | Step::Flash(None) => return Ok(None),
+            Step::Flash(Some(image)) => return Ok(Some(image)),
             Step::NoAnswer => match in_flight {
                 Some((_, message, tries, _)) if tries < TRIES => {
                     let sent = write(&mut writer, &message, &mut seq).await?;
@@ -273,8 +329,14 @@ mod tests {
         let (seen_tx, seen) = mpsc::unbounded_channel();
         tokio::spawn(simulate(north_side, inject_rx, seen_tx, silent));
         let (to, mut outgoing) = mpsc::unbounded_channel();
+        let (_flash, mut flashes) = mpsc::unbounded_channel();
         let (events_tx, events) = mpsc::channel(16);
-        let link = tokio::spawn(async move { serve(agent_side, &mut outgoing, &events_tx).await });
+        let link = tokio::spawn(async move {
+            let _keep = _flash;
+            serve(agent_side, &mut outgoing, &mut flashes, &events_tx)
+                .await
+                .map(|_| ())
+        });
         Bench {
             to,
             events,
@@ -370,13 +432,60 @@ mod tests {
         assert!(b.events.try_recv().is_err());
     }
 
+    /// The images the fake flasher was given.
+    static FLASHED: std::sync::Mutex<Vec<usize>> = std::sync::Mutex::new(Vec::new());
+
+    fn fake_flasher(image: &'static [u8]) -> Result<(), String> {
+        FLASHED.lock().unwrap().push(image.len());
+        Ok(())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_flash_closes_the_port_and_opens_it_again() {
+        // Each open makes a new pipe to a new simulated north bridge.
+        let opened = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let count = opened.clone();
+        let open = move || {
+            count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let (agent_side, north_side) = tokio::io::duplex(1024);
+            let (_inject, inject_rx) = mpsc::unbounded_channel::<Message>();
+            let (seen, _seen_rx) = mpsc::unbounded_channel();
+            tokio::spawn(async move {
+                let _keep = _inject;
+                simulate(north_side, inject_rx, seen, false).await
+            });
+            Ok::<_, io::Error>(agent_side)
+        };
+        let (to, outgoing) = mpsc::unbounded_channel();
+        let (flash, flashes) = mpsc::unbounded_channel();
+        let (events_tx, mut events) = mpsc::channel(16);
+        tokio::spawn(run(open, fake_flasher, outgoing, flashes, events_tx));
+        assert!(matches!(next_message(&mut events).await, Message::Hello(_)));
+        static IMAGE: [u8; 4096] = [0; 4096];
+        flash.send(&IMAGE).unwrap();
+        let mut seen = Vec::new();
+        while seen.len() < 2 {
+            match events.recv().await.unwrap() {
+                Event::Message(_) => {}
+                other => seen.push(other),
+            }
+        }
+        assert_eq!(seen, [Event::Flashing, Event::Flashed(Ok(()))]);
+        assert_eq!(*FLASHED.lock().unwrap(), [4096]);
+        // Opened again at once, and its Hello comes.
+        assert!(matches!(next_message(&mut events).await, Message::Hello(_)));
+        assert_eq!(opened.load(std::sync::atomic::Ordering::Relaxed), 2);
+        drop(to);
+    }
+
     #[tokio::test(start_paused = true)]
     async fn a_silent_north_bridge_is_lost() {
         let (agent_side, _north_side) = tokio::io::duplex(1024);
         let (_to, mut outgoing) = mpsc::unbounded_channel();
+        let (_flash, mut flashes) = mpsc::unbounded_channel();
         let (events, _rx) = mpsc::channel(16);
         let started = Instant::now();
-        let result = serve(agent_side, &mut outgoing, &events).await;
+        let result = serve(agent_side, &mut outgoing, &mut flashes, &events).await;
         assert!(result.is_err());
         assert_eq!(started.elapsed(), SILENT_AFTER);
     }

@@ -74,10 +74,12 @@ dividers = true      # false on the board variant without the two voltage divide
 ```
 
 It keeps working while the broker is down, and sends every retained topic again when it is back.
-When it cannot open the south bridge's port, it tries again every 5 s. It carries the south
-bridge's firmware (`just build-fiber` builds it in) and writes it to the chip when the chip runs
-another image, speaks another schema, or says nothing for 10 s after the start: at most three
-tries an hour, kept in `/var/lib/fiber/agent/flash-tries.json` across restarts.
+When it cannot open the south bridge's port, it tries again every 5 s. It carries both bridges'
+firmware (`just build-fiber` builds them in) and writes each to its chip when the chip runs
+another image, speaks another schema, or says nothing (the south bridge for 10 s after the start;
+the north bridge for 30 s, its link's silence): at most three tries an hour for each, kept in
+`/var/lib/fiber/agent/flash-tries.json` across restarts. The north bridge is written by its link,
+which closes its port meanwhile; the agent's loop goes on (not run on a FIBER yet, T26).
 
 ### `fiber status`
 

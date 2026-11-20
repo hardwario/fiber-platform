@@ -135,11 +135,37 @@ pub struct Agent<B: Bus> {
     pub radio: Option<RadioSide>,
 }
 
-/// The radio (T26): its service, the north link, and where its nodes are kept.
+/// The radio (T26): its service, the north link, where its nodes are kept, and the north bridge's
+/// firmware.
 pub struct RadioSide {
     pub service: super::radio::service::Radio,
     pub north: super::north::North,
     pub store_path: std::path::PathBuf,
+    pub chip: NorthChip,
+}
+
+/// The north bridge's firmware, as the agent sees it (`firmware/north`).
+pub struct NorthChip {
+    pub state: FirmwareState,
+    pub hello: Option<fiber_protocol::north::Hello>,
+    /// The CRC-32 of the image the program carries for it; none in a build without it.
+    pub carried: Option<u32>,
+    /// It is being written.
+    pub flashing: bool,
+    /// The request that asked for the writing, answered when it ends.
+    pub request: Option<String>,
+}
+
+impl NorthChip {
+    pub fn new(carried: Option<u32>) -> Self {
+        NorthChip {
+            state: FirmwareState::Silent,
+            hello: None,
+            carried,
+            flashing: false,
+            request: None,
+        }
+    }
 }
 
 /// The files the pages read (the apply's results and progress, and the addresses), and the one
@@ -284,6 +310,11 @@ impl<B: Bus> Agent<B> {
                 force,
             )
             .await;
+        }
+        if let Some(radio) = &self.radio {
+            let chip = &radio.chip;
+            let north = topics::firmware_north(chip.state, chip.hello, chip.carried, ts);
+            self.retained("firmware/north", north, force).await;
         }
         self.retained("firmware/south", topics::firmware(&self.state.south, ts), force)
             .await;
@@ -642,6 +673,33 @@ impl<B: Bus> Agent<B> {
                 };
                 self.answer(answer).await;
             }
+            Handled::Flash {
+                id,
+                chip: requests::Chip::North,
+            } => {
+                let ts = now();
+                let answer = match &mut self.radio {
+                    None => Some("the radio is not there"),
+                    Some(radio) => match (radio.chip.carried, super::images::north()) {
+                        (Some(carried), Some(image)) => {
+                            if radio.chip.flashing {
+                                Some("the north bridge is being written already")
+                            } else if !self.tries.allowed("north", carried, ts) {
+                                Some("flashed three times in the last hour; try again later")
+                            } else {
+                                radio.chip.flashing = true;
+                                radio.chip.request = Some(id.clone());
+                                let _ = radio.north.flash.send(image);
+                                None
+                            }
+                        }
+                        _ => Some("this fiber program carries no firmware image"),
+                    },
+                };
+                if let Some(error) = answer {
+                    self.answer(Answer::error(&id, error)).await;
+                }
+            }
             Handled::Flash { id, .. } => match self.state.south.carried {
                 None => {
                     self.answer(Answer::error(&id, "this fiber program carries no firmware image"))
@@ -672,14 +730,104 @@ impl<B: Bus> Agent<B> {
         let Some(radio) = &mut self.radio else {
             return;
         };
+        let mut seen = None;
         let effects = match event {
-            Event::Message(message) => radio.service.on_north(message, ts, offset),
-            Event::Lost => radio.service.north_lost(ts),
-            Event::OtherSchema => vec![super::radio::service::Effect::Say(
-                "the north bridge speaks another schema: a firmware from another build".into(),
-            )],
+            Event::Message(message) => {
+                if let fiber_protocol::north::Message::Hello(hello) = message {
+                    radio.chip.hello = Some(hello);
+                    radio.chip.state = FirmwareState::Running;
+                    seen = Some(Seen::Hello {
+                        image_crc: hello.image_crc,
+                    });
+                }
+                radio.service.on_north(message, ts, offset)
+            }
+            Event::Lost => {
+                // Nothing heard from it since the agent started or since it was written: a
+                // north bridge without this firmware.
+                if radio.chip.hello.is_none() && !radio.chip.flashing {
+                    radio.chip.state = FirmwareState::Silent;
+                    seen = Some(Seen::Silent);
+                }
+                radio.service.north_lost(ts)
+            }
+            Event::OtherSchema => {
+                seen = Some(Seen::OtherSchema);
+                vec![super::radio::service::Effect::Say(
+                    "the north bridge speaks another schema: a firmware from another build".into(),
+                )]
+            }
+            Event::Flashing => {
+                radio.chip.state = FirmwareState::Flashing;
+                radio.chip.flashing = true;
+                eprintln!("flashing the north bridge");
+                Vec::new()
+            }
+            Event::Flashed(result) => {
+                self.end_north_flash(result).await;
+                return;
+            }
         };
         self.apply_radio(effects).await;
+        if let Some(seen) = seen {
+            self.consider_north_flash(seen);
+        }
+        self.publish_state(false).await;
+    }
+
+    /// Asks the north link to write the north bridge when what was `seen` calls for it and a try
+    /// is allowed; the chip counts as failed when tries are used up.
+    fn consider_north_flash(&mut self, seen: Seen) {
+        let ts = now();
+        let Some(radio) = &mut self.radio else {
+            return;
+        };
+        let (Some(carried), Some(image)) = (radio.chip.carried, super::images::north()) else {
+            return;
+        };
+        if radio.chip.flashing || !firmware::needs_flash(seen, carried) {
+            return;
+        }
+        if self.tries.allowed("north", carried, ts) {
+            radio.chip.flashing = true;
+            let _ = radio.north.flash.send(image);
+        } else {
+            radio.chip.state = FirmwareState::Failed;
+        }
+    }
+
+    /// The end of writing the north bridge: the try kept, the request answered, the state said.
+    async fn end_north_flash(&mut self, result: Result<(), String>) {
+        let ts = now();
+        let Some(radio) = &mut self.radio else {
+            return;
+        };
+        let carried = radio.chip.carried.unwrap_or(0);
+        self.tries.record("north", carried, ts);
+        if let Some(path) = &self.tries_path
+            && let Err(e) = self.tries.save(path)
+        {
+            eprintln!("cannot keep the flash tries in {}: {e}", path.display());
+        }
+        radio.chip.flashing = false;
+        radio.chip.hello = None;
+        radio.chip.state = match (&result, self.tries.allowed("north", carried, ts)) {
+            (Ok(()), _) => FirmwareState::Running,
+            (Err(_), true) => FirmwareState::Silent,
+            (Err(_), false) => FirmwareState::Failed,
+        };
+        match &result {
+            Ok(()) => eprintln!("flashed the north bridge"),
+            Err(e) => eprintln!("flashing the north bridge failed: {e}"),
+        }
+        if let Some(id) = radio.chip.request.take() {
+            let answer = match result {
+                Ok(()) => Answer::ok(&id, Some(serde_json::json!({"crc": format!("0x{carried:08x}")}))),
+                Err(e) => Answer::error(&id, e),
+            };
+            self.answer(answer).await;
+        }
+        self.publish_state(false).await;
     }
 
     /// A client's `radio/nodes/{addr}/set/{prop}`.
@@ -1026,12 +1174,14 @@ mod tests {
         let (seen_tx, mut seen) = mpsc::unbounded_channel();
         tokio::spawn(north::simulate(north_side, inject_rx, seen_tx, false));
         let (to, mut outgoing) = mpsc::unbounded_channel();
+        let (flash, mut flashes) = mpsc::unbounded_channel();
         let (events, from) = mpsc::channel(16);
-        tokio::spawn(async move { north::serve(agent_side, &mut outgoing, &events).await });
+        tokio::spawn(async move { north::serve(agent_side, &mut outgoing, &mut flashes, &events).await });
         agent.radio = Some(RadioSide {
             service: Radio::new(kept, "cb3b25c".into()),
-            north: North { to, from },
+            north: North { to, from, flash },
             store_path: path.clone(),
+            chip: crate::agent::run::NorthChip::new(None),
         });
         bus.send(BusEvent::Connected).unwrap();
         run_without_link(&mut agent, Duration::from_secs(2)).await;
@@ -1039,6 +1189,11 @@ mod tests {
         // The north bridge's Hello: the settings with its higher floor, then the node.
         let status = last(&published, "fiber/radio/status").unwrap();
         assert_eq!(status["personality"], "tower-fsk");
+        // Its firmware, from its Hello (this build carries no image, so it is not written).
+        let firmware = last(&published, "fiber/firmware/north").unwrap();
+        assert_eq!(firmware["state"], "running");
+        assert_eq!(firmware["crc"], "0x0badcafe");
+        assert_eq!(firmware["carried"], Value::Null);
         assert_eq!(status["gateway"], "0x2a7f03c1");
         let mut got = Vec::new();
         while let Ok(m) = seen.try_recv() {

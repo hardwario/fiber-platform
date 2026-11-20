@@ -209,10 +209,10 @@ pub fn handle(state: &mut State, request: &Request) -> Handled {
                 id: id.to_owned(),
                 chip: Chip::South,
             },
-            Some("north") => Handled::Answer(Answer::error(
-                id,
-                "the north bridge's firmware is not written yet",
-            )),
+            Some("north") => Handled::Flash {
+                id: id.to_owned(),
+                chip: Chip::North,
+            },
             _ => invalid(id, "chip is \"south\" or \"north\""),
         },
         "buzzer.beep" => {
@@ -434,12 +434,12 @@ mod tests {
                 chip: Chip::South
             }
         );
-        assert!(
-            error(handle(
-                &mut s,
-                &request("firmware.flash", json!({"chip": "north"}))
-            ))
-            .contains("not written yet")
+        assert_eq!(
+            handle(&mut s, &request("firmware.flash", json!({"chip": "north"}))),
+            Handled::Flash {
+                id: "a1".into(),
+                chip: Chip::North
+            }
         );
         assert_eq!(
             error(handle(&mut s, &request("reboot", Value::Null))),

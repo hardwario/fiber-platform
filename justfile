@@ -88,14 +88,17 @@ check-north: north
 # rust-lld links it with the target's own musl (.cargo/config.toml): no C toolchain needed. It
 # carries the south bridge's firmware as a binary image (llvm-objcopy, from llvm-tools), to flash
 # the chip with.
-# Build the static `fiber` program for the FIBER (arm64 Linux, musl), with the firmware in it.
-build-fiber: south
+# Build the static `fiber` program for the FIBER (arm64 Linux, musl), with both bridges'
+# firmware in it.
+build-fiber: south north
     #!/usr/bin/env bash
     set -euo pipefail
     objcopy=$(find "$(rustc --print sysroot)/lib/rustlib" -name llvm-objcopy -type f | head -n 1)
     mkdir -p target/firmware
     "$objcopy" -O binary firmware/south/target/thumbv6m-none-eabi/release/fiber-south target/firmware/south.bin
+    "$objcopy" -O binary firmware/north/target/thumbv7em-none-eabi/release/fiber-north target/firmware/north.bin
     FIBER_SOUTH_IMAGE="$PWD/target/firmware/south.bin" \
+    FIBER_NORTH_IMAGE="$PWD/target/firmware/north.bin" \
         cargo build --locked --release --target aarch64-unknown-linux-musl -p fiber-agent
 
 # The archive, the stamped installer and SHA256SUMS (provision/release.py).

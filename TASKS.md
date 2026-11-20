@@ -791,8 +791,15 @@ directory (`ProtectSystem=strict` would refuse it otherwise). A test runs the lo
 the link and the simulated north bridge together. **On the bench:** the agent now holds
 `/dev/ttyAMA3`, so `hil/north_flash.py` and the agent fight over it; stop the agent first.
 `fiber radio status | config | nodes | pair | watch` is written (`docs/cli.md` first; what each
-prints tested). Next: the pairing code on the LCD (and pairing from the menu), the north image
-built into the program and flashed by the agent, `firmware/north` on MQTT.
+prints tested). The north bridge's image is built into the program (`just build-fiber` builds
+`firmware/north` and passes `FIBER_NORTH_IMAGE`; the three workflows that build the program got
+`thumbv7em`), and the agent writes it as it writes the south bridge's: on another image, another
+schema, or silence (30 s of the link's), three tries an hour, `firmware.flash` with `north` too.
+The north link's task does the writing: it closes the port, runs the flasher off the loop, says
+`Flashing`/`Flashed`, and opens the port again; `firmware/north` is published from the north
+bridge's `Hello`. **On the bench:** the next release installed writes this firmware over the radio
+spike at once (the spike says no `Hello`); the spike's backup is `~/north-backup.bin` and
+`target/bench/`. Next: the pairing code on the LCD and pairing from the menu.
 
 - [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
       pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
@@ -810,7 +817,7 @@ built into the program and flashed by the agent, `firmware/north` on MQTT.
       topics by its property tables
 - [ ] Pairing: opened from the command line, from MQTT or from the menu, for 60 s; the six-digit
       code on the LCD and in `radio/pairing`
-- [ ] The north bridge's image built into the program, and flashed by the agent as the south
+- [x] The north bridge's image built into the program, and flashed by the agent as the south
       bridge's is (T17)
 - [x] `fiber radio status | config | nodes | pair | watch`
 - [ ] The north bridge as a simulator, as the south bridge's (`agent/src/agent/simulator.rs`),

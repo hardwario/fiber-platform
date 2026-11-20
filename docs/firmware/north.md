@@ -73,5 +73,5 @@ image may take 252 KB):
 ## Not done yet
 
 - On a FIBER: `Hello`, `Settings`, a Core Module's frames taken in (T25's "Done when").
-- The north bridge as a simulator on a pseudo-terminal, for the agent's tests (T25, for T26).
-- The agent's side of the link, and its image of this firmware (T26).
+- The agent carries this firmware (`just build-fiber` builds it in) and writes it when the north
+  bridge runs another image or says nothing (T26); not run on a FIBER yet.

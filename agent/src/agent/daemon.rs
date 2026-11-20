@@ -164,8 +164,9 @@ fn radio(paths: &Paths) -> Option<super::run::RadioSide> {
     let tower: String = env!("FIBER_TOWER_REV").chars().take(7).collect();
     Some(super::run::RadioSide {
         service: Radio::new(kept, tower),
-        north: super::north::spawn(port),
+        north: super::north::spawn(port, super::hardware::flash_north),
         store_path: path,
+        chip: super::run::NorthChip::new(super::images::north_crc()),
     })
 }
 

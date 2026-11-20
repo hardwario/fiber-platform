@@ -10,7 +10,8 @@ two TOWER Core Modules at the pinned revision running `radio_beacon`: frames go 
 settings below are the spike's. The packet is made and checked by `fiber-tower-air`'s `packet`,
 the commands by `fiber-subghz` (T23), and the spike runs on both: through them it received every
 frame of a Core Module (20 in 20 s, none missed) and a Core Module received every frame it sent
-(14 of 14), on 2026-11-19. The north bridge's firmware (T25) is not written yet. With the
+(14 of 14), on 2026-11-19. The north bridge's firmware (T25) is written and builds, and the
+agent carries it (T26); neither has run on a FIBER yet. With the
 FIBER's antenna fitted the levels rise, and depend on the antenna (see "Good to know"); the
 settings were checked against ST's own code for the module and match it. Not measured yet: the error rates at several
 levels, the frequency offset in Hz.

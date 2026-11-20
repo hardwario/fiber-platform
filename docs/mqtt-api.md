@@ -147,7 +147,7 @@ a DS18B20 holds after power-on, unless the reading before it was above 75 °C.
 
 ### `firmware/chip`
 
-`firmware/south`, and `firmware/north` once the agent carries the north bridge's firmware (T26):
+`firmware/south` and `firmware/north` (from T26; the north bridge's not seen on a FIBER yet):
 
 ```json
 {"state":"running","version":"0.2.0","crc":"0x6f1c2a90","carried":"0x6f1c2a90",
