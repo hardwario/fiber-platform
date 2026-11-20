@@ -559,8 +559,11 @@ against a broker: a click with the name, the same counter dropped, a removed nod
 address, a thermometer in the debug output by name, a cleared state ignored, the inject node
 publishing `false` on `set/led`. Commit `b79eb8d`, CI run 44682874771 green in every job: in
 step 10c of the converge test the flow asks for the message with the node's name and the double
-beep, and the display shows it. Left: a real node on a FIBER (with T26's bench step), each example
-once on a FIBER (T2).
+beep, and the display shows it. On a FIBER (2026-11-20, release `0.1.0-bench.18`): the flow
+deployed into its Node-RED through the API (user `fiber`), a click of the real node `button:0`
+(Core Module A, `radio_button` at the pin): "button:0 / clicked" on the display, and the flow's
+`display.message` and double `buzzer.beep` on `fiber/cmd`. Left: each example once on a FIBER
+(T2).
 Earlier (2026-11-19): on a FIBER, against the real agent: `request.sh` (a message, a port cycled, seen
 on `ports/3`) and `request.py` (an LED set and back to auto) were answered `ok`; `thermometers.py`
 and the Rust example connect and wait (no probe plugged in); both flows import into the FIBER's
@@ -741,73 +744,6 @@ maintainer at 19:46:23 (`fiber firmware flash south`, the third write of the hou
 
 - Done when: the tests pass, and on the FIBER the maintainer sees red, dark, green after a start.
 
-### T25. The north bridge firmware and its link (M5)
-
-State (2026-11-19): started, without hardware (the maintainer away from the bench), after T24 and
-T47 (pushed, `f47d3bd`). The link document is written (`docs/firmware/north-link.md`, a draft
-the maintainer has not read): the south link's frame with a tag of its own; every message from
-the agent answered (`Answer`), sent again when no answer comes within 200 ms; the radio silent
-until `Settings`; uplinks acknowledged only while there is room to pass them on. The messages
-are in `crates/protocol` (`north`, its tag `0xa5bc` pinned by a test; a node's payload as a byte
-string of at most 74). Seen on the way: adding the module moved the south bridge's image
-(`0xfbcd5b36` to `0xb79f9cb6`, 16240 bytes) with no change of its own (the crate's symbol names
-moved, and the linker's layout with them): the agent writes it once more at its next install.
-The firmware is written and builds (`firmware/north`, 62.8 KB of flash, 4.8 KB static; `just
-check-north` and a CI job; `docs/firmware/north.md`): Embassy 0.6 for the `stm32wl55jc-cm4`,
-started with `init_primary` and an ordinary static for the shared data (the second core never
-runs); 48 MHz from the TCXO (HSE in bypass, the PLL); the radio through `fiber-subghz` with the
-spike's bus and RF switch and its receive flow, made async (the radio's status read every
-100 us); the gateway of T24 and T47 in one loop, slices of 100 ms (500 ms while pairing), the
-link's messages between them; the watermark in the last two pages, `memory.x` keeping the image
-below them; the watchdog at 8 s. The gateway gained `counts`, `duty_left_ms` and `peers` for the
-link. The simulator for the agent's tests moved to T26, where its first user is (the south
-bridge's simulator lives in the agent too). Left: everything on a FIBER, which waits for the
-bench. Pushed with T26 (`55771c8` to `69adb72`); CI run 44680585087 green, the north
-bridge's job included.
-On a FIBER (2026-11-20, details in T26): it runs, written by the agent; `set-vtor` made it start
-after the bootloader's `Go`. 19 of 20 clicks at the first try led to the next step: the radio trait
-now takes the deadline (`receive(buf, until_ms)`, `None` when no packet began before it), the
-firmware stops at it only while no sync word was heard, the gateway's three receives (the slice,
-the acknowledgement window, pairing) pass it, and the made-up air gives frames their airtime (a
-new test: a frame across a slice's end is taken in whole, one after it is the next receive's).
-`just check` passes. Release `0.1.0-bench.18` carries it (north image `0xdab1a01a`), written by
-the agent. Measured on the FIBER: 40 clicks 5 s apart, all 40 at the first try (each event 0.33 to
-0.35 s after its press, the counts 22 to 61 without a gap), where 19 of 20 were before; and three
-restarts of the node, each followed by a click: each click at the first try, the node's counter
-1024 higher after each restart (TOWER's reserve) and taken in. The misses after pairing and after a
-restart seen before the fix did not come back. Left: a push and its CI run (the change is not
-committed yet); the share over many more frames is the 24-hour run of T27.
-
-- [x] `docs/firmware/north-link.md` first: `Hello` (who it is, its image's CRC, the
-      personalities it has and the one that is active, why it reset), `SetPersonality`, the
-      settings (the gateway's address, the band, the channel), nodes added, removed and listed,
-      the block of transmit counters, a message queued for a node or dropped, pairing opened and
-      cancelled, what a node sent (its address, counter, signal strength, bytes), how a
-      transmission ended, the radio's numbers. A schema tag of its own
-- [x] `firmware/north`: a workspace of its own for `thumbv7em-none-eabi`; the M4 core only; the
-      clock from the TCXO; USART1 at 115200; the random number generator for pairing; the
-      watchdog; the stale "empty" flag cleared at start (built, not run)
-- [x] It keeps no list of nodes: after every `Hello` the agent sends the settings, the counters
-      and the nodes. It passes each uplink on before it takes the next frame in, so it never
-      acknowledges what it could not pass on
-- [x] The one thing it keeps: the transmit-counter watermark, in two pages of flash, each value
-      written with its complement
-- [x] The personality switch, with `TowerFsk` as the only one for now (D4)
-- [x] A CI job (build, clippy, rustdoc), and a check that its TOWER revision is the root
-      `Cargo.toml`'s (`just check-north`)
-- [x] On a FIBER: written through the bootloader (by the agent, and by `hil/north_flash.py`), it
-      says `Hello`, takes `Settings` and a node from the agent, and passes on a Core Module's
-      frames (2026-11-20, see T26)
-- [x] Started by the bootloader's `Go` as well as by a reset: `cortex-m-rt`'s `set-vtor`
-- [x] A frame that begins before a receive's deadline is received to its end, not cut off: the
-      radio trait takes the deadline, and the firmware stops at it only while no sync word was
-      heard; a test in the made-up air with a frame across a slice's end; on a FIBER, the share
-      at the first try measured again (19 of 20 before)
-
-- Needs: T14, T15, T24.
-- Done when: the firmware runs on a FIBER, says `Hello`, and takes its settings from a test
-  program.
-
 ### T26. The agent's radio service (M5)
 
 State (2026-11-19): started, without hardware, after T25's firmware (built, not run).
@@ -895,8 +831,11 @@ each of three restarts of the node arrived too (T25). A `set`: `false` on
 bridge sent it 0.1 s after the uplink (`queued: 0`), and 1.2 s later the node reported its
 settings with `state/led` `false` (its console: `led = off`). The node's counter across a restart
 of the north bridge: after the power cycle the agent handed it back (`NodeAdd`) and the node's
-frames went on being taken in. Left on the bench for T26: a second node (Core Module B runs the
-maintainer's own application), and a replay sent on air (no radio on the bench can, T27).
+frames went on being taken in. A second node: Core Module B (the maintainer agreed to reflash it)
+with `radio_button` at the pin, paired as `0xc58d0464`, named `button:1`, code 607653. 30 clicks
+alternating the two nodes, 5 s apart: 15 of 15 from each at the first try (0.33 to 0.35 s after
+the press), the counts of each without a gap. Left on the bench for T26: a replay sent on air (no
+radio on the bench can, T27).
 
 - [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
       pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
@@ -1893,6 +1832,51 @@ hopping (US 915), the remote shell, bulk transfer.
 
 - Needs: T23.
 - Done when: the vectors pass, and the flow tests cover the three cases above.
+
+### T25. The north bridge firmware and its link (M5)
+
+Done 2026-11-20 (the link `55771c8`, `8b6ebb8`; the firmware `69adb72`; on a FIBER, `Go` and the
+slice's end `671a605`; CI run 44710914519 green in every job).
+Checked: `just check` (the north job: fmt, clippy, rustdoc, the TOWER pin and the drift report's
+list); on the FIBER of T2, release `0.1.0-bench.18`: the agent writes the firmware through the
+bootloader and has it answering 2 s later; its `Hello`, its `Status` every 10 s, the agent's
+`Settings` and nodes taken; two TOWER Core Modules at the pin paired, their clicks passed on (40 of
+40, then 15 and 15 alternating, all at the first try), a `set` delivered after a node's uplink,
+the node's counters kept across a power cycle. Found on the FIBER and fixed: started by the
+bootloader's `Go` it hung at its first interrupt (`set-vtor`); a packet still arriving when a
+100 ms slice ended was cut off (19 of 20 at the first try before; the radio trait now takes the
+deadline). The north bridge's `Status` counts 43 frames passed over in 584 s, not looked into
+(they may be other networks' frames). The 24-hour run and a replay on air are T27's.
+
+- [x] `docs/firmware/north-link.md` first: `Hello` (who it is, its image's CRC, the
+      personalities it has and the one that is active, why it reset), `SetPersonality`, the
+      settings (the gateway's address, the band, the channel), nodes added, removed and listed,
+      the block of transmit counters, a message queued for a node or dropped, pairing opened and
+      cancelled, what a node sent (its address, counter, signal strength, bytes), how a
+      transmission ended, the radio's numbers. A schema tag of its own
+- [x] `firmware/north`: a workspace of its own for `thumbv7em-none-eabi`; the M4 core only; the
+      clock from the TCXO; USART1 at 115200; the random number generator for pairing; the
+      watchdog; the stale "empty" flag cleared at start (built, not run)
+- [x] It keeps no list of nodes: after every `Hello` the agent sends the settings, the counters
+      and the nodes. It passes each uplink on before it takes the next frame in, so it never
+      acknowledges what it could not pass on
+- [x] The one thing it keeps: the transmit-counter watermark, in two pages of flash, each value
+      written with its complement
+- [x] The personality switch, with `TowerFsk` as the only one for now (D4)
+- [x] A CI job (build, clippy, rustdoc), and a check that its TOWER revision is the root
+      `Cargo.toml`'s (`just check-north`)
+- [x] On a FIBER: written through the bootloader (by the agent, and by `hil/north_flash.py`), it
+      says `Hello`, takes `Settings` and a node from the agent, and passes on a Core Module's
+      frames (2026-11-20, see T26)
+- [x] Started by the bootloader's `Go` as well as by a reset: `cortex-m-rt`'s `set-vtor`
+- [x] A frame that begins before a receive's deadline is received to its end, not cut off: the
+      radio trait takes the deadline, and the firmware stops at it only while no sync word was
+      heard; a test in the made-up air with a frame across a slice's end; on a FIBER, the share
+      at the first try measured again (19 of 20 before)
+
+- Needs: T14, T15, T24.
+- Done when: the firmware runs on a FIBER, says `Hello`, and takes its settings from a test
+  program.
 
 ### T47. Pairing over the air (M5)
 
