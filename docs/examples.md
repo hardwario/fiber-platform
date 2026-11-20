@@ -79,7 +79,7 @@ build-examples` does: `cargo build --release --target aarch64-unknown-linux-musl
 
 ## Node-RED
 
-Two flows to import (*Menu > Import*, then pick the file). Each brings its own broker node,
+Three flows to import (*Menu > Import*, then pick the file). Each brings its own broker node,
 *FIBER (localhost:1883)*, so it imports into any Node-RED; the starter flow's broker works as well.
 
 - [`thermometer-alarm.json`](../examples/node-red/thermometer-alarm.json): when a thermometer goes
@@ -90,9 +90,14 @@ Two flows to import (*Menu > Import*, then pick the file). Each brings its own b
   beside the display, for 0.8 s sounds a beep. The display follows the buttons too: a click on
   *enter* opens its menu, but a hold does nothing on its pages (in the menu it goes back).
 
-Both send their requests to `fiber/cmd` and show the answers in the debug sidebar.
+- [`tower-nodes.json`](../examples/node-red/tower-nodes.json): what TOWER nodes send
+  ([`mqtt-api.md`](mqtt-api.md), "The radio"). A click on a node's button puts its name and
+  "clicked" on the display for 5 s and sounds a double beep; each node's thermometers show in the
+  debug sidebar, by name; and an inject node switches a node's LED off through
+  `radio/nodes/{addr}/set/led` (write the node's address into its topic first, as `fiber radio
+  nodes` lists it). The names come from the nodes' retained `radio/nodes/{addr}` topics.
 
-A flow for what a TOWER node sends comes with the radio (T26).
+The flows send their requests to `fiber/cmd` and show the answers in the debug sidebar.
 
 ## Good to know
 

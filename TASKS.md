@@ -541,7 +541,16 @@ A new, small profile (D3), agreed with the people who make the app before any co
 
 ### T31. Examples (M7)
 
-State (2026-11-19): on a FIBER, against the real agent: `request.sh` (a message, a port cycled, seen
+State (2026-11-20): the TOWER flow is written (`examples/node-red/tower-nodes.json`): a click on a
+node's button puts its name and "clicked" on the display for 5 s and asks for a double beep (a
+frame counter already seen is dropped, as QoS 1 can bring one twice); the thermometers go to the
+debug sidebar by name; an inject node sets a node's LED off. Its three function nodes were run
+under Node.js against the topics of `docs/mqtt-api.md` (a name learned and forgotten, a click
+twice, a hold, a cleared state). The converge test deploys it with the other two and checks a
+click on `fiber/cmd` and on the display; not run yet, as Docker is not running on the
+maintainer's computer: CI runs it after the next push. Left: CI green on it, a real node on a
+FIBER (with T26's bench step), each example once on a FIBER (T2).
+Earlier (2026-11-19): on a FIBER, against the real agent: `request.sh` (a message, a port cycled, seen
 on `ports/3`) and `request.py` (an LED set and back to auto) were answered `ok`; `thermometers.py`
 and the Rust example connect and wait (no probe plugged in); both flows import into the FIBER's
 Node-RED and connect, and stay there; the button flow beeped on a hold of *enter* (the maintainer
@@ -575,7 +584,9 @@ user to copy.
       sounds the buzzer; the *enter* button sounds a beep. Each with its own broker node, so it
       imports into any Node-RED. In the converge test they are deployed through Node-RED's API,
       and what they ask the agent for is checked on `fiber/cmd`
-- [ ] Node-RED: what a TOWER node sends. Waits for T26
+- [x] Node-RED: what a TOWER node sends (`tower-nodes.json`): a click shows the node's name and
+      beeps twice; the thermometers by name; a node's LED set. In the converge test, a click
+      published as the agent would is checked on `fiber/cmd` and on the display
 - [ ] On a FIBER: each example once (with T2)
 
 - Needs: T17 to T21 (the topics they use); T26 for the TOWER node's flow.

@@ -1,0 +1,263 @@
+[
+  {
+    "id": "example-tower-tab",
+    "type": "tab",
+    "label": "TOWER nodes",
+    "disabled": false,
+    "info": "What TOWER nodes send through the FIBER's radio: a click on a node's button puts its name on the display and sounds a double beep; each node's thermometers show in the debug sidebar; an inject node switches a node's LED off (write its address into the topic first). docs/examples.md in the FIBER platform."
+  },
+  {
+    "id": "example-tower-broker",
+    "type": "mqtt-broker",
+    "name": "FIBER (localhost:1883)",
+    "broker": "localhost",
+    "port": "1883",
+    "clientid": "",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true
+  },
+  {
+    "id": "example-tower-nodes",
+    "type": "mqtt in",
+    "z": "example-tower-tab",
+    "name": "fiber/radio/nodes/+",
+    "topic": "fiber/radio/nodes/+",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "example-tower-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 170,
+    "y": 60,
+    "wires": [
+      [
+        "example-tower-names"
+      ]
+    ]
+  },
+  {
+    "id": "example-tower-names",
+    "type": "function",
+    "z": "example-tower-tab",
+    "name": "Their names",
+    "func": "// fiber/radio/nodes/<addr>: {\"addr\":\"0x1a2b3c4d\",\"name\":\"button:0\",...}, retained, or an empty\n// message when the node was removed (docs/mqtt-api.md, \"The radio\"). The names are kept for the\n// other function nodes of this flow.\nconst addr = msg.topic.split(\"/\")[3];\nconst names = flow.get(\"names\") || {};\nconst node = msg.payload;\nif (node && typeof node === \"object\" && node.name) {\n    names[addr] = node.name;\n} else {\n    delete names[addr];\n}\nflow.set(\"names\", names);\nreturn null;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 410,
+    "y": 60,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "example-tower-buttons",
+    "type": "mqtt in",
+    "z": "example-tower-tab",
+    "name": "fiber/radio/nodes/+/event/button",
+    "topic": "fiber/radio/nodes/+/event/button",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "example-tower-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 210,
+    "y": 140,
+    "wires": [
+      [
+        "example-tower-click"
+      ]
+    ]
+  },
+  {
+    "id": "example-tower-click",
+    "type": "function",
+    "z": "example-tower-tab",
+    "name": "A click?",
+    "func": "// A request to the agent (docs/mqtt-api.md, \"Requests\"): a new id every time, as the agent\n// drops one it has seen. The mqtt out node sends it on fiber/cmd, never retained.\nconst ask = (op, params) => ({\n    payload: { id: \"node-red-\" + Date.now() + \"-\" + Math.random().toString(36).slice(2, 10), op, params },\n});\n\n// fiber/radio/nodes/<addr>/event/button: {\"value\":\"click\",\"count\":42,\"counter\":1234,\"ts\":...}.\n// QoS 1 can bring one twice: the counter grows for each node, so one already seen is dropped.\nconst addr = msg.topic.split(\"/\")[3];\nconst e = msg.payload;\nif (!e || e.value !== \"click\") {\n    return null;\n}\nconst seen = flow.get(\"counters\") || {};\nif (seen[addr] !== undefined && e.counter <= seen[addr]) {\n    return null;\n}\nseen[addr] = e.counter;\nflow.set(\"counters\", seen);\nconst name = (flow.get(\"names\") || {})[addr] || addr;\nreturn [[\n    ask(\"display.message\", { text: name + \"\\nclicked\", seconds: 5 }),\n    ask(\"buzzer.beep\", { pattern: \"double\" }),\n]];",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 450,
+    "y": 140,
+    "wires": [
+      [
+        "example-tower-cmd"
+      ]
+    ]
+  },
+  {
+    "id": "example-tower-cmd",
+    "type": "mqtt out",
+    "z": "example-tower-tab",
+    "name": "fiber/cmd",
+    "topic": "fiber/cmd",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "example-tower-broker",
+    "x": 640,
+    "y": 140,
+    "wires": []
+  },
+  {
+    "id": "example-tower-temperatures",
+    "type": "mqtt in",
+    "z": "example-tower-tab",
+    "name": "fiber/radio/nodes/+/state/temperature/+",
+    "topic": "fiber/radio/nodes/+/state/temperature/+",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "example-tower-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 230,
+    "y": 220,
+    "wires": [
+      [
+        "example-tower-temperature"
+      ]
+    ]
+  },
+  {
+    "id": "example-tower-temperature",
+    "type": "function",
+    "z": "example-tower-tab",
+    "name": "By name",
+    "func": "// fiber/radio/nodes/<addr>/state/temperature/<member>: {\"value\":21.5,\"ts\":...}. Each of a node's\n// thermometers is one member of the group \"temperature\" (temperature/system is the Core Module's).\nconst parts = msg.topic.split(\"/\");\nconst addr = parts[3];\nconst member = parts.slice(6).join(\"/\");\nconst name = (flow.get(\"names\") || {})[addr] || addr;\nif (!msg.payload || typeof msg.payload !== \"object\") {\n    return null;\n}\nmsg.payload = name + \" \" + member + \": \" + msg.payload.value + \" °C\";\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 480,
+    "y": 220,
+    "wires": [
+      [
+        "example-tower-readings"
+      ]
+    ]
+  },
+  {
+    "id": "example-tower-readings",
+    "type": "debug",
+    "z": "example-tower-tab",
+    "name": "The thermometers",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 680,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "example-tower-led",
+    "type": "inject",
+    "z": "example-tower-tab",
+    "name": "A node's LED off",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "fiber/radio/nodes/0x00000000/set/led",
+    "payload": "false",
+    "payloadType": "bool",
+    "x": 180,
+    "y": 300,
+    "wires": [
+      [
+        "example-tower-set"
+      ]
+    ]
+  },
+  {
+    "id": "example-tower-set",
+    "type": "mqtt out",
+    "z": "example-tower-tab",
+    "name": "set (the topic of the message)",
+    "topic": "",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "example-tower-broker",
+    "x": 450,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "example-tower-rsp",
+    "type": "mqtt in",
+    "z": "example-tower-tab",
+    "name": "fiber/rsp/+",
+    "topic": "fiber/rsp/+",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "example-tower-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 150,
+    "y": 380,
+    "wires": [
+      [
+        "example-tower-answers"
+      ]
+    ]
+  },
+  {
+    "id": "example-tower-answers",
+    "type": "debug",
+    "z": "example-tower-tab",
+    "name": "The agent's answers",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 420,
+    "y": 380,
+    "wires": []
+  }
+]

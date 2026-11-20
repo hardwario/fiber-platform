@@ -421,9 +421,10 @@ grep -qx '28-0000034a5b1c on port 3: 21.44 °C' /tmp/example.out || fail "thermo
 fiber-thermometers-example 30 > /tmp/rust.out 2>&1 &
 rust_pid=$!
 wait_for 10 grep -qx '28-0000034a5b1c on port 3: 21.44 °C' /tmp/rust.out || fail "the Rust example: $(cat /tmp/rust.out)"
-# Node-RED: both flows beside the starter flow, through its API. What they ask the agent for is
-# read on fiber/cmd.
-python3 /tests/node-red-deploy.py pi 'a secret' /examples/node-red/thermometer-alarm.json /examples/node-red/button-beep.json
+# Node-RED: the three flows beside the starter flow, through its API. What they ask the agent for
+# is read on fiber/cmd.
+python3 /tests/node-red-deploy.py pi 'a secret' /examples/node-red/thermometer-alarm.json \
+    /examples/node-red/button-beep.json /examples/node-red/tower-nodes.json
 mosquitto_sub -h 127.0.0.1 -t fiber/cmd -W 120 > /tmp/cmd.out &
 cmd_pid=$!
 # A hold of enter, as the agent says it, until the flow (connecting to the broker) asks for a beep.
@@ -433,6 +434,24 @@ beep_asked() {
     grep -q '"id":"node-red-[^"]*","op":"buzzer.beep","params":{"pattern":"beep"}' /tmp/cmd.out
 }
 wait_for 30 beep_asked || fail "the button flow asked for nothing: $(cat /tmp/cmd.out)"
+# A TOWER node, as the agent publishes it (there is no radio here): its name on its retained topic,
+# then clicks of its button, each with a new frame counter, until the flow asks for its message and
+# a double beep.
+tower_node=fiber/radio/nodes/0x1a2b3c4d
+mosquitto_pub -h 127.0.0.1 -t "$tower_node" -q 1 -r \
+    -m '{"addr":"0x1a2b3c4d","stack":"tower","name":"button:0","kind":"button"}'
+clicks=0
+click_asked() {
+    clicks=$((clicks + 1))
+    mosquitto_pub -h 127.0.0.1 -t "$tower_node/event/button" -q 1 \
+        -m "{\"value\":\"click\",\"count\":$clicks,\"counter\":$clicks,\"ts\":$(date +%s)}"
+    sleep 1
+    grep -q '"id":"node-red-[^"]*","op":"display.message","params":{"text":"button:0\\nclicked","seconds":5}' /tmp/cmd.out &&
+        grep -q '"id":"node-red-[^"]*","op":"buzzer.beep","params":{"pattern":"double"}' /tmp/cmd.out
+}
+wait_for 30 click_asked || fail "the TOWER flow asked for nothing: $(cat /tmp/cmd.out)"
+wait_for 5 message_shown "button:0 / clicked" || fail "fiber display: $(cat /tmp/display.out)"
+mosquitto_pub -h 127.0.0.1 -t "$tower_node" -q 1 -r -n
 # Above the limit: the alarm flow puts a message on the display and asks for the alarm, and the
 # Rust example asks for it too.
 echo 31500 > /run/fiber-test/w1/w1_bus_master3/28-0000034a5b1c/temperature
