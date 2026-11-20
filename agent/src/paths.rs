@@ -40,6 +40,11 @@ impl Paths {
         self.under("/var/lib/fiber/agent/flash-tries.json")
     }
 
+    /// The radio's nodes, their keys and the gateway's address (D8; `docs/mqtt-api.md`).
+    pub fn radio_nodes(&self) -> PathBuf {
+        self.under("/var/lib/fiber/radio/nodes.json")
+    }
+
     /// Where the locks on the two serial ports are: the agent holds the south bridge's while it
     /// runs, so that a command run by hand keeps off it.
     pub fn lock_dir(&self) -> PathBuf {

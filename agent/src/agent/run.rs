@@ -66,6 +66,8 @@ pub enum BusEvent {
     /// A retained topic the broker kept, as `thermometers/{id}`: maybe of a probe that went
     /// while the agent was not running.
     Retained(String),
+    /// A client's `radio/nodes/{addr}/set/{prop}` (the topic without the prefix).
+    Set { topic: String, payload: Vec<u8> },
 }
 
 /// MQTT, as the loop sees it.
@@ -129,6 +131,15 @@ pub struct Agent<B: Bus> {
     sounding_until: Option<Instant>,
     /// Where the pages find what is not in the state; none in the tests.
     pub sources: Option<Sources>,
+    /// The radio service and its link to the north bridge; none without a store for its nodes.
+    pub radio: Option<RadioSide>,
+}
+
+/// The radio (T26): its service, the north link, and where its nodes are kept.
+pub struct RadioSide {
+    pub service: super::radio::service::Radio,
+    pub north: super::north::North,
+    pub store_path: std::path::PathBuf,
 }
 
 /// The files the pages read (the apply's results and progress, and the addresses), and the one
@@ -182,6 +193,7 @@ impl<B: Bus> Agent<B> {
             spent: false,
             sounding_until: None,
             sources: None,
+            radio: None,
         }
     }
 
@@ -260,6 +272,10 @@ impl<B: Bus> Agent<B> {
         if force {
             self.retained("status", topics::status(&self.identity, ts), true)
                 .await;
+            if let Some(radio) = &self.radio {
+                let effects = radio.service.publish_all(ts);
+                self.apply_radio(effects).await;
+            }
         }
         for port in 1..=8u8 {
             self.retained(
@@ -522,6 +538,10 @@ impl<B: Bus> Agent<B> {
     /// and nothing is sent to it, and the rest goes on: the watchdog, the cycles, MQTT.
     async fn tick<W: AsyncWrite + Unpin>(&mut self, writer: Option<&mut Writer<W>>) -> io::Result<()> {
         self.notify.send("WATCHDOG=1");
+        if let Some(radio) = &mut self.radio {
+            let effects = radio.service.tick(now());
+            self.apply_radio(effects).await;
+        }
         self.state.display.expire(Instant::now());
         self.light();
         self.draw();
@@ -592,6 +612,20 @@ impl<B: Bus> Agent<B> {
         if !self.ids.is_new(&request.id) {
             return;
         }
+        if request.op.starts_with("radio.") {
+            let answer = match &mut self.radio {
+                None => Answer::error(&request.id, "the radio is not there"),
+                Some(radio) => match radio.service.request(&request.op, &request.params, now()) {
+                    Ok((data, effects)) => {
+                        self.apply_radio(effects).await;
+                        Answer::ok(&request.id, data)
+                    }
+                    Err(e) => Answer::error(&request.id, e),
+                },
+            };
+            self.answer(answer).await;
+            return;
+        }
         match requests::handle(&mut self.state, &request) {
             Handled::Answer(answer) => self.answer(answer).await,
             Handled::Cycle { id, mask, seconds } => {
@@ -628,6 +662,85 @@ impl<B: Bus> Agent<B> {
         self.light();
         self.draw();
         self.publish_state(false).await;
+    }
+
+    /// What the north link tells.
+    async fn north_event(&mut self, event: super::north::Event) {
+        use super::north::Event;
+        let ts = now();
+        let offset = self.utc_offset_min(ts);
+        let Some(radio) = &mut self.radio else {
+            return;
+        };
+        let effects = match event {
+            Event::Message(message) => radio.service.on_north(message, ts, offset),
+            Event::Lost => radio.service.north_lost(ts),
+            Event::OtherSchema => vec![super::radio::service::Effect::Say(
+                "the north bridge speaks another schema: a firmware from another build".into(),
+            )],
+        };
+        self.apply_radio(effects).await;
+    }
+
+    /// A client's `radio/nodes/{addr}/set/{prop}`.
+    async fn radio_set(&mut self, topic: String, payload: Vec<u8>) {
+        let ts = now();
+        let offset = self.utc_offset_min(ts);
+        let Some(radio) = &mut self.radio else {
+            return;
+        };
+        let Some((addr, prop)) = topic
+            .strip_prefix("radio/nodes/")
+            .and_then(|rest| rest.split_once("/set/"))
+        else {
+            return;
+        };
+        let effects = match radio.service.set(addr, prop, &payload, ts, offset) {
+            Ok(effects) => effects,
+            Err(why) => vec![super::radio::service::Effect::Say(format!(
+                "{topic} refused: {why}"
+            ))],
+        };
+        self.apply_radio(effects).await;
+    }
+
+    /// Carries out what the radio service asks.
+    async fn apply_radio(&mut self, effects: Vec<super::radio::service::Effect>) {
+        use super::radio::service::Effect;
+        for effect in effects {
+            match effect {
+                Effect::Publish {
+                    topic,
+                    payload,
+                    retain,
+                } => {
+                    self.bus
+                        .publish(format!("{PREFIX}{topic}"), payload, retain)
+                        .await
+                }
+                Effect::North(message) => {
+                    if let Some(radio) = &self.radio {
+                        let _ = radio.north.to.send(message);
+                    }
+                }
+                Effect::Save => {
+                    if let Some(radio) = &self.radio
+                        && let Err(e) = radio.service.store().save(&radio.store_path)
+                    {
+                        eprintln!(
+                            "cannot keep the radio's nodes in {}: {e}",
+                            radio.store_path.display()
+                        );
+                    }
+                }
+                Effect::Say(text) => eprintln!("radio: {text}"),
+            }
+        }
+    }
+
+    /// The local time's offset from UTC, in minutes, for a node's clock.
+    fn utc_offset_min(&mut self, ts: u64) -> i16 {
+        self.sources.as_mut().map_or(0, |s| (s.zone.at(ts).0 / 60) as i16)
     }
 }
 
@@ -702,15 +815,26 @@ where
                 None => std::future::pending().await,
             }
         };
+        let from_north = async {
+            match &mut agent.radio {
+                Some(radio) => match radio.north.from.recv().await {
+                    Some(event) => event,
+                    None => std::future::pending().await,
+                },
+                None => std::future::pending().await,
+            }
+        };
         tokio::select! {
             _ = tick.tick() => agent.tick(link.as_mut().map(|(_, writer)| writer)).await?,
             round = round => agent.round(round).await,
             gesture = gesture => agent.gesture(gesture).await,
+            event = from_north => agent.north_event(event).await,
             event = from_chip => agent.link(event?).await,
             event = agent.bus.next() => match event {
                 BusEvent::Connected => agent.publish_state(true).await,
                 BusEvent::Request(payload) => agent.request(&payload).await,
                 BusEvent::Retained(topic) => agent.retained_seen(topic).await,
+                BusEvent::Set { topic, payload } => agent.radio_set(topic, payload).await,
             },
             () = over => return Ok(Stop::Reopen),
         }
@@ -874,6 +998,118 @@ mod tests {
             Agent::new(State::new(Settings { dividers: true }, carried), bus, identity),
             bus_tx,
         )
+    }
+
+    /// The radio through a simulated north bridge: the agent's loop, the radio service, the north
+    /// link and `north::simulate`, with the nodes in a temporary store.
+    #[tokio::test(start_paused = true)]
+    async fn the_radio_through_a_simulated_north_bridge() {
+        use crate::agent::north::{self, North};
+        use crate::agent::radio::{service::Radio, store};
+        use fiber_protocol::north::{Bytes, Message, Uplink};
+        use tower_protocol::radio::{NodeMsg, decode_node_cmd, encode_node_msg};
+
+        let dir = crate::testdir::TestDir::new("agent-radio");
+        let path = dir.path().join("radio/nodes.json");
+        let mut kept = store::Store::new(0x2a7f_03c1);
+        kept.nodes.push(store::StoredNode {
+            addr: 0x1111_1111,
+            key: [0x11; 16],
+            name: "climate:0".into(),
+            kind: "climate".into(),
+            last_counter: 100,
+        });
+        let published = Rc::new(RefCell::new(Vec::new()));
+        let (mut agent, bus) = agent_with(Some(CRC), &published);
+        let (agent_side, north_side) = tokio::io::duplex(1024);
+        let (inject, inject_rx) = mpsc::unbounded_channel();
+        let (seen_tx, mut seen) = mpsc::unbounded_channel();
+        tokio::spawn(north::simulate(north_side, inject_rx, seen_tx, false));
+        let (to, mut outgoing) = mpsc::unbounded_channel();
+        let (events, from) = mpsc::channel(16);
+        tokio::spawn(async move { north::serve(agent_side, &mut outgoing, &events).await });
+        agent.radio = Some(RadioSide {
+            service: Radio::new(kept, "cb3b25c".into()),
+            north: North { to, from },
+            store_path: path.clone(),
+        });
+        bus.send(BusEvent::Connected).unwrap();
+        run_without_link(&mut agent, Duration::from_secs(2)).await;
+
+        // The north bridge's Hello: the settings with its higher floor, then the node.
+        let status = last(&published, "fiber/radio/status").unwrap();
+        assert_eq!(status["personality"], "tower-fsk");
+        assert_eq!(status["gateway"], "0x2a7f03c1");
+        let mut got = Vec::new();
+        while let Ok(m) = seen.try_recv() {
+            got.push(m);
+        }
+        assert!(matches!(got[0], Message::HelloRequest));
+        assert!(
+            got.iter()
+                .any(|m| matches!(m, Message::Settings(s) if s.tx_floor == 2049))
+        );
+        assert!(
+            got.iter()
+                .any(|m| matches!(m, Message::NodeAdd(n) if n.node == 0x1111_1111 && n.last_seen == 100))
+        );
+        assert_eq!(
+            store::Store::load(&path).unwrap().unwrap().tx_floor,
+            2049,
+            "the floor kept"
+        );
+
+        // A node's report comes up as its state.
+        let mut report = heapless::Vec::new();
+        report.push((0u8, 2150)).unwrap();
+        let mut buf = [0u8; 74];
+        let n = encode_node_msg(&NodeMsg::Report(report), &mut buf).unwrap();
+        inject
+            .send(Message::Uplink(Uplink {
+                node: 0x1111_1111,
+                counter: 101,
+                rssi: -70,
+                confirmed: true,
+                data: Bytes::new(&buf[..n]).unwrap(),
+            }))
+            .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        let state = last(
+            &published,
+            "fiber/radio/nodes/0x11111111/state/temperature/system",
+        )
+        .unwrap();
+        assert_eq!(state["value"], 21.5);
+        assert_eq!(
+            last(&published, "fiber/radio/nodes/0x11111111").unwrap()["uplinks"],
+            1
+        );
+
+        // A client's set goes to the north bridge, queued for the node.
+        bus.send(BusEvent::Set {
+            topic: "radio/nodes/0x11111111/set/heartbeat".into(),
+            payload: b"600".to_vec(),
+        })
+        .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        let queued = std::iter::from_fn(|| seen.try_recv().ok())
+            .find_map(|m| match m {
+                Message::Queue(q) => Some(format!("{:?}", decode_node_cmd(q.data.as_slice()).unwrap())),
+                _ => None,
+            })
+            .unwrap();
+        assert!(queued.starts_with("Set {"), "{queued}");
+        assert!(queued.ends_with("value: 600 }"), "{queued}");
+
+        // A request: the pairing window opens on the north bridge.
+        bus.send(BusEvent::Request(
+            br#"{"id":"r1","op":"radio.pairing_open","params":{"seconds":30}}"#.to_vec(),
+        ))
+        .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        assert_eq!(last(&published, "fiber/rsp/r1").unwrap()["ok"], true);
+        assert_eq!(last(&published, "fiber/radio/pairing").unwrap()["state"], "open");
+        assert!(std::iter::from_fn(|| seen.try_recv().ok()).any(|m| matches!(m, Message::PairingOpen(_))));
     }
 
     #[tokio::test(start_paused = true)]

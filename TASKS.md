@@ -781,8 +781,16 @@ kind); written down as not yet. The radio service's logic is written and tested
 request and client `set` into effects: publish, send north, save, say; 14 tests). The north link's
 task is written too (`agent/src/agent/north.rs`: the port, opened again every 5 s; one message at
 a time, sent again after 200 ms, given up after 3 tries; lost after 30 s of silence; a `Hello`
-drops what was on its way), with a simulated north bridge (`north::simulate`) and 3 tests. Next:
-both wired into the agent's loop, MQTT (`radio/nodes/+/set/#`) and `fiber agent`.
+drops what was on its way), with a simulated north bridge (`north::simulate`) and 3 tests. Both are
+wired into the agent: the loop takes the north link's events, the `radio.*` requests and the
+clients' sets (`radio/nodes/+/set/#`; a retained one cleared and not run), the tick saves the
+counters; `fiber agent` makes the radio from `/var/lib/fiber/radio/nodes.json` (a new gateway
+address from `/dev/urandom` the first time; a file it cannot read left alone, and no radio),
+locks `/dev/ttyAMA3` beside the south bridge's port, and the unit got `fiber/radio` as a state
+directory (`ProtectSystem=strict` would refuse it otherwise). A test runs the loop, the service,
+the link and the simulated north bridge together. **On the bench:** the agent now holds
+`/dev/ttyAMA3`, so `hil/north_flash.py` and the agent fight over it; stop the agent first. Next:
+`fiber radio`, the pseudo-terminal simulator, the LCD, the north image.
 
 - [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
       pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
@@ -790,13 +798,13 @@ both wired into the agent's loop, MQTT (`radio/nodes/+/set/#`) and `fiber agent`
       `radio.node_add`, `radio.node_remove`, `radio.node_rename`, `radio.pairing_open`,
       `radio.pairing_cancel`. Every node says which stack it belongs to, so that LoRa later adds
       nodes and not a second tree
-- [ ] The nodes in `/var/lib/fiber/radio/`: the gateway's address, and for each node its
+- [x] The nodes in `/var/lib/fiber/radio/`: the gateway's address, and for each node its
       address, key, name, kind and the last counter seen. Written so that a power cut cannot
-      tear it
-- [ ] The agent's own transmit-counter watermark; the counter starts from the higher of this and
+      tear it (a new file, synced, renamed)
+- [x] The agent's own transmit-counter watermark; the counter starts from the higher of this and
       the north bridge's own, so that a FIBER restored from a copy of its disk cannot use an
       encryption nonce twice (D8)
-- [ ] Node messages read with `tower-protocol` (its schema tag checked first) and turned into
+- [x] Node messages read with `tower-protocol` (its schema tag checked first) and turned into
       topics by its property tables
 - [ ] Pairing: opened from the command line, from MQTT or from the menu, for 60 s; the six-digit
       code on the LCD and in `radio/pairing`

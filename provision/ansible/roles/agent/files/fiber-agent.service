@@ -16,9 +16,9 @@ Group=fiber-agent
 WatchdogSec=30s
 Restart=always
 RestartSec=5s
-# The flash tries, kept across restarts; and the lock on the south bridge's port (without
-# /run/lock the agent runs on, unlocked).
-StateDirectory=fiber/agent
+# The flash tries, kept across restarts; the radio's nodes and their keys (D8); and the locks on
+# the two bridges' ports (without /run/lock the agent runs on, unlocked).
+StateDirectory=fiber/agent fiber/radio
 StateDirectoryMode=0750
 # /run/fiber-agent, for the agent alone: a restart asked for from the menu goes there
 # (fiber-restart.path).

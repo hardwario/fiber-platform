@@ -50,6 +50,9 @@ impl Mqtt {
                         // The retained thermometers, to clear those of probes that went while
                         // the agent was not running.
                         let _ = subscriber.try_subscribe(format!("{PREFIX}thermometers/+"), QoS::AtLeastOnce);
+                        // The clients' values for the radio's nodes (docs/mqtt-api.md).
+                        let _ = subscriber
+                            .try_subscribe(format!("{PREFIX}radio/nodes/+/set/#"), QoS::AtLeastOnce);
                         if tx.send(BusEvent::Connected).await.is_err() {
                             return;
                         }
@@ -84,6 +87,31 @@ impl Mqtt {
                             .await
                             .is_err()
                         {
+                            return;
+                        }
+                    }
+                    Ok(Event::Incoming(Packet::Publish(publish)))
+                        if publish.topic.starts_with(&format!("{PREFIX}radio/nodes/"))
+                            && publish.topic.contains("/set/") =>
+                    {
+                        if publish.retain {
+                            // A retained set would run again on every reconnect: cleared, not run.
+                            if !publish.payload.is_empty() {
+                                let _ = subscriber.try_publish(
+                                    &publish.topic,
+                                    QoS::AtLeastOnce,
+                                    true,
+                                    Vec::new(),
+                                );
+                            }
+                            continue;
+                        }
+                        let topic = publish.topic.trim_start_matches(PREFIX).to_owned();
+                        let event = BusEvent::Set {
+                            topic,
+                            payload: publish.payload.to_vec(),
+                        };
+                        if tx.send(event).await.is_err() {
                             return;
                         }
                     }

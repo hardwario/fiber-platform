@@ -74,7 +74,15 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
             restart: paths.restart_request(),
             zone: super::zone::Zone::new(paths.under("/etc/localtime")),
         });
+        agent.radio = radio(paths);
         // Held while the agent runs, so that a command run by hand keeps off the port.
+        let _north_lock = match fiber_flasher::PortLock::take(&paths.lock_dir(), board::NORTH_BRIDGE_UART) {
+            Ok(lock) => Some(lock),
+            Err(e) => {
+                eprintln!("cannot lock {}: {e}", board::NORTH_BRIDGE_UART);
+                None
+            }
+        };
         let _lock = match fiber_flasher::PortLock::take(&paths.lock_dir(), board::SOUTH_BRIDGE_UART) {
             Ok(lock) => Some(lock),
             Err(e) => {
@@ -117,6 +125,47 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
                 flash(&mut agent, request).await;
             }
         }
+    })
+}
+
+/// The radio (T26): its nodes from their file, or a new gateway address at random the first time,
+/// and the north link on its port. A file that cannot be read is left as it is (it holds the
+/// nodes' keys), and the agent goes on without the radio.
+fn radio(paths: &Paths) -> Option<super::run::RadioSide> {
+    use super::radio::{service::Radio, store};
+    let path = paths.radio_nodes();
+    let kept = match store::Store::load(&path) {
+        Ok(Some(kept)) => kept,
+        Ok(None) => {
+            let gateway = match store::random_address(&paths.under("/dev/urandom")) {
+                Ok(gateway) => gateway,
+                Err(e) => {
+                    eprintln!("the radio: no random address: {e}");
+                    return None;
+                }
+            };
+            let new = store::Store::new(gateway);
+            if let Err(e) = new.save(&path) {
+                eprintln!("the radio: cannot keep {}: {e}", path.display());
+                return None;
+            }
+            new
+        }
+        Err(e) => {
+            eprintln!(
+                "the radio: {} cannot be read, and is left as it is: {e}",
+                path.display()
+            );
+            return None;
+        }
+    };
+    // For the tests: another serial port, a pseudo-terminal to a simulated north bridge.
+    let port = std::env::var("FIBER_NORTH_PORT").unwrap_or_else(|_| board::NORTH_BRIDGE_UART.to_owned());
+    let tower: String = env!("FIBER_TOWER_REV").chars().take(7).collect();
+    Some(super::run::RadioSide {
+        service: Radio::new(kept, tower),
+        north: super::north::spawn(port),
+        store_path: path,
     })
 }
 
