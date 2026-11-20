@@ -553,9 +553,10 @@ there: the click came with the address, not the name, as Node-RED gives every fu
 not show it). Fixed, and the whole flow run in Node-RED 5.0.10 (the pinned one) on the computer
 against a broker: a click with the name, the same counter dropped, a removed node back to its
 address, a thermometer in the debug output by name, a cleared state ignored, the inject node
-publishing `false` on `set/led`. Docker is not running on the maintainer's computer, so the
-converge test runs in CI. Left: CI green on it, a real node on a FIBER (with T26's bench step),
-each example once on a FIBER (T2).
+publishing `false` on `set/led`. Commit `b79eb8d`, CI run 44682874771 green in every job: in
+step 10c of the converge test the flow asks for the message with the node's name and the double
+beep, and the display shows it. Left: a real node on a FIBER (with T26's bench step), each example
+once on a FIBER (T2).
 Earlier (2026-11-19): on a FIBER, against the real agent: `request.sh` (a message, a port cycled, seen
 on `ports/3`) and `request.py` (an LED set and back to auto) were answered `ok`; `thermometers.py`
 and the Rust example connect and wait (no probe plugged in); both flows import into the FIBER's
