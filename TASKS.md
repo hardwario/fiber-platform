@@ -789,8 +789,10 @@ address from `/dev/urandom` the first time; a file it cannot read left alone, an
 locks `/dev/ttyAMA3` beside the south bridge's port, and the unit got `fiber/radio` as a state
 directory (`ProtectSystem=strict` would refuse it otherwise). A test runs the loop, the service,
 the link and the simulated north bridge together. **On the bench:** the agent now holds
-`/dev/ttyAMA3`, so `hil/north_flash.py` and the agent fight over it; stop the agent first. Next:
-`fiber radio`, the pseudo-terminal simulator, the LCD, the north image.
+`/dev/ttyAMA3`, so `hil/north_flash.py` and the agent fight over it; stop the agent first.
+`fiber radio status | config | nodes | pair | watch` is written (`docs/cli.md` first; what each
+prints tested). Next: the pairing code on the LCD (and pairing from the menu), the north image
+built into the program and flashed by the agent, `firmware/north` on MQTT.
 
 - [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
       pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
@@ -810,7 +812,7 @@ the link and the simulated north bridge together. **On the bench:** the agent no
       code on the LCD and in `radio/pairing`
 - [ ] The north bridge's image built into the program, and flashed by the agent as the south
       bridge's is (T17)
-- [ ] `fiber radio status | config | nodes | pair | watch`
+- [x] `fiber radio status | config | nodes | pair | watch`
 - [ ] The north bridge as a simulator, as the south bridge's (`agent/src/agent/simulator.rs`),
       speaking `docs/firmware/north-link.md` (moved here from T25)
 - [ ] Tests against the north bridge simulator

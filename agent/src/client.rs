@@ -545,9 +545,342 @@ pub fn firmware(broker: &Broker, flash: Option<&str>) -> Result<ExitCode> {
     }
 }
 
+/// What `fiber radio` prints.
+pub fn radio_text(topics: &Retained) -> String {
+    let Some(status) = topics.get("radio/status") else {
+        return "The radio is not there (no radio/status).\n".into();
+    };
+    let s = |key: &str| status[key].as_str().unwrap_or("?").to_owned();
+    let radio = if status["personality"].is_null() {
+        "the north bridge does not answer".to_owned()
+    } else {
+        format!(
+            "{}, {}, channel {}, gateway {}",
+            s("personality"),
+            s("band"),
+            status["channel"],
+            s("gateway")
+        )
+    };
+    let wire = s("wire");
+    let schema = wire.strip_prefix("radio ").unwrap_or(&wire);
+    let held = if status["can_send"] == true {
+        ""
+    } else {
+        "; sending held back"
+    };
+    let pairing = match topics.get("radio/pairing") {
+        Some(p) if p["state"] == "open" => format!("open, {} s left", p["remaining"]),
+        _ => "idle".to_owned(),
+    };
+    format!(
+        "Radio       {radio}\nTOWER       {}, radio schema {schema}\nNodes       {} of 16{held}\nPairing     {pairing}\n",
+        s("tower"),
+        status["nodes"]
+    )
+}
+
+/// What `fiber radio nodes` prints.
+pub fn radio_nodes_text(topics: &Retained) -> String {
+    let nodes: Vec<&Value> = topics
+        .iter()
+        .filter(|(topic, _)| {
+            topic
+                .strip_prefix("radio/nodes/")
+                .is_some_and(|rest| !rest.contains('/'))
+        })
+        .map(|(_, value)| value)
+        .collect();
+    if nodes.is_empty() {
+        return "No nodes.\n".into();
+    }
+    let dash = |v: &Value| match v.as_str() {
+        Some("") | None => "-".to_owned(),
+        Some(text) => text.to_owned(),
+    };
+    nodes
+        .iter()
+        .map(|n| {
+            let rssi = n["rssi"]
+                .as_i64()
+                .map_or("never".to_owned(), |r| format!("{r} dBm"));
+            let seen = n["last_seen"].as_u64().map(clock).unwrap_or_default();
+            let queued = match n["queued"].as_u64() {
+                Some(0) | None => String::new(),
+                Some(q) => format!("{q} queued"),
+            };
+            let mut line = format!(
+                "{}  {:<16}  {:<8}  {:<8}",
+                n["addr"].as_str().unwrap_or("?"),
+                dash(&n["name"]),
+                dash(&n["kind"]),
+                rssi
+            );
+            if !seen.is_empty() {
+                line = format!("{line} {seen}");
+            }
+            if !queued.is_empty() {
+                line = format!("{line}  {queued}");
+            }
+            format!("{}\n", line.trim_end())
+        })
+        .collect()
+}
+
+/// `fiber radio`.
+pub fn radio(broker: &Broker) -> Result<ExitCode> {
+    show(broker, radio_text)
+}
+
+/// `fiber radio nodes`.
+pub fn radio_nodes(broker: &Broker) -> Result<ExitCode> {
+    show(broker, radio_nodes_text)
+}
+
+/// `fiber radio config [--channel N] [--keyed-join on|off]`.
+pub fn radio_config(broker: &Broker, channel: Option<u8>, keyed_join: Option<bool>) -> Result<ExitCode> {
+    runtime()?.block_on(request(
+        broker,
+        "radio.config",
+        json!({"channel": channel, "keyed_join": keyed_join}),
+        Duration::from_secs(5),
+    ))?;
+    show(broker, radio_text)
+}
+
+/// `fiber radio pair [--seconds N]`: opens a window and waits for it to end; Ctrl+C closes it.
+pub fn radio_pair(broker: &Broker, seconds: u64) -> Result<ExitCode> {
+    let runtime = runtime()?;
+    runtime.block_on(request(
+        broker,
+        "radio.pairing_open",
+        json!({"seconds": seconds}),
+        Duration::from_secs(5),
+    ))?;
+    println!("Pairing for {seconds} s: put the node into pairing mode.");
+    runtime.block_on(async {
+        let (client, mut events) = broker.connect();
+        client.subscribe("fiber/radio/pairing", QoS::AtLeastOnce).await?;
+        // The window ends on the agent's side; this waits a little longer for its word.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(seconds + 30);
+        loop {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    let _ = client.disconnect().await;
+                    request(broker, "radio.pairing_cancel", json!({}), Duration::from_secs(5)).await?;
+                    println!("Closed.");
+                    return Ok(ExitCode::FAILURE);
+                }
+                () = tokio::time::sleep_until(deadline) => {
+                    bail!("the agent did not say how the window ended");
+                }
+                event = events.poll() => match event {
+                    Err(e) => bail!("cannot reach the broker at {}:{}: {e}", broker.host, broker.port),
+                    Ok(Event::Incoming(Packet::Publish(p))) => {
+                        let Ok(value) = serde_json::from_slice::<Value>(&p.payload) else { continue };
+                        if value["state"] != "idle" {
+                            continue;
+                        }
+                        let _ = client.disconnect().await;
+                        return Ok(match (value["joined"].as_str(), value["sas"].as_str()) {
+                            (Some(node), Some(sas)) => {
+                                println!("Paired {node}. Compare this code with the node's: {sas}");
+                                ExitCode::SUCCESS
+                            }
+                            _ => {
+                                println!("Nobody joined.");
+                                ExitCode::FAILURE
+                            }
+                        });
+                    }
+                    Ok(_) => {}
+                },
+            }
+        }
+    })
+}
+
+/// One line of `fiber radio watch`, for a message on `topic`; `names` maps an address to its node's
+/// name.
+pub fn radio_watch_line(
+    names: &BTreeMap<String, String>,
+    topic: &str,
+    payload: &[u8],
+    now: u64,
+) -> Option<String> {
+    let value: Value = serde_json::from_slice(payload).ok()?;
+    let at = clock(value["ts"].as_u64().unwrap_or(now));
+    if topic == "fiber/radio/pairing" {
+        let node = value["joined"].as_str()?;
+        return Some(format!(
+            "{at}  paired {node}, code {}",
+            value["sas"].as_str().unwrap_or("?")
+        ));
+    }
+    let rest = topic.strip_prefix("fiber/radio/nodes/")?;
+    let (addr, rest) = rest.split_once('/')?;
+    let name = names
+        .get(addr)
+        .filter(|n| !n.is_empty())
+        .map_or(addr, String::as_str);
+    let shown = |v: &Value| match v {
+        Value::String(s) => s.clone(),
+        other => other.to_string(),
+    };
+    if let Some(prop) = rest.strip_prefix("state/") {
+        return Some(format!("{at}  {name}  {prop}  {}", shown(&value["value"])));
+    }
+    let prop = rest.strip_prefix("event/")?;
+    Some(format!(
+        "{at}  {name}  {prop}  {} ({})",
+        shown(&value["value"]),
+        value["count"]
+    ))
+}
+
+/// `fiber radio watch`.
+pub fn radio_watch(broker: &Broker) -> Result<ExitCode> {
+    let runtime = runtime()?;
+    let topics = runtime.block_on(retained(broker))?;
+    if let Some(code) = check_agent(&topics) {
+        return Ok(code);
+    }
+    let mut names: BTreeMap<String, String> = topics
+        .iter()
+        .filter_map(|(topic, value)| {
+            let addr = topic.strip_prefix("radio/nodes/")?;
+            (!addr.contains('/')).then(|| (addr.to_owned(), value["name"].as_str().unwrap_or("").to_owned()))
+        })
+        .collect();
+    runtime.block_on(watch(
+        broker,
+        &["fiber/radio/nodes/#", "fiber/radio/pairing"],
+        |topic, payload| {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            // A node's own topic: its name may have changed.
+            if let Some(addr) = topic
+                .strip_prefix("fiber/radio/nodes/")
+                .filter(|a| !a.contains('/'))
+            {
+                if let Ok(value) = serde_json::from_slice::<Value>(payload) {
+                    names.insert(addr.to_owned(), value["name"].as_str().unwrap_or("").to_owned());
+                }
+                return None;
+            }
+            radio_watch_line(&names, topic, payload, now)
+        },
+    ))?;
+    Ok(ExitCode::SUCCESS)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn what_fiber_radio_prints() {
+        let mut topics = Retained::new();
+        assert!(radio_text(&topics).starts_with("The radio is not there"));
+        topics.insert(
+            "radio/status".into(),
+            json!({"personality": "tower-fsk", "band": "eu868", "channel": 0, "gateway": "0x2a7f03c1",
+                   "tower": "cb3b25c", "wire": "radio 0x5f3e", "can_send": true, "nodes": 2, "ts": 1}),
+        );
+        assert_eq!(
+            radio_text(&topics),
+            "Radio       tower-fsk, eu868, channel 0, gateway 0x2a7f03c1\nTOWER       cb3b25c, radio schema \
+             0x5f3e\nNodes       2 of 16\nPairing     idle\n"
+        );
+        topics.insert(
+            "radio/status".into(),
+            json!({"personality": null, "band": "eu868", "channel": 0, "gateway": "0x2a7f03c1",
+                   "tower": "cb3b25c", "wire": "radio 0x5f3e", "can_send": false, "nodes": 0, "ts": 1}),
+        );
+        topics.insert(
+            "radio/pairing".into(),
+            json!({"state": "open", "remaining": 42, "ts": 1}),
+        );
+        let text = radio_text(&topics);
+        assert!(
+            text.starts_with("Radio       the north bridge does not answer\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("Nodes       0 of 16; sending held back\n"),
+            "{text}"
+        );
+        assert!(text.ends_with("Pairing     open, 42 s left\n"), "{text}");
+    }
+
+    #[test]
+    fn what_fiber_radio_nodes_prints() {
+        let mut topics = Retained::new();
+        assert_eq!(radio_nodes_text(&topics), "No nodes.\n");
+        topics.insert(
+            "radio/nodes/0x1a2b3c4d".into(),
+            json!({"addr": "0x1a2b3c4d", "name": "climate:0", "kind": "climate", "rssi": -71,
+                   "last_seen": 1_700_000_531u64, "queued": 0}),
+        );
+        topics.insert(
+            "radio/nodes/0x1a2b3c4d/state/temperature/system".into(),
+            json!({"value": 21.5, "ts": 1}),
+        );
+        topics.insert(
+            "radio/nodes/0x44444444".into(),
+            json!({"addr": "0x44444444", "name": "", "kind": "", "rssi": null, "last_seen": null, "queued": 1}),
+        );
+        assert_eq!(
+            radio_nodes_text(&topics),
+            "0x1a2b3c4d  climate:0         climate   -71 dBm  22:22:11\n\
+             0x44444444  -                 -         never     1 queued\n"
+        );
+    }
+
+    #[test]
+    fn what_fiber_radio_watch_prints() {
+        let mut names = BTreeMap::new();
+        names.insert("0x1a2b3c4d".to_owned(), "climate:0".to_owned());
+        let line = |topic: &str, payload: &str| radio_watch_line(&names, topic, payload.as_bytes(), 0);
+        assert_eq!(
+            line(
+                "fiber/radio/nodes/0x1a2b3c4d/state/temperature/system",
+                r#"{"value":21.5,"ts":50531}"#
+            )
+            .unwrap(),
+            "14:02:11  climate:0  temperature/system  21.5"
+        );
+        assert_eq!(
+            line(
+                "fiber/radio/nodes/0x1a2b3c4d/event/button",
+                r#"{"value":"click","count":42,"counter":7,"ts":50560}"#
+            )
+            .unwrap(),
+            "14:02:40  climate:0  button  click (42)"
+        );
+        assert_eq!(
+            line(
+                "fiber/radio/nodes/0x99999999/state/led",
+                r#"{"value":true,"ts":50560}"#
+            )
+            .unwrap(),
+            "14:02:40  0x99999999  led  true"
+        );
+        assert_eq!(
+            line(
+                "fiber/radio/pairing",
+                r#"{"state":"idle","joined":"0x44444444","sas":"004321","ts":50582}"#
+            )
+            .unwrap(),
+            "14:03:02  paired 0x44444444, code 004321"
+        );
+        assert_eq!(
+            line("fiber/radio/pairing", r#"{"state":"open","remaining":60,"ts":1}"#),
+            None
+        );
+    }
 
     #[test]
     fn what_fiber_thermometers_prints() {

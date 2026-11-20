@@ -169,6 +169,61 @@ $ fiber buttons watch
 14:02:13  down  repeat
 ```
 
+### `fiber radio [status | config | nodes | pair | watch]`
+
+The radio (T26), as `radio/...` has it ([`mqtt-api.md`](mqtt-api.md), "The radio"). **Built;
+what it prints is tested on the computer. Not run against an agent with a north bridge yet.**
+
+`fiber radio` (or `fiber radio status`):
+
+```
+$ fiber radio
+Radio       tower-fsk, eu868, channel 0, gateway 0x2a7f03c1
+TOWER       cb3b25c, radio schema 0x5f3e
+Nodes       2 of 16
+Pairing     idle
+```
+
+It says `the north bridge does not answer` in place of the first line when it does not, and
+`sending held back` after the nodes while the north bridge may not send (its counter has no floor
+yet).
+
+`fiber radio config [--channel N] [--keyed-join on|off]` changes the settings (`radio.config`),
+then prints the status. Every node must be on the same channel.
+
+`fiber radio nodes` lists the nodes, one line each:
+
+```
+$ fiber radio nodes
+0x1a2b3c4d  climate:0         climate   -71 dBm  14:02:11
+0x44444444  -                 -         never     1 queued
+```
+
+The name and the kind are `-` until the node's first `Info`; the time is its last uplink, in UTC;
+`queued` counts the values waiting to go to it.
+
+`fiber radio pair [--seconds N]` opens a pairing window (`radio.pairing_open`, 60 s when `N` is
+left out, 10 to 600) and waits for it to end. Put the node into pairing mode meanwhile; Ctrl+C
+closes the window.
+
+```
+$ fiber radio pair
+Pairing for 60 s: put the node into pairing mode.
+Paired 0x44444444. Compare this code with the node's: 004321
+```
+
+It ends with 1 when nobody joined.
+
+`fiber radio watch` prints a line for each value and event the nodes send, and for each pairing,
+with the time in UTC, until Ctrl+C:
+
+```
+$ fiber radio watch
+14:02:11  climate:0  temperature/system  21.5
+14:02:40  climate:0  button  click (42)
+14:03:02  paired 0x44444444, code 004321
+```
+
 ### `fiber firmware [status | flash CHIP | chip CHIP]`
 
 - `status` (the default): both chips, as `firmware/south` and `firmware/north` have them.

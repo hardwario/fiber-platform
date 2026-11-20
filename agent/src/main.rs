@@ -116,6 +116,11 @@ enum Command {
         #[command(subcommand)]
         command: ButtonsCommand,
     },
+    /// The radio: its settings and nodes, pairing a node, and what the nodes send.
+    Radio {
+        #[command(subcommand)]
+        command: Option<RadioCommand>,
+    },
     /// The firmware of the two microcontrollers: show it, or write it again.
     Firmware {
         #[command(subcommand)]
@@ -167,6 +172,31 @@ enum ButtonsCommand {
 #[derive(Subcommand)]
 enum ThermometersCommand {
     /// A line for every change, until Ctrl+C.
+    Watch,
+}
+
+#[derive(Subcommand)]
+enum RadioCommand {
+    /// The radio's settings, the north bridge, the nodes and pairing, in short.
+    Status,
+    /// Change the radio's settings, then show them.
+    Config {
+        /// The channel, 0 to 2 (868.1, 868.3, 868.5 MHz); every node must be on it.
+        #[arg(long, value_parser = clap::value_parser!(u8).range(0..=2))]
+        channel: Option<u8>,
+        /// Whether a node whose key the FIBER holds may join under it at any time.
+        #[arg(long, value_parser = ["on", "off"])]
+        keyed_join: Option<String>,
+    },
+    /// The nodes, one line each.
+    Nodes,
+    /// Open a pairing window and wait for a node to join; Ctrl+C closes it.
+    Pair {
+        /// How long the window stays open, 10 to 600 s.
+        #[arg(long, value_parser = clap::value_parser!(u64).range(10..=600))]
+        seconds: Option<u64>,
+    },
+    /// A line for each value and event the nodes send, until Ctrl+C.
     Watch,
 }
 
@@ -269,6 +299,15 @@ fn main() -> ExitCode {
         Command::Leds { action, leds, blink } => broker().and_then(|b| {
             let blink = blink.and_then(|v| Some((*v.first()?, *v.get(1)?)));
             client::leds(&b, action.as_deref(), &leds, blink)
+        }),
+        Command::Radio { command } => broker().and_then(|b| match command {
+            None | Some(RadioCommand::Status) => client::radio(&b),
+            Some(RadioCommand::Config { channel, keyed_join }) => {
+                client::radio_config(&b, channel, keyed_join.map(|k| k == "on"))
+            }
+            Some(RadioCommand::Nodes) => client::radio_nodes(&b),
+            Some(RadioCommand::Pair { seconds }) => client::radio_pair(&b, seconds.unwrap_or(60)),
+            Some(RadioCommand::Watch) => client::radio_watch(&b),
         }),
         Command::Firmware {
             command: Some(FirmwareCommand::Chip { chip }),

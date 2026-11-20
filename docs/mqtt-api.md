@@ -194,7 +194,8 @@ press of a button or the last message (`display.message`), and comes back with t
 
 ## The radio
 
-**Status: a draft (T26).** Nothing of it is built yet; the north bridge's side is
+**Status: a draft (T26).** Built in the agent and tested against a simulated north bridge
+(`agent/src/agent/north.rs`); not run with a real one yet. The north bridge's side is
 [`firmware/north-link.md`](firmware/north-link.md).
 
 The FIBER is a gateway for HARDWARIO TOWER nodes (M5). Their topics are those of TOWER's own
