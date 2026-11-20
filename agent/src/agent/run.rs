@@ -133,6 +133,8 @@ pub struct Agent<B: Bus> {
     pub sources: Option<Sources>,
     /// The radio service and its link to the north bridge; none without a store for its nodes.
     pub radio: Option<RadioSide>,
+    /// A node that paired, shown over the pages until a press or its time: address, code, until.
+    paired_shown: Option<(u32, u32, Instant)>,
 }
 
 /// The radio (T26): its service, the north link, where its nodes are kept, and the north bridge's
@@ -220,6 +222,7 @@ impl<B: Bus> Agent<B> {
             sounding_until: None,
             sources: None,
             radio: None,
+            paired_shown: None,
         }
     }
 
@@ -385,6 +388,20 @@ impl<B: Bus> Agent<B> {
                 probes
             },
             message: self.state.display.message.clone(),
+            radio: self.radio.as_ref().map(|radio| {
+                let summary = radio.service.summary();
+                screen::RadioFacts {
+                    answering: summary.answering,
+                    channel: summary.channel,
+                    nodes: summary.nodes,
+                    last: summary.last,
+                    pairing: summary.pairing_until.map(|until| until.saturating_sub(now())),
+                    paired: self
+                        .paired_shown
+                        .filter(|(_, _, until)| *until > Instant::now())
+                        .map(|(node, sas, _)| (node, sas)),
+                }
+            }),
             versions: vec![
                 ("fiber", self.identity.version.clone()),
                 (
@@ -449,12 +466,23 @@ impl<B: Bus> Agent<B> {
         let mut sent_away = false;
         if event.kind == Kind::Press {
             let sounding = self.sounding_until.take().is_some_and(|until| until > at);
-            sent_away = self.state.display.message.is_some();
+            // A node that paired, shown over the pages: a press sends it away. A pairing window:
+            // a press closes it. Either press does nothing else (docs/front-panel.md).
+            let paired = self.paired_shown.take().is_some_and(|(_, _, until)| until > at);
+            let pairing = !paired
+                && self
+                    .radio
+                    .as_ref()
+                    .is_some_and(|r| r.service.pairing_until().is_some());
+            if pairing {
+                self.radio_request("radio.pairing_cancel").await;
+            }
+            sent_away = !paired && !pairing && self.state.display.message.is_some();
             if sent_away {
                 self.state.display.message = None;
                 self.state.display.message_until = None;
             }
-            self.spent = sent_away || sounding;
+            self.spent = sent_away || sounding || paired || pairing;
             if let Some(buzzer) = &self.buzzer {
                 if sounding {
                     let _ = buzzer.send(Pattern::Silence);
@@ -463,8 +491,12 @@ impl<B: Bus> Agent<B> {
                 let _ = buzzer.send(Pattern::Click);
             }
         }
-        if !self.spent && self.screen.press(event) == Some(Ask::Restart) {
-            self.restart();
+        if !self.spent {
+            match self.screen.press(event) {
+                Some(Ask::Restart) => self.restart(),
+                Some(Ask::Pair) => self.radio_request("radio.pairing_open").await,
+                None => {}
+            }
         }
         self.draw();
         if sent_away {
@@ -727,6 +759,13 @@ impl<B: Bus> Agent<B> {
         use super::north::Event;
         let ts = now();
         let offset = self.utc_offset_min(ts);
+        if let Event::Message(fiber_protocol::north::Message::Paired(paired)) = &event {
+            // Shown with its code until a press or 60 s, and lit, so it is seen.
+            let at = Instant::now();
+            self.paired_shown = Some((paired.node, paired.sas, at + Duration::from_secs(60)));
+            self.state.display.lit_at = at;
+            self.light();
+        }
         let Some(radio) = &mut self.radio else {
             return;
         };
@@ -828,6 +867,17 @@ impl<B: Bus> Agent<B> {
             self.answer(answer).await;
         }
         self.publish_state(false).await;
+    }
+
+    /// A request of the radio's from the front panel (no parameters, no answer to send).
+    async fn radio_request(&mut self, op: &str) {
+        let Some(radio) = &mut self.radio else {
+            return;
+        };
+        match radio.service.request(op, &Value::Null, now()) {
+            Ok((_, effects)) => self.apply_radio(effects).await,
+            Err(e) => eprintln!("radio: {op} from the front panel: {e}"),
+        }
     }
 
     /// A client's `radio/nodes/{addr}/set/{prop}`.
@@ -1265,6 +1315,52 @@ mod tests {
         assert_eq!(last(&published, "fiber/rsp/r1").unwrap()["ok"], true);
         assert_eq!(last(&published, "fiber/radio/pairing").unwrap()["state"], "open");
         assert!(std::iter::from_fn(|| seen.try_recv().ok()).any(|m| matches!(m, Message::PairingOpen(_))));
+        assert!(
+            agent.facts().radio.unwrap().pairing.is_some(),
+            "the window over the pages"
+        );
+
+        // A press of a button closes the window, and does nothing else.
+        let (gestures, rx) = mpsc::channel(4);
+        agent.gestures = Some(rx);
+        let page = |agent: &Agent<FakeBus>| matches!(agent.screen.view, crate::agent::screen::View::Page(0));
+        gestures
+            .send(ButtonEvent {
+                buttons: crate::agent::buttons::DOWN,
+                kind: Kind::Press,
+            })
+            .await
+            .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        assert!(std::iter::from_fn(|| seen.try_recv().ok()).any(|m| matches!(m, Message::PairingCancel)));
+        assert_eq!(last(&published, "fiber/radio/pairing").unwrap()["state"], "idle");
+        assert!(page(&agent), "the press turned no page");
+
+        // A node that paired: its code over the pages until a press.
+        inject
+            .send(Message::Paired(fiber_protocol::north::Paired {
+                node: 0x4444_4444,
+                key: [0x5a; 16],
+                sas: 4321,
+            }))
+            .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        assert_eq!(agent.facts().radio.unwrap().paired, Some((0x4444_4444, 4321)));
+        gestures
+            .send(ButtonEvent {
+                buttons: crate::agent::buttons::DOWN,
+                kind: Kind::Press,
+            })
+            .await
+            .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        assert_eq!(agent.facts().radio.unwrap().paired, None);
+        assert!(page(&agent), "the press turned no page");
+        assert_eq!(
+            store::Store::load(&path).unwrap().unwrap().nodes.len(),
+            2,
+            "the new node kept"
+        );
     }
 
     #[tokio::test(start_paused = true)]

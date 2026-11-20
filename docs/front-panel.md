@@ -28,12 +28,14 @@ for each page, the one shown as a filled square.
    is no cell (`battery` is `null`).
 4. **Thermometers:** each probe's port in a black badge, the end of its id and its temperature;
    four at most. A single probe in big digits; with none, a word on how to plug one in.
+5. **Radio** (T26): the radio's personality and channel, or that the north bridge does not
+   answer; how many nodes the FIBER knows, of 16; the node heard last, with its strength and the
+   time; and where pairing is (the menu).
 
 The pictures are drawn with the HMI crate of the pinned TOWER revision (Spleen fonts in four
 sizes) and icons of our own (`agent/src/agent/icons.rs`), and every one is kept as a stored
 picture that the tests compare (`agent/src/agent/pictures/`).
 
-The radio's page comes with the north bridge (T26).
 
 ## The buttons
 
@@ -60,6 +62,7 @@ row, and turns the page as the button goes down, not when it comes up.
 
 - **About:** the versions: the `fiber` program, the south bridge's firmware, the pinned TOWER
   revision. Any button goes back.
+- **Pair a node** (T26) opens a pairing window of 60 s, as `radio.pairing_open` does.
 - **Restart** asks first ("No" is the first choice), then restarts the FIBER. The agent has no
   right to do that itself: it writes `/run/fiber-agent/restart`, and `fiber-restart.path` has
   the system restart (D23).
@@ -69,6 +72,12 @@ row, and turns the page as the button goes down, not when it comes up.
 
 - **An apply that runs** (`fiber platform apply`) shows its progress: the component, a bar and
   the step, until it ends.
+- **A pairing window** (from the menu, MQTT or `fiber radio pair`) shows "Pairing", the seconds
+  left in big digits, and a word to put the node into pairing mode. Any press closes the window,
+  and does nothing else.
+- **A node that paired** shows "Paired", its address, and the six-digit code in big digits, to
+  compare with the code the node shows (`radio/pairing` has it too). It lights the backlight, and
+  stays for 60 s or until a press, which does nothing else.
 - **A client's message** (`display.message`, `fiber display message`) lights the backlight as it
   comes, and shows until it is cleared, its time is up, or somebody presses a button: that press
   sends it away and does nothing else (D26, D27). Alarms are the clients' to make (a Node-RED flow, say); the agent shows and sounds what it

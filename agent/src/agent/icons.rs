@@ -19,6 +19,22 @@ pub static FIBER: Image = Image::new(
     ],
 );
 
+/// An antenna sending waves: the radio.
+pub static RADIO: Image = Image::new(
+    8,
+    8,
+    &[
+        0b0100_0010,
+        0b1001_1001,
+        0b1010_0101,
+        0b1001_1001,
+        0b0100_0010,
+        0b0001_1000,
+        0b0001_1000,
+        0b0011_1100,
+    ],
+);
+
 /// A list with a mark on each line: the components.
 pub static COMPONENTS: Image = Image::new(
     8,

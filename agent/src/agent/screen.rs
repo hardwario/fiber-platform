@@ -14,11 +14,14 @@ use super::display::{Picture, draw_message};
 use super::icons;
 
 /// The pages, in order.
-pub const PAGES: [&str; 4] = ["FIBER", "Components", "Power", "Thermometers"];
+pub const PAGES: [&str; 5] = ["FIBER", "Components", "Power", "Thermometers", "Radio"];
+/// The radio's page.
+const RADIO_PAGE: usize = 4;
 
 /// The menu's actions.
 const ABOUT: u16 = 1;
 const RESTART: u16 = 2;
+const PAIR: u16 = 3;
 
 static RESTART_MENU: Menu = Menu::new(
     "Restart the FIBER?",
@@ -27,6 +30,7 @@ static RESTART_MENU: Menu = Menu::new(
 static MENU: Menu = Menu::new(
     "Menu",
     &[
+        Item::action("Pair a node", PAIR),
         Item::action("About", ABOUT),
         Item::submenu("Restart", &RESTART_MENU),
         Item::back("Back"),
@@ -37,6 +41,23 @@ static MENU: Menu = Menu::new(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ask {
     Restart,
+    /// Open a pairing window (T26).
+    Pair,
+}
+
+/// What the radio's page and the pairing overlays show (T26).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RadioFacts {
+    /// The north bridge answers.
+    pub answering: bool,
+    pub channel: u8,
+    pub nodes: usize,
+    /// The node heard last: its name (or address), its strength, when.
+    pub last: Option<(String, i16, u64)>,
+    /// A pairing window is open: the seconds left.
+    pub pairing: Option<u64>,
+    /// A node paired, shown until a press or 60 s: its address and the code.
+    pub paired: Option<(u32, u32)>,
 }
 
 /// What the pages show, as the agent gathers it once a second.
@@ -65,6 +86,8 @@ pub struct Facts {
     pub message: Option<String>,
     /// For "About": the program, the south bridge's firmware, the TOWER revision.
     pub versions: Vec<(&'static str, String)>,
+    /// The radio; none without one.
+    pub radio: Option<RadioFacts>,
 }
 
 /// What the screen shows under the overlays.
@@ -110,6 +133,11 @@ impl Screen {
                 match menu.handle(nav, &mut Table::new([])) {
                     Some(Outcome::Exit) => self.view = View::Page(0),
                     Some(Outcome::Action(ABOUT)) => self.view = View::About,
+                    Some(Outcome::Action(PAIR)) => {
+                        // The window shows over the pages; the radio's page is under it.
+                        self.view = View::Page(RADIO_PAGE);
+                        return Some(Ask::Pair);
+                    }
                     Some(Outcome::Action(RESTART)) => {
                         self.view = View::Restarting;
                         return Some(Ask::Restart);
@@ -139,8 +167,9 @@ fn title(canvas: &mut Canvas<'_>, icon: &Image, text: &str, page: Option<usize>)
     canvas.image(2, 2, icon, Color::White, None);
     canvas.text(13, 0, text, &STYLE.inverted());
     if let Some(shown) = page {
+        let first = 128 - 6 * PAGES.len() as i32;
         for i in 0..PAGES.len() {
-            let x = 104 + 6 * i as i32;
+            let x = first + 6 * i as i32;
             if i == shown {
                 canvas.fill_rect(Rect::new(x, 4, 4, 4), Color::White);
             } else {
@@ -372,7 +401,60 @@ fn page_thermometers(canvas: &mut Canvas<'_>, facts: &Facts) {
     }
 }
 
-/// The picture: an apply that runs, else a client's message, else the view.
+/// The radio's page: the radio, the nodes, the node heard last, and where pairing is.
+fn page_radio(canvas: &mut Canvas<'_>, facts: &Facts) {
+    let Some(radio) = &facts.radio else {
+        canvas.text(1, 15, "No radio", &STYLE);
+        return;
+    };
+    let first = if radio.answering {
+        format!("TOWER, channel {}", radio.channel)
+    } else {
+        "North bridge silent".to_owned()
+    };
+    line_with_icon(canvas, 13, &icons::RADIO, &first);
+    line_with_icon(
+        canvas,
+        25,
+        &icons::COMPONENTS,
+        &format!("{} of 16 nodes", radio.nodes),
+    );
+    let last = match &radio.last {
+        Some((name, rssi, ts)) => {
+            let local = ts.saturating_add_signed(i64::from(facts.utc_offset));
+            let seconds = local % 86_400;
+            format!("{name} {rssi} dBm {:02}:{:02}", seconds / 3600, seconds / 60 % 60)
+        }
+        None => "No node heard yet".to_owned(),
+    };
+    canvas.text(1, 39, &last.chars().take(21).collect::<String>(), &STYLE);
+    canvas.text(1, 52, "Pair: Menu", &SMALL);
+}
+
+/// A pairing window that is open: the seconds left.
+fn draw_pairing(left: u64) -> Picture {
+    let mut picture = Picture::new();
+    let mut canvas = picture.canvas();
+    title(&mut canvas, &icons::RADIO, "Pairing", None);
+    canvas.text(1, 15, &format!("{left} s"), &BIG);
+    canvas.text(1, 41, "Put the node into", &STYLE);
+    canvas.text(1, 52, "pairing mode.", &STYLE);
+    picture
+}
+
+/// A node that paired: its address and the code to compare, in big digits.
+fn draw_paired(node: u32, sas: u32) -> Picture {
+    let mut picture = Picture::new();
+    let mut canvas = picture.canvas();
+    title(&mut canvas, &icons::RADIO, "Paired", None);
+    canvas.text(1, 14, &format!("0x{node:08x}"), &STYLE);
+    canvas.text(1, 27, &format!("{sas:06}"), &BIG);
+    canvas.text(1, 52, "Same code on the node?", &SMALL);
+    picture
+}
+
+/// The picture: an apply that runs, else a node that paired, a pairing window, a client's message,
+/// else the view.
 pub fn draw(screen: &mut Screen, facts: &Facts) -> Picture {
     if let Some((component, step, steps)) = &facts.apply {
         let mut picture = Picture::new();
@@ -389,6 +471,14 @@ pub fn draw(screen: &mut Screen, facts: &Facts) -> Picture {
         canvas.text(1, 50, &format!("step {step} of {steps}"), &STYLE);
         return picture;
     }
+    if let Some(radio) = &facts.radio {
+        if let Some((node, sas)) = radio.paired {
+            return draw_paired(node, sas);
+        }
+        if let Some(left) = radio.pairing {
+            return draw_pairing(left);
+        }
+    }
     if let Some(message) = &facts.message {
         return draw_message(message);
     }
@@ -402,13 +492,15 @@ pub fn draw(screen: &mut Screen, facts: &Facts) -> Picture {
                 &icons::COMPONENTS,
                 &icons::POWER,
                 &icons::THERMOMETER,
+                &icons::RADIO,
             ][page];
             title(&mut canvas, icon, PAGES[page], Some(page));
             match page {
                 0 => page_fiber(&mut canvas, facts),
                 1 => page_components(&mut canvas, facts),
                 2 => page_power(&mut canvas, facts),
-                _ => page_thermometers(&mut canvas, facts),
+                3 => page_thermometers(&mut canvas, facts),
+                _ => page_radio(&mut canvas, facts),
             }
         }
         View::Menu(menu) => menu.render(&mut canvas, &Table::new([]), &MenuStyle::new(&SPLEEN_6X12)),
@@ -512,6 +604,14 @@ mod tests {
                 ("south", "0.1.0".into()),
                 ("tower", "cb3b25c".into()),
             ],
+            radio: Some(RadioFacts {
+                answering: true,
+                channel: 0,
+                nodes: 2,
+                last: Some(("climate:0".into(), -71, 1_794_952_480)),
+                pairing: None,
+                paired: None,
+            }),
         }
     }
 
@@ -545,9 +645,15 @@ mod tests {
     #[test]
     fn every_page() {
         let mut screen = Screen::default();
-        for (n, name) in ["page-fiber", "page-components", "page-power", "page-thermometers"]
-            .into_iter()
-            .enumerate()
+        for (n, name) in [
+            "page-fiber",
+            "page-components",
+            "page-power",
+            "page-thermometers",
+            "page-radio",
+        ]
+        .into_iter()
+        .enumerate()
         {
             screen.view = View::Page(n);
             same_as_stored(name, &draw(&mut screen, &facts()));
@@ -560,18 +666,42 @@ mod tests {
         let mut facts = facts();
         facts.message = Some("Back in\n5 minutes".into());
         same_as_stored("message", &draw(&mut screen, &facts));
+        // A pairing window, and a node that paired, over a message.
+        let radio = facts.radio.clone().unwrap();
+        facts.radio = Some(RadioFacts {
+            pairing: Some(42),
+            ..radio.clone()
+        });
+        same_as_stored("pairing", &draw(&mut screen, &facts));
+        facts.radio = Some(RadioFacts {
+            paired: Some((0x4444_4444, 4321)),
+            ..radio.clone()
+        });
+        same_as_stored("paired", &draw(&mut screen, &facts));
         facts.apply = Some(("node-red".into(), 4, 6));
         same_as_stored("applying", &draw(&mut screen, &facts));
+        // The radio's page without the north bridge, and without a radio.
+        facts.apply = None;
+        facts.message = None;
+        screen.view = View::Page(RADIO_PAGE);
+        facts.radio = Some(RadioFacts {
+            answering: false,
+            last: None,
+            ..radio
+        });
+        same_as_stored("page-radio-silent", &draw(&mut screen, &facts));
+        facts.radio = None;
+        same_as_stored("page-no-radio", &draw(&mut screen, &facts));
     }
 
     #[test]
     fn the_buttons() {
         let mut screen = Screen::default();
         screen.press(down(UP));
-        assert!(matches!(screen.view, View::Page(3)));
+        assert!(matches!(screen.view, View::Page(4)));
         // The click that follows on the release does not step again.
         screen.press(click(UP));
-        assert!(matches!(screen.view, View::Page(3)));
+        assert!(matches!(screen.view, View::Page(4)));
         screen.press(down(DOWN));
         screen.press(down(DOWN));
         assert!(matches!(screen.view, View::Page(1)));
@@ -587,9 +717,14 @@ mod tests {
         });
         assert!(matches!(screen.view, View::Page(2)));
 
-        // The menu, About, and back to the pages.
+        // The menu: pairing a node first; the radio's page is under the window.
         screen.press(click(ENTER));
         same_as_stored("menu", &draw(&mut screen, &facts()));
+        assert_eq!(screen.press(click(ENTER)), Some(Ask::Pair));
+        assert!(matches!(screen.view, View::Page(RADIO_PAGE)));
+        // About, and back to the pages.
+        screen.press(click(ENTER));
+        screen.press(down(DOWN));
         screen.press(click(ENTER));
         assert!(matches!(screen.view, View::About));
         same_as_stored("about", &draw(&mut screen, &facts()));
@@ -597,11 +732,13 @@ mod tests {
         assert!(matches!(screen.view, View::Menu(_)));
         screen.press(down(DOWN));
         screen.press(down(DOWN));
+        screen.press(down(DOWN));
         assert_eq!(screen.press(click(ENTER)), None);
         assert!(matches!(screen.view, View::Page(0)));
 
         // Restart asks first: "No" is the first choice, "Yes, restart" the second.
         screen.press(click(ENTER));
+        screen.press(down(DOWN));
         screen.press(down(DOWN));
         assert_eq!(screen.press(click(ENTER)), None);
         same_as_stored("menu-restart", &draw(&mut screen, &facts()));

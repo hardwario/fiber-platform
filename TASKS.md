@@ -799,7 +799,13 @@ The north link's task does the writing: it closes the port, runs the flasher off
 `Flashing`/`Flashed`, and opens the port again; `firmware/north` is published from the north
 bridge's `Hello`. **On the bench:** the next release installed writes this firmware over the radio
 spike at once (the spike says no `Hello`); the spike's backup is `~/north-backup.bin` and
-`target/bench/`. Next: the pairing code on the LCD and pairing from the menu.
+`target/bench/`. The front panel has the radio (`docs/front-panel.md` first): a fifth page
+(the north bridge, the channel, the nodes, the node heard last), "Pair a node" first in the menu,
+a pairing window over the pages with its seconds (any press closes it), and a node that paired
+with its code in big digits, lit, until a press or 60 s; tested with stored pictures and through
+the simulated north bridge. Left on the computer: nothing but the simulator as a command of its
+own for the container tests (optional: the tests run it in-process). Left on the bench: all of
+"Done when", with one Core Module.
 
 - [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
       pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
@@ -815,14 +821,16 @@ spike at once (the spike says no `Hello`); the spike's backup is `~/north-backup
       encryption nonce twice (D8)
 - [x] Node messages read with `tower-protocol` (its schema tag checked first) and turned into
       topics by its property tables
-- [ ] Pairing: opened from the command line, from MQTT or from the menu, for 60 s; the six-digit
+- [x] Pairing: opened from the command line, from MQTT or from the menu, for 60 s; the six-digit
       code on the LCD and in `radio/pairing`
 - [x] The north bridge's image built into the program, and flashed by the agent as the south
       bridge's is (T17)
 - [x] `fiber radio status | config | nodes | pair | watch`
-- [ ] The north bridge as a simulator, as the south bridge's (`agent/src/agent/simulator.rs`),
-      speaking `docs/firmware/north-link.md` (moved here from T25)
-- [ ] Tests against the north bridge simulator
+- [x] The north bridge as a simulator, as the south bridge's (`agent/src/agent/simulator.rs`),
+      speaking `docs/firmware/north-link.md` (moved here from T25): `north::simulate`, run
+      in-process by the tests (a pseudo-terminal command for the containers, as the south's, is
+      not needed so far)
+- [x] Tests against the north bridge simulator
 
 - Needs: T17, T25, T47; T21 for the code on the LCD.
 - Done when: the lines under "M5" hold with one Core Module.

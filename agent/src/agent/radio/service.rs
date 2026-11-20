@@ -99,6 +99,17 @@ impl Live {
     }
 }
 
+/// The radio in short, for the front panel.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Summary {
+    pub answering: bool,
+    pub channel: u8,
+    pub nodes: usize,
+    /// The node heard last: its name or address, its strength, when.
+    pub last: Option<(String, i16, u64)>,
+    pub pairing_until: Option<u64>,
+}
+
 /// The radio service.
 pub struct Radio {
     store: Store,
@@ -587,6 +598,31 @@ impl Radio {
     /// The pairing window's end, when one is open.
     pub fn pairing_until(&self) -> Option<u64> {
         self.pairing_until
+    }
+
+    /// What the front panel's radio page shows.
+    pub fn summary(&self) -> Summary {
+        let last = self
+            .live
+            .iter()
+            .filter_map(|(addr, live)| Some((*addr, live.last_seen?, live.rssi.unwrap_or(0))))
+            .max_by_key(|(_, seen, _)| *seen)
+            .map(|(addr, seen, rssi)| {
+                let name = self
+                    .store
+                    .node(addr)
+                    .map(|n| n.name.clone())
+                    .filter(|n| !n.is_empty())
+                    .unwrap_or_else(|| address(addr));
+                (name, rssi, seen)
+            });
+        Summary {
+            answering: self.north_up,
+            channel: self.store.channel,
+            nodes: self.store.nodes.len(),
+            last,
+            pairing_until: self.pairing_until,
+        }
     }
 
     fn settings(&self) -> Message {
