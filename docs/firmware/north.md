@@ -33,7 +33,9 @@ wants the speed.
 - **The first `Settings`** makes the gateway at that address, raises the transmit counter to the
   agent's floor, and starts the radio. The address is then fixed until the next reset.
 - **The loop:** the agent's messages, a `Status` every 10 s, then 100 ms of the radio: uplinks
-  passed on as they come, and what waits for a node sent after its uplink. While a pairing window
+  passed on as they come, and what waits for a node sent after its uplink. A packet whose sync
+  word came before the 100 ms are up is received to its end: cut off, it was lost, and the node
+  tried again 200 ms later (one click of 20 on a FIBER, 2026-11-20). While a pairing window
   is open, 500 ms of listening for nodes that want to join instead.
 - **One personality,** `TowerFsk` (D4); `SetPersonality` is there for the next.
 - **The watchdog** (8 s) resets it when its loop stops: longer than the longest turn, a pairing
@@ -53,6 +55,10 @@ wants the speed.
   Cortex-M0+, never runs; the data the two would share is an ordinary static.
 - **The "empty" flag** is cleared at every start, as on the south bridge, so that a reset after a
   first write through the bootloader starts the firmware.
+- **Started by the bootloader's `Go`** (as the agent's flasher starts it), it points the vector
+  table register at its own table first (`cortex-m-rt`'s `set-vtor`). The bootloader leaves it at
+  its own: without this the firmware said nothing after a write and hung at its first interrupt,
+  and ran when started by a reset (seen on a FIBER, 2026-11-20).
 
 ## The watermark
 

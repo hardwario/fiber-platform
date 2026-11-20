@@ -212,11 +212,13 @@ impl Radio for AirRadio {
     /// listens again at once (`docs/firmware/radio.md`, "Receiving a packet of any length"). A
     /// packet that does not pass is passed over. Dropped half way, the radio is left listening:
     /// the next send or receive tunes it again.
-    async fn receive(&mut self, buf: &mut [u8]) -> Result<Received, ()> {
+    async fn receive(&mut self, buf: &mut [u8], until_ms: u64) -> Result<Option<Received>, ()> {
         self.listen()?;
+        let until = Instant::from_millis(until_ms);
         loop {
             let irq = self.radio.irq()?;
             if irq.contains(Irq::SYNC_WORD) {
+                // A packet has begun: it is received to its end, past `until` if it must.
                 let sync_at = Instant::now();
                 Timer::at(sync_at + Duration::from_micros(2 * BYTE_US)).await;
                 let mut first = [0u8];
@@ -233,14 +235,17 @@ impl Radio for AirRadio {
                     && let Some(out) = buf.get_mut(..payload.len())
                 {
                     out.copy_from_slice(payload);
-                    return Ok(Received {
+                    return Ok(Some(Received {
                         len: payload.len(),
                         rssi,
-                    });
+                    }));
                 }
                 self.listen()?;
             } else if irq.0 != 0 {
                 self.radio.clear_irq(irq)?;
+            }
+            if Instant::now() >= until {
+                return Ok(None);
             }
             Timer::after(POLL).await;
         }

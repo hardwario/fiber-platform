@@ -93,6 +93,28 @@ fn a_new_frame_is_taken_in_and_acknowledged() {
 }
 
 #[test]
+fn a_frame_across_the_deadline_is_received_whole() {
+    // Begun before a receive's deadline and ended after it: taken in. Cut off at the deadline it
+    // would be lost, and the node tries again 200 ms later at the earliest (on a FIBER, one click
+    // of 20 needed a second try while the receive was cut off).
+    let (mut gw, world, _) = gateway();
+    let first = uplink(5, b"hello");
+    let toa = airtime(&first);
+    assert!(toa > 10, "on air for {toa} ms");
+    world.borrow_mut().arrive(100 + toa / 2, first);
+    assert_eq!(block_on(gw.recv(100)).expect("taken in whole").counter, 5);
+    assert_eq!(acks(&world).len(), 1);
+    // One that begins after the deadline is the next receive's.
+    let deadline = world.borrow().now + 50;
+    let next = uplink(6, b"later");
+    let at = deadline + 10 + airtime(&next);
+    world.borrow_mut().arrive(at, next);
+    assert!(block_on(gw.recv(deadline)).is_none());
+    assert_eq!(world.borrow().now, deadline);
+    assert_eq!(block_on(gw.recv(deadline + 1_000)).expect("taken in").counter, 6);
+}
+
+#[test]
 fn a_lost_acknowledgement() {
     let (mut gw, world, _) = gateway();
     world.borrow_mut().arrive(0, uplink(7, b"once"));

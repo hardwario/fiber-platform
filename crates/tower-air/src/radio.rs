@@ -25,7 +25,9 @@ pub trait Radio {
     /// Sends `frame` as one packet, and returns once it is on air.
     async fn send(&mut self, frame: &[u8]) -> Result<(), Self::Error>;
 
-    /// Waits for the next packet whose CRC is right, and puts its frame into `buf`. A deadline
-    /// is the caller's: it drops the future.
-    async fn receive(&mut self, buf: &mut [u8]) -> Result<Received, Self::Error>;
+    /// Waits for the next packet whose CRC is right, and puts its frame into `buf`; `None` when
+    /// no packet began before `until_ms` (the gateway's [`Clock`](crate::gateway::Clock) time).
+    /// A packet that began before it is received to its end: a deadline that cut one off would
+    /// lose it, and a node's tries come 200 ms or more apart.
+    async fn receive(&mut self, buf: &mut [u8], until_ms: u64) -> Result<Option<Received>, Self::Error>;
 }

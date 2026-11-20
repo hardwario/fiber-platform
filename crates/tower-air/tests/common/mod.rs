@@ -9,7 +9,7 @@
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::future::{Future, poll_fn};
+use std::future::Future;
 use std::pin::pin;
 use std::rc::Rc;
 use std::task::{Context, Poll, Waker};
@@ -78,23 +78,39 @@ impl Radio for AirRadio {
         Ok(())
     }
 
-    async fn receive(&mut self, buf: &mut [u8]) -> Result<Received, ()> {
-        poll_fn(|_| {
-            let mut w = self.0.borrow_mut();
+    /// The next frame that begins before `until_ms`, taken when it has arrived whole: a frame is
+    /// on air for its airtime before the time it arrives at. The time moves to its end, or to
+    /// `until_ms` when none begins before it.
+    async fn receive(&mut self, buf: &mut [u8], until_ms: u64) -> Result<Option<Received>, ()> {
+        let mut w = self.0.borrow_mut();
+        loop {
             match w.incoming.front() {
-                Some((at, _)) if *at <= w.now => {
+                // Gone by before the radio listened: a frame on air while nobody receives is lost.
+                Some((at, frame)) if at.saturating_sub(airtime(frame)) < w.now && *at < w.now => {
+                    w.incoming.pop_front();
+                }
+                Some((at, frame)) if at.saturating_sub(airtime(frame)) < until_ms => {
+                    let at = *at;
                     let (_, frame) = w.incoming.pop_front().unwrap();
+                    w.now = w.now.max(at);
                     buf[..frame.len()].copy_from_slice(&frame);
-                    Poll::Ready(Ok(Received {
+                    return Ok(Some(Received {
                         len: frame.len(),
                         rssi: RSSI,
-                    }))
+                    }));
                 }
-                _ => Poll::Pending,
+                _ => {
+                    w.now = w.now.max(until_ms);
+                    return Ok(None);
+                }
             }
-        })
-        .await
+        }
     }
+}
+
+/// How long `frame` is on air, as TOWER's duty cycle counts it.
+pub fn airtime(frame: &[u8]) -> u64 {
+    u64::from(tower_radio::frame_toa_ms(frame.len()))
 }
 
 pub struct AirClock(pub Shared);
@@ -104,26 +120,10 @@ impl Clock for AirClock {
         self.0.borrow().now
     }
 
+    /// The time moves on; a frame on air meanwhile is lost, as nobody receives it.
     async fn sleep_until(&self, at_ms: u64) {
-        poll_fn(|_| {
-            let mut w = self.0.borrow_mut();
-            if w.now >= at_ms {
-                return Poll::Ready(());
-            }
-            // A frame arrives first: the time moves to it, and a receiver racing this sleep takes
-            // it on the next poll. Nobody receiving, the frame waits in the air.
-            match w.incoming.front() {
-                Some((at, _)) if *at > w.now && *at < at_ms => {
-                    w.now = *at;
-                    Poll::Pending
-                }
-                _ => {
-                    w.now = at_ms;
-                    Poll::Ready(())
-                }
-            }
-        })
-        .await
+        let mut w = self.0.borrow_mut();
+        w.now = w.now.max(at_ms);
     }
 }
 

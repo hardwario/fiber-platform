@@ -374,9 +374,7 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
     /// length in `out`.
     async fn rx_under(&mut self, key: &[u8; 16], until_ms: u64, out: &mut [u8]) -> Option<(Header, usize)> {
         let mut buf = [0u8; MAX_FRAME];
-        let rx = super::first(self.radio.receive(&mut buf), self.clock.sleep_until(until_ms))
-            .await?
-            .ok()?;
+        let rx = self.radio.receive(&mut buf, until_ms).await.ok()??;
         let frame = buf.get_mut(..rx.len)?;
         let (hdr, range) = frame::open_frame(&mut self.ccm, key, frame).ok()?;
         let payload = frame.get(range)?;

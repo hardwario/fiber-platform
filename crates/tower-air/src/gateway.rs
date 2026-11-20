@@ -19,10 +19,6 @@ pub use pairing::{
     Entropy, HOST_HANDSHAKE_TIME_MS, JOIN_FRAME_KEY, JoinRefusal, PAIRING_WINDOW_MS, PairedPeer, PairingHost,
 };
 
-use core::future::Future;
-use core::pin::pin;
-use core::task::Poll;
-
 pub use tower_net::ack::AckMeta;
 use tower_net::ack::{ACK_LEN, AckVerdict, AckWait, ack_flags, ack_meta};
 use tower_net::addr::peer_addr_valid;
@@ -168,22 +164,6 @@ pub struct Gateway<R: Radio, C: Clock, A: AesBlock, W: Watermark> {
     /// Frames taken in, and heard but not taken in, since start (the link's `Status`).
     taken_in: u32,
     passed_over: u32,
-}
-
-/// The output of `a`, or `None` when `b` ends first.
-async fn first<A: Future, B: Future>(a: A, b: B) -> Option<A::Output> {
-    let mut a = pin!(a);
-    let mut b = pin!(b);
-    core::future::poll_fn(|cx| {
-        if let Poll::Ready(out) = a.as_mut().poll(cx) {
-            return Poll::Ready(Some(out));
-        }
-        if b.as_mut().poll(cx).is_ready() {
-            return Poll::Ready(None);
-        }
-        Poll::Pending
-    })
-    .await
 }
 
 impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
@@ -379,7 +359,7 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
     /// One frame, received before `until_ms`.
     async fn recv_frame(&mut self, until_ms: u64) -> Heard {
         let mut buf = [0u8; MAX_FRAME];
-        let Some(Ok(rx)) = first(self.radio.receive(&mut buf), self.clock.sleep_until(until_ms)).await else {
+        let Ok(Some(rx)) = self.radio.receive(&mut buf, until_ms).await else {
             return Heard::Nothing;
         };
         self.take_in(&mut buf, rx.len, rx.rssi)
@@ -531,8 +511,7 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
             if self.clock.now_ms() >= deadline {
                 return false;
             }
-            let Some(Ok(rx)) = first(self.radio.receive(&mut buf), self.clock.sleep_until(deadline)).await
-            else {
+            let Ok(Some(rx)) = self.radio.receive(&mut buf, deadline).await else {
                 return false;
             };
             let Some(frame) = buf.get_mut(..rx.len) else {

@@ -52,7 +52,11 @@ earlier software's LCD driver was read: ST7920, mode 3, 400 kHz, and the picture
 degrees. The maintainer looked: the agent's pages show, and the panel is mounted upside down, so
 the turn stays (T20). The maintainer saw the pages upright, the backlight lit, the buttons and the
 buzzer working. After a power cycle (2026-11-19) the buzzer stayed silent at power-on, and the CM4
-reached the south bridge's bootloader again (the J-Link's reads had shut it out until then). Left,
+reached the south bridge's bootloader again (the J-Link's reads had shut it out until then).
+2026-11-20: shut out once more with no SWD access since the power cycle of the evening before (the
+agent's write got `0x00`), the J-Link still wired to the SWD header; a power cycle let the CM4 in
+again. So the J-Link's presence on the header is enough, not only its reads: unplug it from the
+header before relying on the CM4's way into the south bridge (not yet tried without it). Left,
 for someone at the bench: a RAK5146 card in the slot; a second unit. The test pattern is
 `hil/lcd_test.py` (a copy is in the home directory of `fiber` on the unit; stop the agent first,
 it drives the LCD).
@@ -760,6 +764,19 @@ link. The simulator for the agent's tests moved to T26, where its first user is 
 bridge's simulator lives in the agent too). Left: everything on a FIBER, which waits for the
 bench. Pushed with T26 (`55771c8` to `69adb72`); CI run 44680585087 green, the north
 bridge's job included.
+On a FIBER (2026-11-20, details in T26): it runs, written by the agent; `set-vtor` made it start
+after the bootloader's `Go`. 19 of 20 clicks at the first try led to the next step: the radio trait
+now takes the deadline (`receive(buf, until_ms)`, `None` when no packet began before it), the
+firmware stops at it only while no sync word was heard, the gateway's three receives (the slice,
+the acknowledgement window, pairing) pass it, and the made-up air gives frames their airtime (a
+new test: a frame across a slice's end is taken in whole, one after it is the next receive's).
+`just check` passes. Release `0.1.0-bench.18` carries it (north image `0xdab1a01a`), written by
+the agent. Measured on the FIBER: 40 clicks 5 s apart, all 40 at the first try (each event 0.33 to
+0.35 s after its press, the counts 22 to 61 without a gap), where 19 of 20 were before; and three
+restarts of the node, each followed by a click: each click at the first try, the node's counter
+1024 higher after each restart (TOWER's reserve) and taken in. The misses after pairing and after a
+restart seen before the fix did not come back. Left: a push and its CI run (the change is not
+committed yet); the share over many more frames is the 24-hour run of T27.
 
 - [x] `docs/firmware/north-link.md` first: `Hello` (who it is, its image's CRC, the
       personalities it has and the one that is active, why it reset), `SetPersonality`, the
@@ -778,8 +795,14 @@ bridge's job included.
 - [x] The personality switch, with `TowerFsk` as the only one for now (D4)
 - [x] A CI job (build, clippy, rustdoc), and a check that its TOWER revision is the root
       `Cargo.toml`'s (`just check-north`)
-- [ ] On a FIBER: written through the bootloader (`hil/north_flash.py`), it says `Hello`, takes
-      `Settings` and a node from a test program, and passes on a Core Module's frames
+- [x] On a FIBER: written through the bootloader (by the agent, and by `hil/north_flash.py`), it
+      says `Hello`, takes `Settings` and a node from the agent, and passes on a Core Module's
+      frames (2026-11-20, see T26)
+- [x] Started by the bootloader's `Go` as well as by a reset: `cortex-m-rt`'s `set-vtor`
+- [x] A frame that begins before a receive's deadline is received to its end, not cut off: the
+      radio trait takes the deadline, and the firmware stops at it only while no sync word was
+      heard; a test in the made-up air with a frame across a slice's end; on a FIBER, the share
+      at the first try measured again (19 of 20 before)
 
 - Needs: T14, T15, T24.
 - Done when: the firmware runs on a FIBER, says `Hello`, and takes its settings from a test
@@ -827,6 +850,53 @@ own for the container tests (optional: the tests run it in-process). Left on the
 "Done when", with one Core Module. Pushed with T25's firmware (`b063459` to `5f863ea`); CI run
 44680585087 green in every job (the host workspace, the audit, the arm64 containers, both
 firmwares).
+At the bench (2026-11-20): release `0.1.0-bench.16` (commit `59d1e49`) goes onto the FIBER, which
+ran `0.1.0-bench.15` (no radio service; the north bridge holding the spike's receive image). Its
+agent should find the north bridge silent and write the carried firmware within about 30 s, and
+write the south bridge's image once more (`0xb79f9cb6`, moved by T25's messages). What happened: the agent
+found the spike silent and wrote the north bridge's firmware (24 s), then heard nothing for 30 s
+and wrote it again, three times (its limit for an hour). The firmware itself was fine: after a
+reset (NRST) it sends its `Hello` at once and a `Status` every 10 s (read in hex on
+`/dev/ttyAMA3`), and the agent, restarted, took them (`fiber radio`: channel 0, gateway
+`0x122d2543`). Started by the bootloader's `Go` alone (no write), as the agent's flasher starts it,
+it sent nothing in 15 s: the bootloader leaves the vector table register at its own table, and the
+firmware hung at its first interrupt. Fixed with `cortex-m-rt`'s `set-vtor` in `firmware/north`
+(written by hand with `north_flash.py`, then started by `Go` alone: its `Hello` at 0.1 s, a
+`Status` at 10.1 s). The south bridge's write failed (`0x00` in place of the bootloader's answer):
+the CM4 cannot reach its bootloader again, as after the J-Link's SWD access of 2026-11-19 (T2),
+though nothing touched SWD since the last power cycle; a power cycle cleared it then. Then
+release `0.1.0-bench.17` (the north bridge's firmware with `set-vtor`, image `0xa18214cc`): the
+agent took its `Hello` (`fiber firmware`: running, the one carried), and `fiber firmware flash
+north` wrote it in 22 s and had it answering 2 s later. **A TOWER node on a FIBER:** Core Module A
+flashed with TOWER's `radio_button` at the pin; `fiber radio pair` and `node pair` on its console
+paired it in seconds (`0xdf438142`, code 296641; the node now names the FIBER's gateway
+`0x122d2543`), its `Info` named it `button:0`, and its clicks (`button simulate 100`) arrive on
+`fiber/radio/nodes/0xdf438142/event/button` with their count and frame counter, at -65 to -68 dBm
+(5 of 5 clicks 4 s apart, about 1 s after each press). The node says "time not synced", rightly:
+a button never asks for the time (TOWER's `wants_time`). Seen and not yet understood: right after
+pairing three clicks did not arrive, and after the node's restart the first click did not; the
+north bridge did not hear those frames at all (its `Status`: taken in and passed over unchanged),
+and the node sent the held events with its next uplink. A run of 20 clicks, 5 s apart (the agent
+running, nothing restarted): all 20 on MQTT, the counts 2 to 21 without a gap, 19 of them 0.33 s
+after the press and one 0.63 s after (a second try: 200 ms of waiting for the acknowledgement and
+the backoff). So 19 of 20 at the first try, short of M5's 99 %. A suspect in the north bridge: a
+frame still arriving when a 100 ms receive slice ends is dropped (the receive is cut off at the
+deadline and the radio starts listening again), about 17 ms of every 100 for a frame this long.
+The north bridge's `Status` also says 43 frames passed over in 584 s, not yet explained. The
+front panel on a FIBER: the node removed (`radio.node_remove`) and paired again, code 000898; the
+maintainer saw the code in big digits on the display. A power cycle (09:19): the north bridge's firmware
+started from power-on and answered, the radio came up with the node kept; the south bridge's
+bootloader answered again (`fiber firmware chip south`: 0x453, option bytes `0xfefffeaa`,
+protection off), and the agent, its three tries for the image cleared by hand, wrote
+`0xb79f9cb6`. Both bridges then ran the images the agent carries. With T25's fix for frames cut off at a
+slice's end (release `0.1.0-bench.18`): 40 of 40 clicks at the first try, and a click right after
+each of three restarts of the node arrived too (T25). A `set`: `false` on
+`fiber/radio/nodes/0xdf438142/set/led` showed `queued: 1`; at the node's next click the north
+bridge sent it 0.1 s after the uplink (`queued: 0`), and 1.2 s later the node reported its
+settings with `state/led` `false` (its console: `led = off`). The node's counter across a restart
+of the north bridge: after the power cycle the agent handed it back (`NodeAdd`) and the node's
+frames went on being taken in. Left on the bench for T26: a second node (Core Module B runs the
+maintainer's own application), and a replay sent on air (no radio on the bench can, T27).
 
 - [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
       pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
