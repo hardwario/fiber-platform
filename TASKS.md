@@ -21,7 +21,7 @@ to tell that it is done. The facts it works with are in the documents: the board
 |---|---|---|---|
 | M0 | Foundations and bench checks | T1 to T3 | Both microcontrollers answer their bootloader from the CM4; CI is green (T1 done) |
 | M1 | Provisioning | T4 to T12 | A FIBER written with every box ticked comes up by itself; a second apply changes nothing |
-| M2 | The agent's core and the south bridge | T13 to T18 | The agent flashes the south bridge on its own and shows the board on MQTT |
+| M2 | The agent's core and the south bridge | T13 to T18 | The agent flashes the south bridge on its own and shows the board on MQTT (its three lines held on a FIBER, 2026-11-21; the mini-PCIe lines are left, T17) |
 | M3 | Thermometers | T19 | A DS18B20 shows up on MQTT and in a Node-RED flow |
 | M4 | The front panel | T20, T21 | The LCD shows the name and the address; the buttons move through the pages (held on a FIBER, 2026-11-19) |
 | M5 | The north bridge | T22 to T27, T47 | TOWER nodes pair with the FIBER and their events arrive on MQTT (held on a FIBER with two nodes, 2026-11-20; the 24 hours and a replay on air are left, T27) |
@@ -56,7 +56,9 @@ reached the south bridge's bootloader again (the J-Link's reads had shut it out 
 2026-11-20: shut out once more with no SWD access since the power cycle of the evening before (the
 agent's write got `0x00`), the J-Link still wired to the SWD header; a power cycle let the CM4 in
 again. So the J-Link's presence on the header is enough, not only its reads: unplug it from the
-header before relying on the CM4's way into the south bridge (not yet tried without it). Left,
+header before relying on the CM4's way into the south bridge. On 2026-11-21 the J-Link was taken
+off and the FIBER started without it: `fiber firmware chip south` and `chip north` both read
+their chip (0x453, `0xFEFFFEAA`; 0x497, `0x3FFFF0AA`). Left,
 for someone at the bench: a RAK5146 card in the slot; a second unit. The test pattern is
 `hil/lcd_test.py` (a copy is in the home directory of `fiber` on the unit; stop the agent first,
 it drives the LCD).
@@ -309,57 +311,6 @@ The one contract between the agent and the firmware, built by both from the same
 - Needs: T13.
 - Done when: the tests pass and both microcontroller targets build.
 
-### T15. `fiber-flasher` (M2)
-
-State (2026-11-19): on a FIBER: `fiber firmware chip` reads both chips (`0x453` and `0x497`) and
-refuses while the agent holds the port; the agent wrote and verified the south bridge three times
-(about 6 s each); a flash stopped hard at page 22 of 64 (the agent killed) left the chip in its
-bootloader, and the next start flashed it again by itself. Left: the same with the power cut,
-which also takes the south bridge's power, and needs someone at the bench.
-2026-11-20: the power cut is tried on the north bridge (its write takes 22 s, the south bridge's
-about 6 s): `fiber firmware flash north`, the maintainer cuts the FIBER's power in the middle.
-Earlier (2026-11-18): `crates/flasher` is built and its 11 tests pass against the simulated chip: the image written and started; another chip, readout
-protection and a bad image refused before anything is erased; three attempts with BOOT0 held
-longer; a write cut short by a power cut leaves the chip waiting in its bootloader, and the next
-write puts it right; a reset after a first write lands in the bootloader again (why it leaves
-through `Go`); a byte that reads back wrong stops it before the vector table; the port lock.
-Settled: the crate is the engine, behind two traits (the serial port and the two lines); the
-adapters to the real serial port and GPIO lines come with the agent (T17), which owns them.
-
-Writing a microcontroller's firmware from the CM4, in a way that cannot leave it dead.
-
-- [x] The chips: product id `0x453` (STM32C031, 16 pages of 2 KB) and `0x497` (STM32WL55, 128
-      pages of 2 KB). Any other id is refused before anything is erased
-- [x] The reset lines behind a trait: NRST is pulled low or let go, never driven high; BOOT0 is
-      driven. Entering the bootloader is tried a few times, holding BOOT0 longer each time
-- [x] The serial port: 115200 baud with even parity for the bootloader, and back to no parity
-      for the firmware
-- [x] The commands: Get, Get ID, Read Memory, Write Memory (at most 256 bytes, in multiples of
-      8), Extended Erase by a list of pages, Go. No mass erase
-- [x] The image is checked before anything is erased: its size, where its stack starts, where
-      its reset vector points
-- [x] The block with the vector table is written last, after everything else was read back and
-      compared. A flash that is cut short then leaves a chip that waits in its bootloader, not
-      one that starts half a program
-- [x] It leaves through `Go`, not through a reset: after a first flash the chip still believes
-      its memory is empty and a reset lands in the bootloader again
-- [x] The option bytes are read and reported (`nBOOT_SEL`, `nSWBOOT0`, readout protection), and
-      a chip with readout protection is refused. The flasher never writes them
-- [x] Progress is reported to the caller, nothing is printed; an error type of its own
-- [x] A simulated bootloader for the tests that models the two lines, the "empty" flag, and the
-      refusals a real one gives
-- [x] A lock, so that a command run by hand keeps off a serial port the agent is using
-- [x] On a FIBER: both chips' identity is read; a test image is written to the south bridge and
-      verified; a write stopped hard in the middle, then recovered (2026-11-19)
-- [ ] On a FIBER: the same with the power cut in the middle
-
-Watch out: a write of the STM32C0's option bytes that is cut short can leave the chip with
-readout protection on and its bootloader out of reach, which only SWD can undo. That is why only
-the south bridge firmware changes them, once (T16).
-
-- Needs: T2 (the bootloaders answer).
-- Done when: the three steps on a FIBER pass.
-
 ### T16. The south bridge firmware (M2)
 
 State (2026-11-19): runs on a FIBER, flashed there by the agent: its `Hello` names its image, a
@@ -418,13 +369,12 @@ costs 82 bytes.
 
 State (2026-11-19): on a FIBER: the agent flashed the south bridge, which had the earlier firmware,
 on its own at its first start (M2's first line), and again after an update; a flash stopped hard
-recovered by itself (the power cut proper is left, T15); stopping the agent gives the fallback
-pattern on the south bridge's pins, read over SWD (M2's third line, T16); `fiber status`,
-`power`, `ports`, `leds`,
-`firmware status` and `firmware flash` work through MQTT. The voltages were too low until the
-firmware's fix (T36), and a single reading was too noisy for the 0.05 V rule: 38 messages on
-`power` in 2 minutes, so the agent averages 8 readings now (T36). Left: the power cut, the
-mini-PCIe lines (a card). After the agent restarts, the ports are all on and the LEDs automatic
+recovered by itself, and so did a power cut in the middle of the north bridge's write (M2's second
+line, T15, 2026-11-21); stopping the agent gives the fallback pattern on the south bridge's pins,
+read over SWD (M2's third line, T16); `fiber status`, `power`, `ports`, `leds`, `firmware status`
+and `firmware flash` work through MQTT. The voltages were too low until the firmware's fix (T36),
+and a single reading was too noisy for the 0.05 V rule: 38 messages on `power` in 2 minutes, so
+the agent averages 8 readings now (T36). Left: the mini-PCIe lines (a card). After the agent restarts, the ports are all on and the LEDs automatic
 again, whatever a client had set: as the code has it, and now written in `docs/mqtt-api.md`. Open: with no cell the
 battery reads 1.7 V and is shown as a voltage; perhaps `power` should say there is no battery.
 Earlier (2026-11-18): everything that needs no board is written and tested (`just check` and
@@ -493,7 +443,7 @@ eight. **Linux lists a probe on one bus only:** the new bus's attach fails with 
 duplicate filename '/bus/w1/devices/28-...'` (`err=-17`) until the old bus drops it, so a moved
 probe is red on its old port, then on its new one, 100 to 115 s after the pull. The agent's
 comment that assumed both buses list it is put right, and `docs/hardware.md` and
-`docs/mqtt-api.md` say it. Left: a shorted port (another day, the maintainer), eight probes at
+`docs/mqtt-api.md` say it (`d782d57`). Left: a shorted port (another day, the maintainer), eight probes at
 once (only three at hand). Good to know: this unit's Node-RED login is still `fiber` / `fiber`,
 from before `login.json` was changed by hand; `settings.js` is written once.
 2026-11-19: three DS18B20 on ports 1, 2 and 5 of the bench's FIBER (the maintainer).
@@ -770,9 +720,12 @@ from `0xa5bc` to `0xeef8` (pinned by its test); the firmware fills it (image 64 
 `0xf4eb0176`; the south bridge's image did not move, `0xb79f9cb6`); the agent keeps the last
 `Status` and publishes `radio/status` again when the frames or `can_send` change (not for the
 uptime alone), clears it on a `Hello` and when the north bridge is lost; `fiber radio status` prints
-`Frames      21 taken in, 1 repeated, 42 not for us, in 9 min`. `just check` passes. Not run on a
-FIBER yet: at the next bench, the counts while the nodes click, and what the frames passed over
-are.
+`Frames      21 taken in, 1 repeated, 42 not for us, in 9 min`. `just check` passes. On the FIBER
+(2026-11-21, bench.20): after 20 clicks of the two nodes, `radio/status` said 21 taken in and none
+passed over of any kind in 80 s, and `fiber radio status` printed the `Frames` line. The 43 passed
+over on 2026-11-19 were most likely Core Module B's frames to the gateway its own application was
+paired to then (now it is the FIBER's node): not shown, as nothing on the bench sends a foreign
+frame now.
 
 - [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
       pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
@@ -905,8 +858,8 @@ checked against them (corrected on the way: a port's LED does not change when a 
 in, the probes are read every 10 s, `ports.power` and `leds.set` take one port or LED). The site
 builds (`npm run build`), the FIBER pages without a warning. Before the pages are pushed, with the
 first release: the versions and CRCs in the examples to that release's, and what is still untried
-on a FIBER checked again (FIBER Setup's first start with the platform, ChirpStack with a card,
-`fiber radio remove` and `rename`).
+on a FIBER checked again (FIBER Setup's first start with the platform, ChirpStack with a card;
+`fiber radio remove` and `rename` were tried on the bench, 2026-11-21, as the pages have them).
 
 In `../docs/fiber`. The pages there describe a setup by hand that no longer works.
 
@@ -975,8 +928,15 @@ change (no restart), the seed's login opening Node-RED and Mosquitto's listener 
 and a wrong one not, ChirpStack's secret and key made. FIBER Setup's first-start script, stamped
 with release 0.1.0 and the installer's sha256 and run in a fresh container of the image: it took
 the image's way ("its own installer, without the network") and the components came up;
-ChirpStack, left out of the seed, stayed installed and off. Left: CI (the release workflow's dry
-run, after a push), FIBER Setup's catalog (with the first release), and a FIBER.
+ChirpStack, left out of the seed, stayed installed and off. Commit `1adc23e`, CI run 44912813511
+green; FIBER Setup's script as its commit `92f01f5`, on its two unpushed ones. The release
+workflow's first dry run (44912834051) built and tried the release but skipped the image job: with
+no condition of its own, a job runs only when everything before it succeeded, and on a dry run the
+tag gate is skipped (the build job had the guard, the image job not). Given it (`a005aff`); the
+second dry run (44913866458) built the image from the very release its build job tried (623 MB
+compressed) and its first-start test passed, in 7 minutes; the publish job was skipped, as on every
+dry run. Left: `SHA256SUMS` with the image in it (the first release, D24), FIBER Setup's catalog
+(with the first release), and a FIBER.
 
 - [x] `docs/provisioning.md` first: "The ready-made image": what is in it and what is not, how it
       is built, the first start on it, where it is published, its size
@@ -992,9 +952,10 @@ run, after a push), FIBER Setup's catalog (with the first release), and a FIBER.
 - [x] `provision/image/build.sh`: the pinned base downloaded and checked, grown, mounted, the
       release unpacked and `fiber platform image` run in the chroot, emptied, shrunk, compressed,
       its sha256; `shellcheck`
-- [ ] CI: the image in the release workflow (and its dry run), beside the archive in `SHA256SUMS`;
-      a test that starts the image's root as a container with systemd and no network, seeds it
-      and applies it, every component up
+- [x] CI: the image in the release workflow and its dry run; a test that starts the image's root
+      as a container with systemd and no network, seeds it and applies it, every component up
+      (dry run 44913866458, 2026-11-21)
+- [ ] The first release: the image published beside the archive, in `SHA256SUMS`
 - [ ] FIBER Setup: its catalog offers the image in place of Raspberry Pi OS Lite; its first-start
       script, finding the platform there, seeds and applies without a download
 - [ ] On a FIBER: written by FIBER Setup, the first start without the internet
@@ -2051,7 +2012,9 @@ Done 2026-11-21 (`4ea31f1`; CI run 44901139253 green in every job).
 Checked: `docs/cli.md` first; the lookup of a node by its address (any case, with or without
 `0x`) or its exact name in the retained node topics, and what the commands print, in tests; clippy,
 `just check`, and the commit alone (without T48's changes beside it) built and tested in a worktree
-of its own. Not run against a FIBER yet.
+of its own. On the FIBER (2026-11-21, bench.20): `fiber radio rename button:0 door` and back; `fiber
+radio remove 0xc58d0464`, then the node paired again through its console (code 540160) and named
+`button:1` again by its `Info`; an address the FIBER does not have ends with 1 and says so.
 
 - [x] `docs/cli.md` first: `fiber radio remove NODE` and `fiber radio rename NODE NAME` (NODE its
       address or its name), what they print, their exit statuses
@@ -2061,9 +2024,64 @@ of its own. Not run against a FIBER yet.
 
 - Done when: both are documented, built and tested, and `just check` passes.
 
+### T15. `fiber-flasher` (M2)
+
+Done 2026-11-21. Checked on a FIBER: `fiber firmware chip` reads both chips (`0x453` and
+`0x497`) and refuses while the agent holds the port; the agent wrote and verified the south bridge
+three times (about 6 s each); a flash stopped hard at page 22 of 64 (the agent killed) left the
+chip in its bootloader, and the next start flashed it again by itself (2026-11-19). The power cut
+(2026-11-21, bench.20): `fiber firmware flash north` (22 s), the FIBER's power cut at about block
+8 of 252 (15:50:44). After power-on the agent started at 15:51:28, found the north bridge silent
+at 15:51:57 (its 30 s), wrote it again (vector table at 15:52:19) and started it; `fiber firmware`
+then showed the north bridge running `0xc3703756`, the image carried, and `fiber radio` both
+nodes, with sending no longer held back. Tried on the north bridge, whose write is long enough to
+cut by hand; the south bridge's 6 s write goes through the same flasher, and its hard stop was
+recovered the same way. No commit of its own: the record only.
+Earlier (2026-11-18): `crates/flasher` is built and its 11 tests pass against the simulated chip: the image written and started; another chip, readout
+protection and a bad image refused before anything is erased; three attempts with BOOT0 held
+longer; a write cut short by a power cut leaves the chip waiting in its bootloader, and the next
+write puts it right; a reset after a first write lands in the bootloader again (why it leaves
+through `Go`); a byte that reads back wrong stops it before the vector table; the port lock.
+Settled: the crate is the engine, behind two traits (the serial port and the two lines); the
+adapters to the real serial port and GPIO lines come with the agent (T17), which owns them.
+
+Writing a microcontroller's firmware from the CM4, in a way that cannot leave it dead.
+
+- [x] The chips: product id `0x453` (STM32C031, 16 pages of 2 KB) and `0x497` (STM32WL55, 128
+      pages of 2 KB). Any other id is refused before anything is erased
+- [x] The reset lines behind a trait: NRST is pulled low or let go, never driven high; BOOT0 is
+      driven. Entering the bootloader is tried a few times, holding BOOT0 longer each time
+- [x] The serial port: 115200 baud with even parity for the bootloader, and back to no parity
+      for the firmware
+- [x] The commands: Get, Get ID, Read Memory, Write Memory (at most 256 bytes, in multiples of
+      8), Extended Erase by a list of pages, Go. No mass erase
+- [x] The image is checked before anything is erased: its size, where its stack starts, where
+      its reset vector points
+- [x] The block with the vector table is written last, after everything else was read back and
+      compared. A flash that is cut short then leaves a chip that waits in its bootloader, not
+      one that starts half a program
+- [x] It leaves through `Go`, not through a reset: after a first flash the chip still believes
+      its memory is empty and a reset lands in the bootloader again
+- [x] The option bytes are read and reported (`nBOOT_SEL`, `nSWBOOT0`, readout protection), and
+      a chip with readout protection is refused. The flasher never writes them
+- [x] Progress is reported to the caller, nothing is printed; an error type of its own
+- [x] A simulated bootloader for the tests that models the two lines, the "empty" flag, and the
+      refusals a real one gives
+- [x] A lock, so that a command run by hand keeps off a serial port the agent is using
+- [x] On a FIBER: both chips' identity is read; a test image is written to the south bridge and
+      verified; a write stopped hard in the middle, then recovered (2026-11-19)
+- [x] On a FIBER: the same with the power cut in the middle (the north bridge, 2026-11-21)
+
+Watch out: a write of the STM32C0's option bytes that is cut short can leave the chip with
+readout protection on and its bootloader out of reach, which only SWD can undo. That is why only
+the south bridge firmware changes them, once (T16).
+
+- Needs: T2 (the bootloaders answer).
+- Done when: the three steps on a FIBER pass.
+
 ### T48. A review of the radio code written without hardware (M5)
 
-Done 2026-11-21 (`b45d3b1`, and the lost `HelloRequest` found on the bench in a commit of its own).
+Done 2026-11-21 (`b45d3b1`, and `560f816` for the lost `HelloRequest` found on the bench).
 Checked: `just check` with every fix and its test; on a FIBER (bench.20) fix 2, and the fix of the
 lost request it brought out, below. Not tried on a FIBER: fix 1 (a message during a pairing
 handshake, now a step of T27's bench run) and fix 4 (a power cut timed to a watermark write).

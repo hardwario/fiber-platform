@@ -54,7 +54,14 @@ firmware's one-time option-byte fix matters for every unit like it.
 the bootloader then answers the start byte with `0x00`, until a power cycle. On 2026-11-19 it
 followed the J-Link's reads; on 2026-11-20 nothing had touched SWD since the last power cycle, the
 J-Link was only wired to the header. Unplug it from the header before the CM4 writes the south
-bridge. Not tried yet: the same unit with the J-Link off the header for a day.
+bridge. On 2026-11-21 the J-Link was taken off and the FIBER started without it: both
+bootloaders answered (`fiber firmware chip south`, `chip north`). Not tried yet: a day of it.
+
+**A write cut short recovers** (seen on this unit): the agent killed in the middle of the south
+bridge's write (2026-11-19, page 22 of 64), and the FIBER's power cut in the middle of the north
+bridge's (2026-11-21, about block 8 of 252). Each time the chip waited in its bootloader, and the
+agent wrote it again at its next start: the north bridge 30 s after the agent started, when it had
+stayed silent, and running 22 s later.
 
 ## 2. Does the LCD work on `/dev/spidev6.0`?
 
