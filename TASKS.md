@@ -173,7 +173,9 @@ a test with seven two-byte letters), the wizard's check mirrors it, the field is
 too. FIBER Setup's `cargo test` (100), clippy, `npm run check` and `npm test` (26) pass. Here, the
 ChirpStack role's comment no longer says FIBER Setup suggests a short password (its message stays,
 for a login written by hand). The catalog still waits for the first release (D24: the maintainer
-will say when); FIBER Setup's commits are pushed then.
+will say when); FIBER Setup's commits are pushed then. Since 2026-11-21 (T32, D28) its catalog
+names the installer and the ready-made image of the release workflow's dry run, marked as not
+published, in its fourth unpushed commit `6f101b3`.
 Earlier (2026-11-18): everything that needs neither the first release nor a FIBER is done, in FIBER
 Setup's commit `83d372a`, which is on this computer only: its catalog names the installer built here
 from `0257447`, marked as not published. Waits for the bench (T2), as D24 says: the platform runs on a
@@ -839,29 +841,26 @@ the first start downloading and installing (about 10 minutes, the internet, a re
 step offers Raspberry Pi Imager's cached copy (it never holds this image), and the done page names
 Raspberry Pi OS Lite; the first start's times with the image are not measured on a FIBER, so the
 texts take `docs/provisioning.md`'s "about a minute" until the bench measures them.
-Paused here at the maintainer's word (2026-11-21, evening), before any change in FIBER Setup (its
-tree is clean, on its 3 unpushed commits). The plan for it, worked out from its code:
-1. `catalog.rs`: `FIBER_IMAGE` in place of `RASPIOS_LITE` (name "FIBER platform 0.1.0", version
-   "on Raspberry Pi OS Lite of 2026-10-06", the release's URL and file name), marked NOT PUBLISHED
-   as the installer is; a test that its URL and file name carry `FIBER_PLATFORM`'s version.
-   `known_copies` goes (Raspberry Pi Imager's cache never holds this image), with `other_copy` in
-   `image.rs`, `Status`, `types.ts`, the wizard's `otherCopy`, `Image.svelte` and `image.reuse`.
-   `prepare_local`'s `official` compares with `FIBER_IMAGE`. Callers: `src-tauri/src/lib.rs`
-   (3), `crates/fiber-setup-cli/src/main.rs`, `api.ts`'s mock.
-2. Its sha256 and size from the dry run's artifact (run 44913866458, `fiber-platform-image`,
-   623 MB; `gh run download 44913866458 -n fiber-platform-image`, into a new empty directory;
-   the download was started and stopped for the pause, nothing kept). With that file put in FIBER
-   Setup's cache under its file name, `prepare_official` takes it without a download: the way to
-   try the whole flow before the release.
-3. The texts, in all five languages (`src/lib/i18n/*.ts`): `welcome.time`, `image.lead`,
-   `image.system`, `image.fiber`, `image.fiberText`, `image.fiberOff`, `settings.softwareLead`,
-   `settings.nothing`, `settings.phoneHint`, `start.timeline`, `done.softwarePlain` (the image's
-   name, no longer Raspberry Pi OS Lite); the picker's "MB to download" hint goes
-   (`Settings.svelte`, `settings.download`). No new numbers but the first start's "about a
-   minute"; the write's 5 minutes stay until a FIBER shows the larger image's time.
-4. Its README (lines 163 to 164, 239), then `cargo test`, clippy, `npm run check`, `npm test`,
-   and the views in the browser preview. Left after that: `SHA256SUMS` with the image in it (the first release, D24),
-the catalog's values from it, and a FIBER.
+Done that evening in FIBER Setup, as its commit `6f101b3` (local, its fourth unpushed one, pushed
+with the first release as T12 says): `FIBER_IMAGE` in place of `RASPIOS_LITE`, with the dry run's
+image (sha256 `e13658b3...`, 652 539 084 bytes) and a test that it names `FIBER_PLATFORM`'s
+release; `FIBER_PLATFORM` moved to the same dry run's installer (`8852632b...`), since the
+first-start script runs the image's own installer only with the sha256 it pins; the copy of
+`components.yaml` from a005aff; Raspberry Pi Imager's cache no longer looked at (it never holds this
+image); the texts in five languages without the download, the 10 minutes and "a plain Raspberry Pi
+OS"; the picker's download sizes gone; the image step's second card with a power icon in place of
+the download one; the command line's help; the README. Checked: `cargo test` (105), clippy, `npm
+run check`, `npm test` (26); the views in the browser preview (Chrome headless through
+`playwright-core`) in English and Czech: the welcome, the image step with components and with none,
+the settings with none ticked. With the dry run's image put into a cache of its own,
+`fiber-setup-cli image` took it as the official image without a download and unpacked it (3.69 GB);
+`flash --to-file` with the agent and Node-RED wrote it, and its boot partition holds the seed and
+`fiber-install.sh` pinning `8852632b...`; the kernel command line keeps Raspberry Pi OS's `resize`,
+so the root file system still grows to the eMMC at the first start. Not done: that written image's
+first start in a container (its root was imported into Docker as `fiber-setup-trial`, then Docker
+Desktop stopped, with the disk of this computer at 99 %: 13 GB free; the image is left in Docker,
+3.4 GB, to be removed with `docker rmi fiber-setup-trial`). The dry run's image is kept in the
+session's scratchpad (`dryrun-image/`, 623 MB) for that trial.
 
 - [x] `docs/provisioning.md` first: "The ready-made image": what is in it and what is not, how it
       is built, the first start on it, where it is published, its size
@@ -887,12 +886,18 @@ the catalog's values from it, and a FIBER.
       first start) and `../docs/fiber/installation.md` (not committed there, T30): with nothing
       ticked, every component installed and none on; the installation page's times are T30's to
       measure
-- [ ] FIBER Setup writes the ready-made image in place of Raspberry Pi OS Lite, always (D28): its
+- [x] FIBER Setup writes the ready-made image in place of Raspberry Pi OS Lite, always (D28): its
       catalog (the address from the release's version; sha256 and size from the dry run, marked
       as not published, as the installer is), the image step, its texts in five languages where
-      they say "a plain Raspberry Pi OS", its README; its tests and checks
+      they say "a plain Raspberry Pi OS", its README; its tests and checks (FIBER Setup's
+      `6f101b3`)
+- [ ] The image FIBER Setup wrote, started in a container without a network: its first-start
+      script takes the image's installer and the components come up (stopped at `docker
+      import` on 2026-11-21, when Docker Desktop stopped on a full disk)
 - [ ] FIBER Setup's catalog takes the image's sha256 and size from the first release (D24)
-- [ ] On a FIBER: written by FIBER Setup, the first start without the internet
+- [ ] On a FIBER: written by FIBER Setup, the first start without the internet; its time and the
+      write's (3.69 GB, where FIBER Setup's texts still say 5 minutes); the root file system grown
+      to the eMMC (`df -h /`)
 
 - Needs: T11 (done).
 - Done when: a FIBER written with the image comes up with its components without the internet, and
