@@ -35,8 +35,8 @@
         src: "{{ fiber.paths.secrets }}/login.json"
       register: chirpstack_login
 
-    # ChirpStack refuses a shorter one ("Password must be at least 8 characters"), and FIBER
-    # Setup's own suggestion, `fiber`, is shorter (seen on a FIBER, 2026-11-19).
+    # ChirpStack refuses a shorter one ("Password must be at least 8 characters", seen on a FIBER,
+    # 2026-11-19). FIBER Setup asks for 8 or more since D25; a login written by hand may not be.
     - name: ChirpStack needs a password of at least 8 characters
       ansible.builtin.fail:
         msg: >-

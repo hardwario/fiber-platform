@@ -163,8 +163,15 @@ running (Node-RED 128 MB, ChirpStack 43 MB). Each component's download and insta
 `provision/components.yaml` now, from apt's history and a fresh npm install on the FIBER: Node-RED
 115 and 490 MB, ChirpStack 17 and 68 MB, Mosquitto 1 and 2 MB (they add up to what was measured
 in all). The time in FIBER Setup's texts stays until its own first start is timed. An apply with
-nothing to do takes about 3 minutes. Waits also for D25: FIBER Setup's suggested
-password, `fiber`, is too short for ChirpStack.
+nothing to do takes about 3 minutes. D25 answered 2026-11-21 (at least 8 characters, always;
+`hardwario` pre-filled), done in FIBER Setup the same day as its commit `ac0785f`, on top of its
+unpushed commit `83d372a` (both on this computer only): `Settings::validate` refuses fewer than 8 characters (counted as characters, not bytes;
+a test with seven two-byte letters), the wizard's check mirrors it, the field is pre-filled with
+`hardwario`, the hint and the error say "at least 8 characters" in all five languages, the README
+too. FIBER Setup's `cargo test` (100), clippy, `npm run check` and `npm test` (26) pass. Here, the
+ChirpStack role's comment no longer says FIBER Setup suggests a short password (its message stays,
+for a login written by hand). The catalog still waits for the first release (D24: the maintainer
+will say when); FIBER Setup's commits are pushed then.
 Earlier (2026-11-18): everything that needs neither the first release nor a FIBER is done, in FIBER
 Setup's commit `83d372a`, which is on this computer only: its catalog names the installer built here
 from `0257447`, marked as not published. Waits for the bench (T2), as D24 says: the platform runs on a
@@ -202,6 +209,8 @@ In `../fiber-setup`. The one place where a user makes the choice.
       settings, and the user name and password for the services (D16). The file joins the list
       of old files that are cleared from the boot partition. A test here reads a seed with every
       kind of character FIBER Setup escapes, written as FIBER Setup writes it
+- [x] D25 (2026-11-21): the password at least 8 characters, always (`firstboot.rs` and the
+      wizard's check, with an error in five languages), pre-filled with `hardwario`; its tests
 - [ ] `catalog.rs`: the installer by its version and sha256, as the system image is, in place
       of an address on a `main` branch. `fiber-install.sh` fetches it and checks it; the test
       that keeps the two in step stays. Built and tested; what it names waits for the first
@@ -1923,6 +1932,10 @@ the six-digit code, and the keyed join of a known node. Every decision stays `to
 
 ## Decisions ahead
 
+None open. (D24 waits only for the maintainer to say when: the first release.)
+
+## Decisions done
+
 - **D25. Which password does FIBER Setup let through, now that it opens services?** Found on the
   bench (2026-11-19, T36): ChirpStack refuses a password shorter than 8 characters, and FIBER
   Setup suggests `fiber` and checks only that the field is not empty. The same password opens
@@ -1936,9 +1949,11 @@ the six-digit code, and the keyed join of a known node. Every decision stays `to
   3. As it is: the platform's role says what to do, and the person puts a longer password into
      `/etc/fiber/secrets/login.json`.
   The platform's side is done either way (the role's message). T12 waits for it.
-
-## Decisions done
-
+  **Answered (2026-11-21):** FIBER Setup always asks for at least 8 characters, whatever is
+  ticked, and the field is pre-filled with `hardwario` (9) in place of `fiber`. The same rule for
+  the login: the password is the user's for SSH and `sudo` too. Note: everyone knows a pre-filled
+  password, so a FIBER whose owner keeps it answers on the network with a password others know;
+  FIBER Setup's hint says to choose one's own for a FIBER that others can reach (T12).
 - **D1. How is TOWER reused?** Own it here (2026-11-17). The `tower` repository is not changed.
   This repository writes its own STM32WL55 radio firmware and its own radio interface on MQTT,
   and pins only TOWER's hardware-free crates. Tests keep the two radio stacks together (T27).
