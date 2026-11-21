@@ -196,6 +196,18 @@ enum RadioCommand {
         #[arg(long, value_parser = clap::value_parser!(u64).range(10..=600))]
         seconds: Option<u64>,
     },
+    /// Take a node off the FIBER: the north bridge forgets its key, the FIBER its topics.
+    Remove {
+        /// The node's address (0x1a2b3c4d) or its name, as `fiber radio nodes` lists them.
+        node: String,
+    },
+    /// Give a node a name of its own, at most 16 bytes.
+    Rename {
+        /// The node's address or its present name.
+        node: String,
+        /// Its new name.
+        name: String,
+    },
     /// A line for each value and event the nodes send, until Ctrl+C.
     Watch,
 }
@@ -307,6 +319,8 @@ fn main() -> ExitCode {
             }
             Some(RadioCommand::Nodes) => client::radio_nodes(&b),
             Some(RadioCommand::Pair { seconds }) => client::radio_pair(&b, seconds.unwrap_or(60)),
+            Some(RadioCommand::Remove { node }) => client::radio_remove(&b, &node),
+            Some(RadioCommand::Rename { node, name }) => client::radio_rename(&b, &node, &name),
             Some(RadioCommand::Watch) => client::radio_watch(&b),
         }),
         Command::Firmware {

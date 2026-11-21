@@ -171,7 +171,7 @@ $ fiber buttons watch
 14:02:13  down  repeat
 ```
 
-### `fiber radio [status | config | nodes | pair | watch]`
+### `fiber radio [status | config | nodes | pair | remove | rename | watch]`
 
 The radio (T26), as `radio/...` has it ([`mqtt-api.md`](mqtt-api.md), "The radio"). **Built;
 what it prints is tested on the computer. Not run against an agent with a north bridge yet.**
@@ -218,6 +218,26 @@ Paired 0x44444444. Compare this code with the node's: 004321
 ```
 
 It ends with 1 when nobody joined.
+
+`fiber radio remove NODE` takes a node off the FIBER (`radio.node_remove`): the north bridge forgets
+its key and the FIBER its topics. NODE is its address or its name, as `fiber radio nodes` lists
+them. A node is removed before it is paired again; the node itself keeps its pairing until then.
+
+```
+$ fiber radio remove button:0
+Removed 0xdf438142 (button:0).
+```
+
+`fiber radio rename NODE NAME` gives a node a name of its own (`radio.node_rename`), at most 16
+bytes, in place of the one it got (`button:0`):
+
+```
+$ fiber radio rename 0xdf438142 door
+Renamed 0xdf438142 to door.
+```
+
+Both end with 1 when there is no such node, or when the agent refuses (a name too long), and say
+why.
 
 `fiber radio watch` prints a line for each value and event the nodes send, and for each pairing,
 with the time in UTC, until Ctrl+C:

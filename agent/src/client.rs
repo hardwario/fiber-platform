@@ -679,6 +679,71 @@ pub fn radio_config(broker: &Broker, channel: Option<u8>, keyed_join: Option<boo
     show(broker, radio_text)
 }
 
+/// The node a person names, by its address (`0x1a2b3c4d`, `0X1A2B3C4D`, `1a2b3c4d`) or by its
+/// name, among the retained node topics: its address and its name.
+pub fn find_node(topics: &Retained, node: &str) -> Result<(String, String), String> {
+    let lower = node.to_ascii_lowercase();
+    let addr = match lower.strip_prefix("0x") {
+        Some(_) => lower,
+        None if lower.len() == 8 && lower.bytes().all(|b| b.is_ascii_hexdigit()) => format!("0x{lower}"),
+        None => String::new(),
+    };
+    topics
+        .iter()
+        .filter_map(|(topic, value)| {
+            let a = topic.strip_prefix("radio/nodes/")?;
+            (!a.contains('/')).then(|| (a.to_owned(), value["name"].as_str().unwrap_or("").to_owned()))
+        })
+        .find(|(a, name)| *a == addr || (!name.is_empty() && name == node))
+        .ok_or_else(|| format!("no node {node} on this FIBER (fiber radio nodes lists them)"))
+}
+
+/// What `fiber radio remove` says when it is done.
+pub fn removed_line(addr: &str, name: &str) -> String {
+    if name.is_empty() {
+        format!("Removed {addr}.")
+    } else {
+        format!("Removed {addr} ({name}).")
+    }
+}
+
+/// A node named by the person, and the radio's retained topics: (the runtime, its address, its name).
+fn named_node(broker: &Broker, node: &str) -> Result<(tokio::runtime::Runtime, String, String)> {
+    let runtime = runtime()?;
+    let topics = runtime.block_on(retained(broker))?;
+    if !topics.contains_key("radio/status") {
+        bail!("the radio is not there (no radio/status)");
+    }
+    let (addr, name) = find_node(&topics, node).map_err(anyhow::Error::msg)?;
+    Ok((runtime, addr, name))
+}
+
+/// `fiber radio remove NODE`.
+pub fn radio_remove(broker: &Broker, node: &str) -> Result<ExitCode> {
+    let (runtime, addr, name) = named_node(broker, node)?;
+    runtime.block_on(request(
+        broker,
+        "radio.node_remove",
+        json!({"addr": addr}),
+        Duration::from_secs(5),
+    ))?;
+    println!("{}", removed_line(&addr, &name));
+    Ok(ExitCode::SUCCESS)
+}
+
+/// `fiber radio rename NODE NAME`.
+pub fn radio_rename(broker: &Broker, node: &str, new_name: &str) -> Result<ExitCode> {
+    let (runtime, addr, _) = named_node(broker, node)?;
+    runtime.block_on(request(
+        broker,
+        "radio.node_rename",
+        json!({"addr": addr, "name": new_name}),
+        Duration::from_secs(5),
+    ))?;
+    println!("Renamed {addr} to {new_name}.");
+    Ok(ExitCode::SUCCESS)
+}
+
 /// `fiber radio pair [--seconds N]`: opens a window and waits for it to end; Ctrl+C closes it.
 pub fn radio_pair(broker: &Broker, seconds: u64) -> Result<ExitCode> {
     let runtime = runtime()?;
@@ -810,6 +875,40 @@ pub fn radio_watch(broker: &Broker) -> Result<ExitCode> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_node_by_its_address_or_its_name() {
+        let mut topics = Retained::new();
+        topics.insert(
+            "radio/nodes/0xdf438142".into(),
+            json!({"addr": "0xdf438142", "name": "button:0"}),
+        );
+        topics.insert(
+            "radio/nodes/0xc58d0464".into(),
+            json!({"addr": "0xc58d0464", "name": ""}),
+        );
+        // A state topic is not a node.
+        topics.insert("radio/nodes/0xdf438142/state/led".into(), json!({"value": true}));
+        let found = |node: &str| find_node(&topics, node);
+        let a = Ok(("0xdf438142".to_owned(), "button:0".to_owned()));
+        assert_eq!(found("0xdf438142"), a);
+        assert_eq!(found("0XDF438142"), a);
+        assert_eq!(found("df438142"), a);
+        assert_eq!(found("button:0"), a);
+        assert_eq!(found("0xc58d0464"), Ok(("0xc58d0464".to_owned(), String::new())));
+        // An unnamed node is not found by the empty name, and names are exact.
+        assert!(found("").is_err());
+        assert!(found("Button:0").is_err());
+        assert_eq!(
+            found("door"),
+            Err("no node door on this FIBER (fiber radio nodes lists them)".to_owned())
+        );
+        assert_eq!(
+            removed_line("0xdf438142", "button:0"),
+            "Removed 0xdf438142 (button:0)."
+        );
+        assert_eq!(removed_line("0xc58d0464", ""), "Removed 0xc58d0464.");
+    }
 
     #[test]
     fn what_fiber_radio_prints() {

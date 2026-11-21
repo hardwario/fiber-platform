@@ -866,6 +866,54 @@ makes moving the pin a procedure and not an adventure.
 - Needs: T26.
 - Done when: the bench run and the 24 hours pass, and their results are written down.
 
+### T49. `fiber radio remove` and `fiber radio rename` (M5)
+
+State (2026-11-21): started at the maintainer's word. Taking a node off the FIBER, which pairing it
+again needs, takes `radio.node_remove` sent over MQTT by hand today (on the bench with
+`mosquitto_rr`); renaming takes `radio.node_rename` the same way. Written the same day: the node
+named by its address or its name, looked up in the retained node topics, then the agent's request
+(its refusal, a name too long, ends the command with 1 and says why). `just check` passes. Left: a
+commit and its CI run. Not run against a FIBER yet.
+
+- [x] `docs/cli.md` first: `fiber radio remove NODE` and `fiber radio rename NODE NAME` (NODE its
+      address or its name), what they print, their exit statuses
+- [x] The two commands, through the requests the agent has (`radio.node_remove`,
+      `radio.node_rename`); tests of the lookup (an address in any case, with or without `0x`, a
+      name exact, an unnamed node not found by the empty name) and of what they print
+
+- Done when: both are documented, built and tested, and `just check` passes.
+
+### T30. The FIBER pages of docs.hardwario.com (M7)
+
+State (2026-11-21): started at the maintainer's word, written in full (not as a draft) in
+`../docs/fiber`, kept on this computer: the site publishes what is pushed, and until a FIBER Setup
+that installs the platform is out (T12, D24) its readers' FIBER Setup installs the earlier
+software. Written the same day, in full, in `../docs` (not committed there): `installation.md` in
+place of the setup by hand (FIBER Setup's nine steps with five of its screenshots, the settings,
+after the first start, changing the components later, and the platform's installer on a Raspberry
+Pi OS written by hand, with the `config.txt` lines never to add); new pages `components.md`,
+`thermometers.md` (from a probe to the starter flow and its dashboard, M7's "Done when"),
+`front-panel.md`, `tower-nodes.md`, `fiber-command.md`, `mqtt.md`; `introduction.md` says TOWER nodes
+now and STICKER planned, and leads to the new pages; the sidebar lists all eight; the 13 Raspberry
+Pi Imager screenshots of the old page are removed. Every fact from the platform's own docs, each
+checked against them (corrected on the way: a port's LED does not change when a probe is plugged
+in, the probes are read every 10 s, `ports.power` and `leds.set` take one port or LED). The site
+builds (`npm run build`), the FIBER pages without a warning. Before the pages are pushed, with the
+first release: the versions and CRCs in the examples to that release's, and what is still untried
+on a FIBER checked again (FIBER Setup's first start with the platform, ChirpStack with a card,
+`fiber radio remove` and `rename`).
+
+In `../docs/fiber`. The pages there describe a setup by hand that no longer works.
+
+- [x] The installation page, around FIBER Setup
+- [x] New pages: the components, the `fiber` command, the MQTT topics, pairing a TOWER node, the
+      front panel; and the thermometers, from a probe to a Node-RED flow
+- [x] What the old pages get wrong, put right: the Node-RED installer that is gone, the default
+      password, the name of the FIBER, the `config.txt` lines
+- [ ] Pushed to `../docs` with the first release (D24), its versions in the examples
+
+- Needs: a FIBER Setup that installs the platform is out (T12, D24) before the pages are pushed.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -928,19 +976,6 @@ is refused.
 
 Done when: a new user gets from the box to a thermometer in a Node-RED flow with the
 documentation alone.
-
-#### T30. The FIBER pages of docs.hardwario.com
-
-In `../docs/fiber`. The pages there describe a setup by hand that no longer works.
-
-- [ ] The installation page, around FIBER Setup
-- [ ] New pages: the components, the `fiber` command, the MQTT topics, pairing a TOWER node, the
-      front panel
-- [ ] What the old pages get wrong, put right: the Node-RED installer that is gone, the default
-      password, the name of the FIBER, the `config.txt` lines
-
-- Needs: a FIBER Setup that installs the platform is out (T12, D24): the site publishes what is
-  pushed to it, and until then its readers' FIBER Setup installs the earlier software.
 
 #### T32. A ready-made image
 
