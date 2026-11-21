@@ -856,13 +856,19 @@ the settings with none ticked. With the dry run's image put into a cache of its 
 `fiber-setup-cli image` took it as the official image without a download and unpacked it (3.69 GB);
 `flash --to-file` with the agent and Node-RED wrote it, and its boot partition holds the seed and
 `fiber-install.sh` pinning `8852632b...`; the kernel command line keeps Raspberry Pi OS's `resize`,
-so the root file system still grows to the eMMC at the first start. Not done: that written image's
-first start in a container (its root was imported into Docker as `fiber-setup-trial`, then Docker
-Desktop stopped, with the disk of this computer at 99 %: 13 GB free; the image is left in Docker,
-3.4 GB, to be removed with `docker rmi fiber-setup-trial`). The dry run's image is kept in the
-session's scratchpad (`dryrun-image/`, 623 MB) for that trial. Next, without a bench: that trial,
-once Docker runs and the disk has room (it needs about 10 GB: the raw image, the root's tar and
-Docker's copy); then nothing more here before the first release (D24) and a FIBER.
+so the root file system still grows to the eMMC at the first start. That written image's root was
+imported into Docker as `fiber-setup-trial`, then Docker Desktop stopped, with the disk of this
+computer at 99 % (13 GB free). Later that evening Docker ran again and still held the image, and
+its first start was tried in a container as `just image-test` starts one (systemd, no network,
+cloud-init masked), with what cloud-init's `runcmd` runs, `fiber-install.sh --start`: the image's
+`/opt/fiber/install.sh` is `8852632b...`; the script took "the ready-made image of the FIBER
+platform 0.1.0: its own installer, without the network"; the installer found its release unpacked
+and Ansible there, took the seed and removed it from the boot partition; the apply took 19 s
+(common and base nothing changed, Mosquitto 2 changes, the agent 5, Node-RED 4), "fiber-install
+result: OK"; the three services active and enabled, ChirpStack (not ticked) left alone; Node-RED
+takes the password typed into FIBER Setup (`/auth/token`, 200) and refuses another (403); `fiber
+status` shows the agent online. The container, the Docker image and the scratch copies removed
+since. Next: nothing more here before the first release (D24) and a FIBER.
 
 - [x] `docs/provisioning.md` first: "The ready-made image": what is in it and what is not, how it
       is built, the first start on it, where it is published, its size
@@ -893,9 +899,9 @@ Docker's copy); then nothing more here before the first release (D24) and a FIBE
       as not published, as the installer is), the image step, its texts in five languages where
       they say "a plain Raspberry Pi OS", its README; its tests and checks (FIBER Setup's
       `6f101b3`)
-- [ ] The image FIBER Setup wrote, started in a container without a network: its first-start
-      script takes the image's installer and the components come up (stopped at `docker
-      import` on 2026-11-21, when Docker Desktop stopped on a full disk)
+- [x] The image FIBER Setup wrote, started in a container without a network: its first-start
+      script takes the image's installer and the components come up (2026-11-21: in 19 s, the
+      login from FIBER Setup opening Node-RED)
 - [ ] FIBER Setup's catalog takes the image's sha256 and size from the first release (D24)
 - [ ] On a FIBER: written by FIBER Setup, the first start without the internet; its time and the
       write's (3.69 GB, where FIBER Setup's texts still say 5 minutes); the root file system grown
