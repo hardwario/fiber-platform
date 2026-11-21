@@ -6,8 +6,8 @@ agent and the firmware build these messages from one crate, `crates/protocol` (`
 and a frame from a peer built from another source is refused by its schema tag.
 
 **Status: a draft (T25).** Written before its code. The messages are in `crates/protocol`
-(`north`) and the firmware speaks them (`firmware/north`); the agent's side is T26. Not run on a
-FIBER yet; the maintainer has not read it.
+(`north`), and the firmware (`firmware/north`) and the agent (T26) speak them, on a FIBER since
+2026-11-20. The maintainer has not read it.
 
 ## What it is for
 

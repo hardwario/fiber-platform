@@ -2,8 +2,9 @@
 
 How the pieces of the FIBER platform fit together, and why they are cut this way.
 
-**Status: design.** Almost none of it is built yet; `TASKS.md` has the milestones and what is
-done. The decisions behind it are numbered there (D1, D2, ...).
+**Status:** built as this page has it, but for Bluetooth, and run on a FIBER on the bench
+(2026-11-19 to 21); `TASKS.md` has the milestones, what is done and what was seen on a FIBER. The
+decisions behind it are numbered there (D1, D2, ...).
 
 ## The pieces
 
@@ -41,16 +42,16 @@ The directory `crates/X` holds the package `fiber-X`.
 | Path | Package | Role | Exists |
 |---|---|---|---|
 | `crates/protocol` | `fiber-protocol` | `no_std`, self-contained: COBS + CRC-32 + postcard framing with its own schema tag, and the two link schemas (south, north). The one wire contract between the agent and the firmware. | the frame, the south link, and the north link's messages (T25) |
-| `crates/flasher` | `fiber-flasher` | The ROM-bootloader engine (ST AN3155) for STM32C0 and STM32WL; reset lines behind a trait; a fake ROM for tests. | the engine and the simulated chip |
+| `crates/flasher` | `fiber-flasher` | The ROM-bootloader engine (ST AN3155) for STM32C0 and STM32WL; reset lines behind a trait; a fake ROM for tests. | the engine and the simulated chip; the agent writes both bridges with it on a FIBER |
 | `crates/south-core` | `fiber-south-core` | `no_std`: the south bridge's logic, host-tested; also builds as a host simulator. | the logic, and the simulator (`fiber south-simulator`) |
 | `crates/tower-air` | `fiber-tower-air` | `no_std`: software packet codec, on-air frame codec and gateway flow of the TOWER personality, over a radio trait and the pinned TOWER kernels. | the packet codec and the frame codec, tested against captures of a Core Module (T23, T24); the gateway's flow for known nodes, tested against a made-up radio and the captured frames (T24); pairing a node and the keyed join, tested against a node made up from TOWER's kernels (T47); pin checks |
 | `crates/subghz` | `fiber-subghz` | `no_std`, no dependencies: the commands of the radio inside the STM32WL over a bus trait (the SUBGHZSPI in the firmware), and the RF switch as a trait. Layer 1 of the north bridge. | GFSK, the TCXO, the calibrations, the low-power PA; tested against the bytes the bench proved (T23) |
-| `agent/` | `fiber-agent` (bin `fiber`) | Daemon, command line and platform tool. | `fiber version`, `doctor`, `platform ...`, `agent` (the south bridge, the thermometers, the buttons, the buzzer and the backlight on MQTT; flashing the south bridge, the LCD), the board's commands; run on a FIBER: the pages on its LCD, the buttons, the buzzer and the backlight work |
+| `agent/` | `fiber-agent` (bin `fiber`) | Daemon, command line and platform tool. | `fiber version`, `doctor`, `platform ...`, `agent` (the south bridge, the thermometers, the buttons, the buzzer, the backlight and the radio on MQTT; writing both bridges' firmware; the LCD), the board's commands, `radio ...`; all of it run on a FIBER (2026-11-19 to 21) |
 | `firmware/south/` | `fiber-south` | Embassy, STM32C031C6 (thumbv6m). Own workspace. | 15.8 KB; runs on a FIBER, flashed by the agent |
-| `firmware/north/` | `fiber-north` | Embassy, STM32WL55 M4 core (thumbv7em). Own workspace. | 62.8 KB; built and checked in CI, not run on a FIBER yet (T25) |
-| `provision/` | | `install.sh`, `components.yaml`, the Ansible roles, the `config.txt` block. | `components.yaml`, `install.sh`, `release.py` |
-| `hil/` | | Bench scripts, run by hand on a FIBER, and the radio spike's firmware (T22). | bootloader probe, the north bridge's flash read and written, an LCD test pattern, the radio spike |
-| `examples/` | | Clients of the MQTT API to copy: the command line, Python, Rust (a project of its own), Node-RED flows ([`examples.md`](examples.md)). | each run in the converge test |
+| `firmware/north/` | `fiber-north` | Embassy, STM32WL55 M4 core (thumbv7em). Own workspace. | 62.8 KB; runs on a FIBER, written by the agent (since 2026-11-20) |
+| `provision/` | | `install.sh`, `components.yaml`, the Ansible roles, the `config.txt` block. | `components.yaml`, `install.sh`, `release.py`, the roles, the ready-made image's build |
+| `hil/` | | Bench scripts, run by hand on a FIBER, and the radio spike's firmware (T22). | bootloader probe, the north bridge's flash read and written, an LCD test pattern, the radio spike, the TOWER bench run |
+| `examples/` | | Clients of the MQTT API to copy: the command line, Python, Rust (a project of its own), Node-RED flows ([`examples.md`](examples.md)). | each run in the converge test, and once on a FIBER |
 
 Two kinds of Cargo workspace, as in TOWER: the host workspace at the root, and one workspace per
 firmware, each built inside its own directory so that its target and linker settings apply. The
@@ -86,8 +87,8 @@ down.
 
 Taken from TOWER's gateway API: one prefix (`fiber/`), QoS 1, state retained, events not retained,
 requests on `cmd` answered on `rsp/{id}`, and a retained `status` with a last will and a `schema`
-number that changes whenever a subscriber would notice. The reference will be `mqtt-api.md`,
-written before the code. The shape:
+number that changes whenever a subscriber would notice. The reference is
+[`mqtt-api.md`](mqtt-api.md), written before the code. The shape:
 
 | Topic | Retained | Content |
 |---|---|---|

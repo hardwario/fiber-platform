@@ -4,12 +4,13 @@ The agent shows the board on MQTT, and takes requests there. This page is the re
 anyone who talks to a FIBER through its broker: a Node-RED flow, a program of your own, and the
 `fiber` command line itself, which is a client of exactly these topics (D19).
 
-**Status: a draft for the maintainer to read (T13).** Built in the agent (T17) and tested against
-a simulated south bridge through Mosquitto; on a FIBER (2026-11-19) `status`, `power`, `ports`,
+**Status: a draft for the maintainer to read (T13).** Built in the agent and tested against a
+simulated south bridge and north bridge through Mosquitto. On a FIBER: `status`, `power`, `ports`,
 `firmware/south`, `display` and the requests `ports.power`, `leds.set`, `leds.auto`,
-`display.message` and `firmware.flash` work, also from another computer on port 1884. This first part covers the
-agent's core and the south bridge (M2); the thermometers (M3), the front panel (M4) and the radio
-(M5) add their topics with their tasks.
+`display.message` and `firmware.flash` work, also from another computer on port 1884
+(2026-11-19); `thermometers` with three probes, on each of the eight ports in turn (2026-11-21);
+`buttons/event` and `buzzer.beep` through the examples' flows (2026-11-19); the radio, its own
+section says what.
 
 ## The rules
 
@@ -151,7 +152,7 @@ a DS18B20 holds after power-on, unless the reading before it was above 75 °C.
 
 ### `firmware/chip`
 
-`firmware/south` and `firmware/north` (from T26; the north bridge's not seen on a FIBER yet):
+`firmware/south` and `firmware/north` (the north bridge's seen on a FIBER since 2026-11-20):
 
 ```json
 {"state":"running","version":"0.2.0","crc":"0x6f1c2a90","carried":"0x6f1c2a90",
@@ -199,8 +200,10 @@ press of a button or the last message (`display.message`), and comes back with t
 ## The radio
 
 **Status: a draft (T26).** Built in the agent and tested against a simulated north bridge
-(`agent/src/agent/north.rs`); not run with a real one yet. The north bridge's side is
-[`firmware/north-link.md`](firmware/north-link.md).
+(`agent/src/agent/north.rs`). On a FIBER with two TOWER nodes (2026-11-20 and 21): `radio/status`
+with its `north` counts, `radio/pairing`, each node's topics with its events, `state` and a `set`
+that reached it, and the requests `radio.pairing_open`, `radio.node_remove` and
+`radio.node_rename`. The north bridge's side is [`firmware/north-link.md`](firmware/north-link.md).
 
 The FIBER is a gateway for HARDWARIO TOWER nodes (M5). Their topics are those of TOWER's own
 gateway (its `docs/cli/mqtt-api.md` at the pinned revision) under `fiber/radio/`, where TOWER's

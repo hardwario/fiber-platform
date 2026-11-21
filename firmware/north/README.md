@@ -8,4 +8,4 @@ word. What it does: [`../../docs/firmware/north.md`](../../docs/firmware/north.m
 cargo build --release --locked   # inside this directory: its own target and linker
 ```
 
-Not run on a FIBER yet (T25).
+Runs on a FIBER since 2026-11-20, written there by the agent (T25, T26).

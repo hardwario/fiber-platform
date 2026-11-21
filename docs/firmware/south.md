@@ -6,7 +6,8 @@ board's pins in [`../hardware.md`](../hardware.md).
 
 **Status:** built, 16224 bytes (15.8 KB) of flash of the budget of 24 KB, and checked in CI. Runs
 on a FIBER (2026-11-19), written by the agent: its pins follow `Desired` and the fallback comes,
-read over SWD; nobody has looked at the LEDs (T2, T16).
+read over SWD; the port LEDs light red and green as the agent sets them (the maintainer looked,
+2026-11-21); the fallback not seen by eye (T2, T16, T19).
 
 ## Where it is
 

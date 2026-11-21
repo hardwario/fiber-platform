@@ -4,8 +4,9 @@ What runs on the north bridge (STM32WL55, its Cortex-M4 core): the FIBER's TOWER
 radio, on the agent's word. The link it speaks is in [`north-link.md`](north-link.md); what it
 does on air in [`radio.md`](radio.md); the board's pins in [`../hardware.md`](../hardware.md).
 
-**Status:** built (62.8 KB of flash, 4.8 KB of static memory) and checked in CI (T25). Not run on
-a FIBER yet: it has not said `Hello` to anyone.
+**Status:** built (62.8 KB of flash, 4.8 KB of static memory) and checked in CI (T25). Runs on a
+FIBER since 2026-11-20, written there by the agent: two TOWER nodes paired over the air, their
+frames taken in and acknowledged, a value sent to a node, its counters kept across a power cycle.
 
 ## Where it is
 
@@ -81,8 +82,9 @@ image may take 252 KB):
   where without it the chip would hang in its start until the watchdog, again and again (found in
   a review, 2026-11-21; not tried on a chip).
 
-## Not done yet
+## Not tried yet
 
-- On a FIBER: `Hello`, `Settings`, a Core Module's frames taken in (T25's "Done when").
-- The agent carries this firmware (`just build-fiber` builds it in) and writes it when the north
-  bridge runs another image or says nothing (T26); not run on a FIBER yet.
+- **A day of it:** the 24-hour run with two nodes (T27).
+- **A replay sent on air:** the refusal is tested on the computer; no radio on the bench sends a
+  captured frame again (T27).
+- **A torn watermark record** read after a power cut, and the NMI handler that copes with it (above).

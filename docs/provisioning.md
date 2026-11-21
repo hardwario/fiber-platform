@@ -3,11 +3,13 @@
 How a vanilla Raspberry Pi OS becomes a FIBER: what is installed, how the choice is stored, and how
 it is applied again later.
 
-**Status: partly built** (`TASKS.md`, T4 to T12, T18). Built so far: `provision/components.yaml`;
-the `fiber platform` commands that read and change `/etc/fiber/platform.yaml` and take the seed
+**Status: built** (`TASKS.md`, T4 to T12, T18, T32): `provision/components.yaml`; the `fiber
+platform` commands that read and change `/etc/fiber/platform.yaml` and take the seed
 ([`cli.md`](cli.md)); the release archive and the installer; the roles `base`, `mosquitto`,
 `node_red`, `chirpstack` and `agent`, tested in containers, and on a FIBER (2026-11-19) with every
-component, by the installer from a release built by hand (`TASKS.md`, T2 and T12). The
+component, by the installer from a release built by hand (`TASKS.md`, T2 and T12); the ready-made
+image, tried in containers. Not yet: a published release, FIBER Setup's own first start on a
+FIBER, the ready-made image on a FIBER. The
 package sources and versions below were checked against the upstream documentation and
 repositories on 2026-11-17; check them again when each role is changed.
 
@@ -470,8 +472,9 @@ opens an issue when one of them breaks.
 **Status: built and tried in containers on an arm64 computer (T32, 2026-11-21): `just image`
 built it from release 0.1.0 (625 MB compressed, 3.5 GB written to the eMMC), and its first start,
 in its own root started as a container with systemd and without a network, brought every
-component up in about 30 s (FIBER Setup's first-start script included). Not yet in CI, not yet
-written to a FIBER.**
+component up in about 30 s (FIBER Setup's first-start script included). The release workflow's
+dry run builds and tries it the same way (623 MB, 2026-11-21). Not yet published, not yet written
+to a FIBER.**
 
 A Raspberry Pi OS with the release and every component's packages in it, written by FIBER Setup in
 place of the stock image. Its first start installs nothing and downloads nothing: about a minute,
@@ -567,7 +570,12 @@ Built in FIBER Setup (T12), not run on a FIBER yet; tried in a container with Av
 - Every `command` task has `creates` or a real `changed_when`.
 - If a role ever needs a module of its own, that component moves into the Rust binary instead.
 
-## Not yet verified
+## Measured on a FIBER
 
-- Time and memory of a full converge on a CM4, and of the whole stack on a 1 GB module.
-- Whether a kernel update leaves a foreign `.dtbo` in `/boot/firmware/overlays/` alone.
+- **A full apply on a CM4 with 1 GB,** every component, from a release served on the FIBER itself,
+  over Wi-Fi (2026-11-19, T12): 6 min 23 s to the end of the apply, 147 MB downloaded, 687 MB more
+  on disk; 288 MB of memory in use with everything running (Node-RED 128 MB, ChirpStack 43 MB). An
+  apply with nothing to do takes about 3 minutes.
+- **The overlay stays:** with the kernel package installed again, `fiber-ds2482.dtbo` stays in
+  `/boot/firmware/overlays/` (the package's hook copies with `rsync` and deletes nothing,
+  2026-11-19). Not seen yet: an update to a newer kernel.

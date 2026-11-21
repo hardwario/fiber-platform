@@ -40,13 +40,22 @@ that is already wired together, and that you can read and change.
 
 ## Where it stands
 
-**Not ready to use yet.** The plan, the design and the map of the board are written, and the
-foundations are in place: the repository's rules, its checks, a `fiber` program that chooses
-components and applies them (`fiber platform list`, `status`, `enable`, `disable`, `apply`),
-`fiber doctor`, and the installer. Basic system configuration, Mosquitto, Node-RED, ChirpStack and
-the FIBER agent install, and are tested in containers. The agent shows the south bridge, the
-thermometers and the front panel's buttons on MQTT, against simulated hardware; the LCD and the
-radio are not written yet. Nothing has been tried on a real board.
+**Not released yet.** Everything below runs on a FIBER on the bench, installed from a release
+built by hand; FIBER Setup offers the platform from the first release on. Seen on a FIBER
+(2026-11-19 to 21):
+
+- **The setup:** every component installed by the installer and applied (basic system
+  configuration, Mosquitto, Node-RED, ChirpStack without a concentrator card, the agent), and an
+  update to the next release.
+- **The agent:** it writes both microcontrollers' firmware by itself, also after a write cut short
+  by a power cut; the status lights, the 1-Wire ports and three thermometers on MQTT and in a
+  Node-RED flow; the LCD's pages, the buttons, the buzzer and the backlight.
+- **The radio:** two TOWER nodes paired over the air, their clicks on MQTT at the first try, and a
+  setting sent back to a node.
+
+Not tried yet: FIBER Setup's own first start with the platform, a FIBER written with the
+ready-made image, ChirpStack with a concentrator card, the radio for 24 hours. Bluetooth is not
+written yet.
 
 [`TASKS.md`](TASKS.md) lists every task, what is in progress and what is done.
 
@@ -123,8 +132,8 @@ in containers; they need Docker on an arm64 machine, such as a Mac with Apple si
 |---|---|
 | [`agent`](agent) | `fiber`: the platform's commands, the agent and the command line |
 | [`crates`](crates) | What the agent and the firmware share (`crates/X` is the package `fiber-X`) |
-| [`firmware`](firmware) | The firmware of the south bridge (STM32C031, built, not run on a chip yet) and of the north bridge (STM32WL55, to come) |
-| [`provision`](provision) | The components (`components.yaml`), the installer and the release build; the Ansible roles, one per component, to come |
+| [`firmware`](firmware) | The firmware of the south bridge (STM32C031) and of the north bridge (STM32WL55, the radio) |
+| [`provision`](provision) | The components (`components.yaml`), the installer, the Ansible roles (one per component), the release build and the ready-made image |
 | [`hil`](hil) | Scripts that are run by hand on a FIBER on the bench, and the radio spike's firmware |
 | [`docs`](docs/README.md) | All documentation |
 

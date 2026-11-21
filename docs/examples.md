@@ -4,7 +4,8 @@ Small programs that use the agent's MQTT API ([`mqtt-api.md`](mqtt-api.md)), to 
 They are in [`examples/`](../examples).
 
 **Status: written (T31).** Each one runs in CI, in the converge test, against the agent's service,
-a simulated south bridge and a made-up 1-Wire tree. Not run on a FIBER yet.
+a simulated south bridge and a made-up 1-Wire tree. Each ran once on a FIBER (2026-11-19 and 20),
+with three probes, the front panel and a TOWER node; not the Rust example's alarm.
 
 ## What they need
 

@@ -5,7 +5,8 @@ field by field, and when. The agent and the firmware both build these messages f
 `crates/protocol` (`fiber-protocol`, T14), so the two cannot disagree on a field; a frame from a
 peer built from another source is refused by its schema tag.
 
-**Status: a draft for the maintainer to read (T13).** Nothing of it is built yet.
+**Status: a draft for the maintainer to read (T13).** Built in `crates/protocol` (T14) and spoken
+by the south bridge's firmware (T16) and the agent (T17), on a FIBER since 2026-11-19.
 
 ## The wire
 

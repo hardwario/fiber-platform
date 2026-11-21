@@ -4,8 +4,9 @@ Six questions that documents cannot answer. Each takes minutes on a real FIBER a
 risk from the plan, so they come before the work that depends on them (`TASKS.md`: T2 for checks
 1 to 3 and 6, T22 for check 4, T3 for check 5).
 
-**Status: checks 5 (2026-11-17), 1 and 2 (2026-11-19) are answered; checks 4 and 6 in part (2026-11-19); 3 has not been run yet.** Fill in the
-result and the date as they are answered.
+**Status: checks 5 (2026-11-17), 1 and 2 (2026-11-19) are answered; checks 4 and 6 in part
+(2026-11-19 to 21); 3 waits for a cell, without which the card has no power.** Fill in the result
+and the date as they are answered.
 
 What is needed: a FIBER-R2 rev 2.1 reachable over SSH, written by FIBER Setup with the FIBER
 software turned off (a plain Raspberry Pi OS); for check 4 also a TOWER Core Module.
@@ -296,7 +297,7 @@ address: its handler and the store take 82 bytes. Nothing else was tried.
 **The firmware itself (T16, 2026-11-18):** 16224 bytes (15.8 KB), with the panic locations left
 out and everything of the skeleton plus the core's LED engine, the frames of `fiber-protocol`, the
 reset cause, the option bytes and the empty flag. `just south-size` checks it against the budget
-in CI. Not run on a chip yet.
+in CI. Runs on a FIBER since 2026-11-19 (T16).
 
 ## 6. Is the rest of the board as the map says?
 
@@ -319,15 +320,18 @@ More that the bench showed (2026-11-19), with the platform installed:
   `provision/tests/fixtures/config.txt.stock`, and the file the `base` role wrote from it is byte
   for byte `config.txt.expected`. A kernel package installed again leaves `fiber-ds2482.dtbo` in
   place (its hook copies with `rsync` and deletes nothing).
-- **Eight 1-Wire bus masters** appear with the DS2482 overlay. With no probe plugged in, which
-  master is which port is not checked yet.
+- **Eight 1-Wire bus masters** appear with the DS2482 overlay. Master k is port k: a probe on each
+  of the eight ports in turn showed on that port alone (2026-11-21; ports 1, 2 and 5 by switching
+  a port off, 2026-11-19). A probe moved to another port shows there only after Linux drops it
+  from the old one, 100 to 115 s after the pull ([`hardware.md`](hardware.md)).
 - **The south bridge's `VREFINT_CAL` is at 0x1FFF 756A,** not 0x1FFF 7568 as the firmware first
   read it (that is `TS_CAL1`, the temperature sensor's): 1662 and 1048 on this chip, read through
   its bootloader. The first firmware's voltages were 1.59 times too low.
 - **The south bridge's pins follow `Desired`,** read over SWD with a J-Link while the firmware
   ran (the output registers of GPIOA, GPIOB and GPIOD): the ports, the LEDs set by the agent and
   by a client, and the fallback 5 s after the agent stopped (the LEDs dark but the power LED's
-  yellow, briefly once a second; the ports as they were). Not seen by eye.
+  yellow, briefly once a second; the ports as they were). By eye (2026-11-21, the maintainer): two
+  ports' LEDs red while their probes had no readings, then green; the fallback not looked at.
 - **After SWD the CM4 cannot reach the south bridge's bootloader:** `fiber firmware chip south`
   got `0x00` where the bootloader's ACK should be, and the firmware started instead. It stays so
   until the next power-on: after a power cycle the bootloader answered again, and the agent wrote

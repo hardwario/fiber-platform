@@ -22,6 +22,6 @@ says only what the directory is and how to build it.
 | [`firmware/radio-compat.md`](firmware/radio-compat.md) | Keeping the FIBER's radio and TOWER's together: what is written again here, the drift report, moving the pin, the bench run (a draft, T27) |
 | [`bench-checks.md`](bench-checks.md) | What must be confirmed on a real FIBER first, how, and the results |
 
-To come, each written before the code it describes: the north link in `firmware/`. `cli.md` and `mqtt-api.md` grow with each task.
+Each interface is written here before its code; `cli.md` and `mqtt-api.md` grow with each task.
 
 The work itself, its order and the decisions taken are in [`../TASKS.md`](../TASKS.md).

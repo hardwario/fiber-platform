@@ -2164,6 +2164,38 @@ during a watermark write (fix 4).
 
 - Done when: every finding is fixed or answered here, and `just check` passes.
 
+### T50. The documents say what the bench has shown (M7)
+
+Done 2026-11-21. Checked: every change against the dated records in `TASKS.md` and
+`docs/bench-checks.md`; `just check`. Started while every other task waits for the bench, the first
+release (D24) or a reading by the maintainer. Many status lines and "not yet" sentences in `docs/` and the
+READMEs were written before the bench of 2026-11-19 to 21 and say less than is known now: the
+north bridge's firmware "not run on a FIBER", the radio "not run with a real one", the LEDs "not
+seen by eye", the examples "not run on a FIBER", the image "not yet in CI". Found with a search for
+"not yet", "not tried", "not run" and "Status".
+Done the same day, each against the dated records here (what a record does not say was seen is
+not claimed: `fiber radio config`, `nodes` and `watch`, a port's LED dark by eye, the fallback by
+eye): the README's "Where it stands" ("Nothing has been tried on a real board") and its layout
+table; `architecture.md` (its status "design", the north bridge, the agent, the flasher, the
+provisioning, `hil/` and the examples in the table, the MQTT reference); `docs/README.md` (the
+north link "to come"); `cli.md` (its list of what exists, the north bridge's write, the board's
+commands with the thermometers and the north bridge, the radio's); `mqtt-api.md` (the core's,
+`firmware/north`, the radio's); `firmware/north.md` (its status and "Not done yet", now "Not tried
+yet"), `north-link.md`, `south-link.md` ("Nothing of it is built yet"), `south.md` (the LEDs by
+eye), `radio.md`, `firmware/north/README.md`; `examples.md`; `provisioning.md` (its status, the
+image's, and "Not yet verified", measured on a FIBER since); `release.md` (the dry run);
+`bench-checks.md` (its status, check 5's firmware, the eight masters, the LEDs by eye). Left as
+they are: the "draft" marks of the documents the maintainer has not read (T13, T25, T28).
+
+- [x] Each status line and each "not yet" read against `TASKS.md` and the dated results in
+      `docs/bench-checks.md`, and listed here with what changes
+- [x] Each brought up to date: what was seen on a FIBER, with its date; what is still untried
+      stays said
+- [x] `just check`, a commit
+
+- Done when: no page says something is untried that a FIBER has shown, and none says more than
+  was seen; `just check` passes.
+
 ## Decisions ahead
 
 None open. (D24 waits only for the maintainer to say when: the first release.)

@@ -1,14 +1,15 @@
 # The `fiber` command line
 
-`fiber` is the one program of the FIBER platform. This page describes its commands. What exists
-so far: `fiber version`, `fiber doctor`, and the `fiber platform` commands that read and change
-the choice of components, take the seed, apply the choice, and update, roll back and uninstall
-the platform. `apply` and the rest come with their tasks (`TASKS.md`, T6 and on).
+`fiber` is the one program of the FIBER platform. This page describes its commands: `fiber
+version`; the agent and the commands that talk to it (the board, the thermometers, the front
+panel, the radio, the firmware); `fiber doctor`; and the `fiber platform` commands that read and
+change the choice of components, take the seed, apply the choice, and update, roll back and
+uninstall the platform.
 
 **Status:** tested on a computer, and in a bare Debian arm64 container in CI (no broker, no
 hardware, no settings). On a FIBER (2026-11-19): `version`, `doctor`, `platform status`, `seed`
 and `apply` (through the installer), and an update to the next release; not `rollback` and
-`uninstall`.
+`uninstall`. The board's commands and the radio's say in their own sections what ran on a FIBER.
 
 ## Exit statuses
 
@@ -42,12 +43,12 @@ with, and the schema tag of the TOWER radio messages.
 **Built on the drafts of T13, which the maintainer has yet to read (T17).** Tested in a container
 against a simulated south bridge, through Mosquitto; flashing and `fiber firmware chip` are tested
 against a simulated bootloader. On a FIBER (2026-11-19): `status`, `power`, `ports`, `leds`,
-`display`, `buzzer beep`, `firmware status`, `firmware flash` and `firmware chip`; not `buttons
-watch` itself (the buttons work, read by a Node-RED flow) and not `thermometers` with a probe. These commands, but for `fiber firmware
-chip`, are clients of the agent's MQTT API ([`mqtt-api.md`](mqtt-api.md)): each one reads its
-retained topics or sends a request on `fiber/cmd`, so whatever they do, a program of your own can
-do too. They connect to
-the broker on the FIBER (`127.0.0.1:1883`); `--broker HOST[:PORT]`, `--user` and the password in
+`display`, `buzzer beep`, `thermometers` with three probes, `firmware status`, `firmware flash` (the
+north bridge too, 2026-11-20) and `firmware chip`; not `buttons watch` itself (the buttons work,
+read by a Node-RED flow). These commands, but for `fiber firmware chip`, are clients of the agent's
+MQTT API ([`mqtt-api.md`](mqtt-api.md)): each one reads its retained topics or sends a request on
+`fiber/cmd`, so whatever they do, a program of your own can do too. They connect to the broker on
+the FIBER (`127.0.0.1:1883`); `--broker HOST[:PORT]`, `--user` and the password in
 `FIBER_MQTT_PASSWORD` reach another FIBER, through its listener for the network.
 
 Their exit statuses, beside the ones at the top of this page:
@@ -79,7 +80,8 @@ firmware (`just build-fiber` builds them in) and writes each to its chip when th
 another image, speaks another schema, or says nothing (the south bridge for 10 s after the start;
 the north bridge for 30 s, its link's silence): at most three tries an hour for each, kept in
 `/var/lib/fiber/agent/flash-tries.json` across restarts. The north bridge is written by its link,
-which closes its port meanwhile; the agent's loop goes on (not run on a FIBER yet, T26).
+which closes its port meanwhile; the agent's loop goes on (seen on a FIBER, 2026-11-20: 22 s for
+the write).
 
 ### `fiber status`
 
@@ -173,8 +175,10 @@ $ fiber buttons watch
 
 ### `fiber radio [status | config | nodes | pair | remove | rename | watch]`
 
-The radio (T26), as `radio/...` has it ([`mqtt-api.md`](mqtt-api.md), "The radio"). **Built;
-what it prints is tested on the computer. Not run against an agent with a north bridge yet.**
+The radio (T26), as `radio/...` has it ([`mqtt-api.md`](mqtt-api.md), "The radio"). **What it
+prints is tested on the computer. Run on a FIBER with TOWER nodes: `status` and `pair`
+(2026-11-20), `remove` and `rename` (2026-11-21); no run of `config`, `nodes` or `watch` is
+written down.**
 
 `fiber radio` (or `fiber radio status`):
 
