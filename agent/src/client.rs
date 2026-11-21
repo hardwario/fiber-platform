@@ -573,11 +573,42 @@ pub fn radio_text(topics: &Retained) -> String {
         Some(p) if p["state"] == "open" => format!("open, {} s left", p["remaining"]),
         _ => "idle".to_owned(),
     };
-    format!(
+    let mut out = format!(
         "Radio       {radio}\nTOWER       {}, radio schema {schema}\nNodes       {} of 16{held}\nPairing     {pairing}\n",
         s("tower"),
         status["nodes"]
-    )
+    );
+    if let Some(frames) = status["north"]["frames"].as_object() {
+        let n = |key: &str| frames.get(key).and_then(Value::as_u64).unwrap_or(0);
+        let mut parts = vec![format!("{} taken in", n("taken_in"))];
+        for (key, what) in [
+            ("repeated", "repeated"),
+            ("replayed", "replayed"),
+            ("not_authentic", "not authentic"),
+            ("unknown_node", "from unknown nodes"),
+            ("not_for_us", "not for us"),
+        ] {
+            if n(key) > 0 {
+                parts.push(format!("{} {what}", n(key)));
+            }
+        }
+        let uptime = status["north"]["uptime"].as_u64().unwrap_or(0);
+        out.push_str(&format!(
+            "Frames      {}, in {}\n",
+            parts.join(", "),
+            duration(uptime)
+        ));
+    }
+    out
+}
+
+/// A while, in the unit that reads best: 45 s, 9 min, 26 h.
+fn duration(seconds: u64) -> String {
+    match seconds {
+        0..120 => format!("{seconds} s"),
+        120..7_200 => format!("{} min", seconds / 60),
+        _ => format!("{} h", seconds / 3_600),
+    }
 }
 
 /// What `fiber radio nodes` prints.
@@ -813,6 +844,24 @@ mod tests {
             "{text}"
         );
         assert!(text.ends_with("Pairing     open, 42 s left\n"), "{text}");
+        // The north bridge's counts: those not taken in only when there are any.
+        topics.insert(
+            "radio/status".into(),
+            json!({"personality": "tower-fsk", "band": "eu868", "channel": 0, "gateway": "0x2a7f03c1",
+                   "tower": "cb3b25c", "wire": "radio 0x5f3e", "can_send": true, "nodes": 2,
+                   "north": {"uptime": 584, "duty_left_ms": 35983, "frames": {"taken_in": 21, "repeated": 1,
+                             "replayed": 0, "not_authentic": 0, "unknown_node": 0, "not_for_us": 42}},
+                   "ts": 1}),
+        );
+        let text = radio_text(&topics);
+        assert!(
+            text.ends_with("Frames      21 taken in, 1 repeated, 42 not for us, in 9 min\n"),
+            "{text}"
+        );
+        assert_eq!(
+            (duration(45), duration(7_199), duration(93_600)),
+            ("45 s".into(), "119 min".into(), "26 h".into())
+        );
     }
 
     #[test]

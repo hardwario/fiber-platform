@@ -209,7 +209,9 @@ so that a power cut leaves one or the other.
 
 ```json
 {"personality":"tower-fsk","band":"eu868","channel":0,"gateway":"0x2a7f03c1",
- "tower":"cb3b25c","wire":"radio 0x5f3e","can_send":true,"nodes":3,"ts":1794952515}
+ "tower":"cb3b25c","wire":"radio 0x5f3e","can_send":true,"nodes":3,
+ "north":{"uptime":584,"duty_left_ms":35983,"frames":{"taken_in":21,"repeated":1,"replayed":0,
+ "not_authentic":0,"unknown_node":0,"not_for_us":42}},"ts":1794952515}
 ```
 
 | Key | Meaning |
@@ -221,6 +223,10 @@ so that a power cut leaves one or the other.
 | `wire` | `tower-protocol`'s radio schema tag: a node built from other tables is refused on it |
 | `can_send` | The transmit counter has its floor (nothing is sent before; the north bridge's `Status`) |
 | `nodes` | How many nodes the FIBER knows (at most 16) |
+| `north` | What the north bridge counts since it started (its `Status`, [`north-link.md`](firmware/north-link.md)), or `null` before its first: `uptime` in seconds, `duty_left_ms` (36 000 when the duty cycle's budget is full), and `frames`, the frames it heard by what became of them: `taken_in`, `repeated` (a copy: the node did not hear the acknowledgement), `replayed`, `not_authentic`, `unknown_node`, `not_for_us` (another network's, most often) |
+
+Published again when the north bridge's counts of frames change, at most every 10 s (its
+`Status`), and when anything else here changes.
 
 ### `radio/pairing`
 

@@ -95,9 +95,22 @@ gives it an address.
 | `tx_floor` | `u32` | As in `Hello`: the agent keeps it, and gives it back after a reset |
 | `can_send` | `bool` | The counter has its floor and its watermark is kept |
 | `duty_left_ms` | `u32` | What is left of the duty cycle's budget (36 000 ms when full) |
-| `taken_in` | `u32` | Frames taken in since start |
-| `passed_over` | `u32` | Frames heard and not taken in (another network, not authentic, replays) |
+| `frames` | `Frames` | The frames heard since start, by what became of them (below) |
 | `rx_dropped` | `u16` | Link frames dropped since start; it wraps |
+
+`Frames`, each a `u32` that wraps:
+
+| Field | A frame |
+|---|---|
+| `taken_in` | Taken in and passed on as an `Uplink` |
+| `repeated` | A copy of a frame already taken in: the node did not hear the acknowledgement and sent it again (answered again, not passed on) |
+| `replayed` | An older counter than the node's last: dropped |
+| `not_authentic` | From a known node, but its tag does not check under the node's key |
+| `unknown_node` | To this gateway, from a node it does not have |
+| `not_for_us` | To another address, not data (a stray acknowledgement), or not a TOWER frame of this layout: another network's, most often |
+
+A keyed join is counted in none of them: it is answered, and the agent hears of it (`KeyedJoin`,
+`JoinRefused`).
 
 ### `Uplink`
 

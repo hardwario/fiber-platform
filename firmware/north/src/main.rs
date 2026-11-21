@@ -33,8 +33,8 @@ use embassy_sync::channel::Channel;
 use embassy_time::{Duration, Instant, Timer};
 use embedded_io_async::{Read, Write};
 use fiber_protocol::north::{
-    self, Answer, Bytes, Delivery, Fault, Hello, JoinRefused, KeyedJoin, Message, Node, Outcome, Paired,
-    Personality, Reset, Sent, Status, Uplink,
+    self, Answer, Bytes, Delivery, Fault, Frames, Hello, JoinRefused, KeyedJoin, Message, Node, Outcome,
+    Paired, Personality, Reset, Sent, Status, Uplink,
 };
 use fiber_protocol::{FrameDecoder, MAX_WIRE, crc};
 use fiber_tower_air::frame::SoftAes;
@@ -250,12 +250,18 @@ impl North {
             ..Status::default()
         };
         if let Some(gw) = &self.gateway {
-            let (taken_in, passed_over) = gw.counts();
+            let f = gw.frames();
             status.tx_floor = gw.tx_floor();
             status.can_send = gw.can_send();
             status.duty_left_ms = gw.duty_left_ms();
-            status.taken_in = taken_in;
-            status.passed_over = passed_over;
+            status.frames = Frames {
+                taken_in: f.taken_in,
+                repeated: f.repeated,
+                replayed: f.replayed,
+                not_authentic: f.not_authentic,
+                unknown_node: f.unknown_node,
+                not_for_us: f.not_for_us,
+            };
         }
         status
     }

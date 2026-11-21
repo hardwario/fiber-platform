@@ -4,7 +4,9 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use fiber_protocol::north::{self, Band, Bytes, Message, NodeAdd, NodeRef, Outcome, Personality, Sent};
+use fiber_protocol::north::{
+    self, Band, Bytes, Message, NodeAdd, NodeRef, Outcome, Personality, Sent, Status,
+};
 use serde_json::{Value, json};
 use tower_protocol::props::{self, Access, Kind};
 use tower_protocol::radio::{
@@ -119,6 +121,8 @@ pub struct Radio {
     north_up: bool,
     personality: Option<Personality>,
     can_send: bool,
+    /// The north bridge's last `Status`, since its last `Hello`: its counts on `radio/status`.
+    north: Option<Status>,
     /// When the open pairing window ends.
     pairing_until: Option<u64>,
     /// Counters taken in and not yet written since then.
@@ -133,6 +137,7 @@ impl Radio {
             tower,
             north_up: false,
             personality: None,
+            north: None,
             can_send: false,
             pairing_until: None,
             dirty_since: None,
@@ -154,6 +159,7 @@ impl Radio {
     pub fn north_lost(&mut self, now: u64) -> Vec<Effect> {
         self.north_up = false;
         self.can_send = false;
+        self.north = None;
         for live in self.live.values_mut() {
             if let Some(item) = live.on_north.take() {
                 live.waiting.push_front(item);
@@ -169,6 +175,8 @@ impl Radio {
             Message::Hello(hello) => {
                 self.north_up = true;
                 self.personality = Some(hello.active);
+                // Started again: its counts start again too.
+                self.north = None;
                 if hello.tx_floor > self.store.tx_floor {
                     self.store.tx_floor = hello.tx_floor;
                     out.push(Effect::Save);
@@ -197,8 +205,13 @@ impl Radio {
                     self.store.tx_floor = status.tx_floor;
                     out.push(Effect::Save);
                 }
-                if status.can_send != self.can_send {
-                    self.can_send = status.can_send;
+                // Published again when something on `radio/status` changes: the uptime and the
+                // duty cycle alone would publish it every 10 s.
+                let frames_changed = self.north.is_none_or(|n| n.frames != status.frames);
+                let changed = status.can_send != self.can_send || frames_changed;
+                self.can_send = status.can_send;
+                self.north = Some(status);
+                if changed {
                     out.push(self.status(now));
                 }
             }
@@ -651,6 +664,18 @@ impl Radio {
                 "wire": format!("radio 0x{RADIO_TAG:04x}"),
                 "can_send": self.can_send,
                 "nodes": self.store.nodes.len(),
+                "north": self.north.map(|n| json!({
+                    "uptime": n.uptime,
+                    "duty_left_ms": n.duty_left_ms,
+                    "frames": {
+                        "taken_in": n.frames.taken_in,
+                        "repeated": n.frames.repeated,
+                        "replayed": n.frames.replayed,
+                        "not_authentic": n.frames.not_authentic,
+                        "unknown_node": n.frames.unknown_node,
+                        "not_for_us": n.frames.not_for_us,
+                    },
+                })),
                 "ts": now,
             }),
             true,
@@ -826,6 +851,55 @@ mod tests {
         // A lower floor later is not taken.
         radio.on_north(hello(10), 1001, 60);
         assert_eq!(radio.store().tx_floor, 6024);
+    }
+
+    #[test]
+    fn the_north_bridge_s_counts_on_radio_status() {
+        let mut radio = radio_with_node("climate");
+        let out = radio.on_north(hello(0), 0, 60);
+        assert!(published(&out, "radio/status").unwrap()["north"].is_null());
+        let frames = fiber_protocol::north::Frames {
+            taken_in: 21,
+            repeated: 1,
+            not_for_us: 42,
+            ..Default::default()
+        };
+        let status = |uptime: u32, frames| {
+            Message::Status(Status {
+                uptime,
+                tx_floor: 2049,
+                can_send: true,
+                duty_left_ms: 35_983,
+                frames,
+                rx_dropped: 0,
+            })
+        };
+        let out = radio.on_north(status(584, frames), 10, 60);
+        let north = published(&out, "radio/status").unwrap()["north"].clone();
+        assert_eq!(
+            north,
+            json!({"uptime": 584, "duty_left_ms": 35_983, "frames": {"taken_in": 21, "repeated": 1,
+                   "replayed": 0, "not_authentic": 0, "unknown_node": 0, "not_for_us": 42}})
+        );
+        // The same counts 10 s later: not published again for the uptime alone.
+        let out = radio.on_north(status(594, frames), 20, 60);
+        assert!(published(&out, "radio/status").is_none());
+        // A frame more: published.
+        let more = fiber_protocol::north::Frames {
+            taken_in: 22,
+            ..frames
+        };
+        let out = radio.on_north(status(604, more), 30, 60);
+        assert_eq!(
+            published(&out, "radio/status").unwrap()["north"]["frames"]["taken_in"],
+            22
+        );
+        // A new start (its `Hello`), or the north bridge lost: no counts until its next `Status`.
+        let out = radio.on_north(hello(0), 40, 60);
+        assert!(published(&out, "radio/status").unwrap()["north"].is_null());
+        radio.on_north(status(10, frames), 50, 60);
+        let out = radio.north_lost(60);
+        assert!(published(&out, "radio/status").unwrap()["north"].is_null());
     }
 
     #[test]

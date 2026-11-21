@@ -729,6 +729,21 @@ with `radio_button` at the pin, paired as `0xc58d0464`, named `button:1`, code 6
 alternating the two nodes, 5 s apart: 15 of 15 from each at the first try (0.33 to 0.35 s after
 the press), the counts of each without a gap. Left on the bench for T26: a replay sent on air (no
 radio on the bench can, T27).
+2026-11-21, without the bench: the north bridge's counts on MQTT, with frames passed over split by
+why (the 43 passed over in 584 s on the bench are not explained; a repeated frame also tells of an
+acknowledgement the node missed). The link's `Status` changes, so its schema tag does too, and the
+agent will write the north bridge at the next bench. Done the same day: the docs first
+(`north-link.md`: `Status` carries `frames`, six counts; `mqtt-api.md`: `radio/status` gets `north`
+with the uptime, the duty cycle left and the frames; `cli.md`: a `Frames` line); the gateway counts
+each frame by what became of it (`Frames`: taken in, repeated, replayed, not authentic, from an
+unknown node, not for us; a keyed join in none), its tests check each reason; the link's tag moved
+from `0xa5bc` to `0xeef8` (pinned by its test); the firmware fills it (image 64 152 bytes,
+`0xf4eb0176`; the south bridge's image did not move, `0xb79f9cb6`); the agent keeps the last
+`Status` and publishes `radio/status` again when the frames or `can_send` change (not for the
+uptime alone), clears it on a `Hello` and when the north bridge is lost; `fiber radio status` prints
+`Frames      21 taken in, 1 repeated, 42 not for us, in 9 min`. `just check` passes. Not run on a
+FIBER yet: at the next bench, the counts while the nodes click, and what the frames passed over
+are.
 
 - [x] `docs/mqtt-api.md` first: `radio/status` (the personality, the band, the channel, the
       pinned TOWER revision and its schema tag), `radio/pairing`, `radio/nodes/{addr}` with
@@ -754,6 +769,11 @@ radio on the bench can, T27).
       in-process by the tests (a pseudo-terminal command for the containers, as the south's, is
       not needed so far)
 - [x] Tests against the north bridge simulator
+- [x] The north bridge's counts on MQTT, a frame passed over by why (2026-11-21): `docs/` first
+      (`north-link.md` `Status`, `mqtt-api.md` `radio/status`, `cli.md`); the gateway counts
+      frames not for it, from unknown nodes, not authentic, repeated (the node missed the
+      acknowledgement) and replayed; the link's `Status` carries them; `radio/status` gets a
+      `north` object when they change, and `fiber radio status` a line; tests
 
 - Needs: T17, T25, T47; T21 for the code on the LCD.
 - Done when: the lines under "M5" hold with one Core Module.
@@ -807,8 +827,8 @@ second): the delay from the click to its event on the FIBER is then 0.08 s. On t
 clicks of the two nodes in turn, all at the first try; `set` (`led` false and back, each
 reported); two restarts of a node, each next click at the first try (the count starting again at
 1 is a restart, not a gap); `soak` for 3 minutes, 17 and 17 at the first try, with its progress
-lines. Left: the 24-hour run (`soak --hours 24 --every 60`), when the bench is free for a day,
-and a replay on air.
+lines. Commit `805d151`, CI run 44893781912 green. Left: the 24-hour run (`soak --hours 24
+--every 60`), when the bench is free for a day, and a replay on air.
 
 TOWER promises nothing about its radio between two revisions, and its nodes cannot be updated
 over the air. So a FIBER works with TOWER nodes built from the pinned revision, and this task

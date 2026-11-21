@@ -184,11 +184,14 @@ Radio       tower-fsk, eu868, channel 0, gateway 0x2a7f03c1
 TOWER       cb3b25c, radio schema 0x5f3e
 Nodes       2 of 16
 Pairing     idle
+Frames      21 taken in, 1 repeated, 42 not for us, in 9 min
 ```
 
 It says `the north bridge does not answer` in place of the first line when it does not, and
 `sending held back` after the nodes while the north bridge may not send (its counter has no floor
-yet).
+yet). `Frames` counts what the north bridge heard since it started (`radio/status`, `north`):
+those taken in, and those it did not take in by why, each only when there are any (`repeated`,
+`replayed`, `not authentic`, `from unknown nodes`, `not for us`).
 
 `fiber radio config [--channel N] [--keyed-join on|off]` changes the settings (`radio.config`),
 then prints the status. Every node must be on the same channel.

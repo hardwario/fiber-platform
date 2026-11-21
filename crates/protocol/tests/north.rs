@@ -5,9 +5,9 @@
 #![allow(clippy::unwrap_used)]
 
 use fiber_protocol::north::{
-    Answer, Band, Bytes, Delivery, Fault, Hello, JoinRefusal, JoinRefused, KeyedJoin, MAX_DATA, Message,
-    Node, NodeAdd, NodeRef, Outcome, Paired, PairingOpen, Personality, Queue, Reset, Sent, SetPersonality,
-    Settings, Status, TAG, Uplink,
+    Answer, Band, Bytes, Delivery, Fault, Frames, Hello, JoinRefusal, JoinRefused, KeyedJoin, MAX_DATA,
+    Message, Node, NodeAdd, NodeRef, Outcome, Paired, PairingOpen, Personality, Queue, Reset, Sent,
+    SetPersonality, Settings, Status, TAG, Uplink,
 };
 use fiber_protocol::{Error, Header, MAX_INNER, MAX_WIRE, encode, south};
 
@@ -48,8 +48,14 @@ fn every_message() -> Vec<Message> {
             tx_floor: 7_048,
             can_send: true,
             duty_left_ms: 36_000,
-            taken_in: 1_000_000,
-            passed_over: 12,
+            frames: Frames {
+                taken_in: 1_000_000,
+                repeated: 12,
+                replayed: 3,
+                not_authentic: 1,
+                unknown_node: 2,
+                not_for_us: u32::MAX,
+            },
             rx_dropped: 3,
         }),
         Message::Uplink(Uplink {
@@ -195,4 +201,4 @@ fn the_tag() {
     );
 }
 
-const TAG_PINNED: u16 = 0xa5bc;
+const TAG_PINNED: u16 = 0xeef8;

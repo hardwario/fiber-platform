@@ -149,12 +149,28 @@ pub struct Status {
     pub can_send: bool,
     /// What is left of the duty cycle's budget, in ms.
     pub duty_left_ms: u32,
-    /// Frames taken in since start.
-    pub taken_in: u32,
-    /// Frames heard and not taken in.
-    pub passed_over: u32,
+    /// The frames heard since start, by what became of them.
+    pub frames: Frames,
     /// Link frames dropped since start; it wraps.
     pub rx_dropped: u16,
+}
+
+/// The frames the north bridge heard since it started, by what became of them; each wraps
+/// (`docs/firmware/north-link.md`, `Status`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, Schema)]
+pub struct Frames {
+    /// Taken in and passed on as an `Uplink`.
+    pub taken_in: u32,
+    /// A copy of a frame already taken in: the node did not hear the acknowledgement.
+    pub repeated: u32,
+    /// An older counter than the node's last.
+    pub replayed: u32,
+    /// From a known node, its tag not checking under the node's key.
+    pub not_authentic: u32,
+    /// To this gateway, from a node it does not have.
+    pub unknown_node: u32,
+    /// To another address, not data, or not a frame of this layout.
+    pub not_for_us: u32,
 }
 
 /// A node's new frame, taken in.

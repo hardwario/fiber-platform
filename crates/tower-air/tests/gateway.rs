@@ -11,7 +11,7 @@ mod common;
 
 use common::*;
 use fiber_tower_air::frame::{FrameType, SoftAes, flags};
-use fiber_tower_air::gateway::{Gateway, MAX_REPS, Refusal, SendResult};
+use fiber_tower_air::gateway::{Frames, Gateway, MAX_REPS, Refusal, SendResult};
 
 fn uplink(counter: u32, payload: &[u8]) -> Vec<u8> {
     frame(
@@ -140,6 +140,9 @@ fn a_lost_acknowledgement() {
         .map(|(_, f)| open(&KEY, f).0.counter)
         .collect();
     assert_eq!(counters, (1..=MAX_REPS as u32).collect::<Vec<_>>());
+    // Counted as repeated, every copy, answered or not.
+    let f = gw.frames();
+    assert_eq!((f.taken_in, f.repeated), (1, MAX_REPS as u32 + 2));
 }
 
 #[test]
@@ -156,6 +159,8 @@ fn a_replay_is_dropped() {
     // The next counter is new again.
     world.borrow_mut().arrive(6_000, uplink(10, b"next"));
     assert_eq!(block_on(gw.recv(7_000)).expect("taken in").data(), b"next");
+    let f = gw.frames();
+    assert_eq!((f.taken_in, f.replayed, f.repeated), (2, 2, 0));
 }
 
 #[test]
@@ -200,6 +205,17 @@ fn only_known_nodes_and_authentic_frames() {
     assert!(block_on(gw.recv(1_000)).is_none());
     assert!(world.borrow().sent.is_empty(), "nothing answered");
     assert_eq!(gw.peer_last_seen(NODE), Some(0), "the lane did not move");
+    // Each by why: the unknown node; the other key and the damaged tag; the other gateway's and
+    // the acknowledgement.
+    assert_eq!(
+        gw.frames(),
+        Frames {
+            unknown_node: 1,
+            not_authentic: 2,
+            not_for_us: 2,
+            ..Frames::default()
+        }
+    );
 }
 
 #[test]
@@ -447,10 +463,14 @@ fn a_real_node_s_frames() {
     assert!(taken.iter().all(|t| t.1.starts_with(b"msg ") && t.1.len() == 8));
     // Every frame answered: the first copy, and each copy after it.
     assert_eq!(acks(&world).len(), frames.len());
-    // Counted: each message taken in once, each copy after it passed over.
+    // Counted: each message taken in once, each copy after it as repeated.
     assert_eq!(
-        gw.counts(),
-        (taken.len() as u32, (frames.len() - taken.len()) as u32)
+        gw.frames(),
+        Frames {
+            taken_in: taken.len() as u32,
+            repeated: (frames.len() - taken.len()) as u32,
+            ..Frames::default()
+        }
     );
     assert_eq!(
         gw.peers().collect::<Vec<_>>(),

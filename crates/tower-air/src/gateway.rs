@@ -117,10 +117,52 @@ impl Uplink {
 /// What one received frame came to.
 enum Heard {
     Uplink(Uplink),
-    /// A frame not taken in.
-    PassedOver,
+    /// A frame not taken in, and why.
+    PassedOver(PassedOver),
+    /// A keyed join, answered (or refused) at once: neither taken in nor passed over.
+    Answered,
     /// The deadline, or the radio failed.
     Nothing,
+}
+
+/// Why a frame was not taken in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PassedOver {
+    Repeated,
+    Replayed,
+    NotAuthentic,
+    UnknownNode,
+    NotForUs,
+}
+
+/// The frames heard since start, by what became of them (the link's `Status`). Each wraps.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Frames {
+    /// Taken in: new frames from known nodes.
+    pub taken_in: u32,
+    /// Copies of a frame already taken in: the node did not hear the acknowledgement.
+    pub repeated: u32,
+    /// Older counters than the node's last.
+    pub replayed: u32,
+    /// From a known node, its tag not checking under the node's key.
+    pub not_authentic: u32,
+    /// To this gateway, from a node it does not have.
+    pub unknown_node: u32,
+    /// To another address, not data, or not a frame of this layout.
+    pub not_for_us: u32,
+}
+
+impl Frames {
+    fn count(&mut self, why: PassedOver) {
+        let n = match why {
+            PassedOver::Repeated => &mut self.repeated,
+            PassedOver::Replayed => &mut self.replayed,
+            PassedOver::NotAuthentic => &mut self.not_authentic,
+            PassedOver::UnknownNode => &mut self.unknown_node,
+            PassedOver::NotForUs => &mut self.not_for_us,
+        };
+        *n = n.wrapping_add(1);
+    }
 }
 
 /// A downlink that waits for a node's next uplink.
@@ -161,9 +203,8 @@ pub struct Gateway<R: Radio, C: Clock, A: AesBlock, W: Watermark> {
     keyed_joined: Option<u32>,
     /// The last request to join that was not answered, until the agent takes it.
     join_refusal: Option<(u32, JoinRefusal)>,
-    /// Frames taken in, and heard but not taken in, since start (the link's `Status`).
-    taken_in: u32,
-    passed_over: u32,
+    /// The frames heard since start, by what became of them (the link's `Status`).
+    frames: Frames,
 }
 
 impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
@@ -196,8 +237,7 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
             keyed_join: false,
             keyed_joined: None,
             join_refusal: None,
-            taken_in: 0,
-            passed_over: 0,
+            frames: Frames::default(),
         }
     }
 
@@ -313,9 +353,9 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
         self.peer(addr).is_some_and(|p| p.waiting.is_some())
     }
 
-    /// Frames taken in since start, and frames heard but not taken in; both wrap.
-    pub fn counts(&self) -> (u32, u32) {
-        (self.taken_in, self.passed_over)
+    /// The frames heard since start, by what became of them.
+    pub fn frames(&self) -> Frames {
+        self.frames
     }
 
     /// What is left of the duty cycle's budget, in ms (36 000 when full), as of the last frame sent.
@@ -347,10 +387,11 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
         loop {
             match self.recv_frame(until_ms).await {
                 Heard::Uplink(uplink) => {
-                    self.taken_in = self.taken_in.wrapping_add(1);
+                    self.frames.taken_in = self.frames.taken_in.wrapping_add(1);
                     return Some(uplink);
                 }
-                Heard::PassedOver => self.passed_over = self.passed_over.wrapping_add(1),
+                Heard::PassedOver(why) => self.frames.count(why),
+                Heard::Answered => {}
                 Heard::Nothing => return None,
             }
         }
@@ -362,16 +403,20 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
         let Ok(Some(rx)) = self.radio.receive(&mut buf, until_ms).await else {
             return Heard::Nothing;
         };
-        self.take_in(&mut buf, rx.len, rx.rssi)
-            .await
-            .map_or(Heard::PassedOver, Heard::Uplink)
+        self.take_in(&mut buf, rx.len, rx.rssi).await
     }
 
-    /// What a received frame is: a new uplink (acknowledged when it asked), or nothing to take in.
-    async fn take_in(&mut self, buf: &mut [u8], len: usize, rssi: i16) -> Option<Uplink> {
-        let frame = buf.get_mut(..len)?;
+    /// What a received frame is: a new uplink (acknowledged when it asked), a keyed join
+    /// answered, or a frame passed over and why.
+    async fn take_in(&mut self, buf: &mut [u8], len: usize, rssi: i16) -> Heard {
+        let not_for_us = Heard::PassedOver(PassedOver::NotForUs);
+        let Some(frame) = buf.get_mut(..len) else {
+            return not_for_us;
+        };
         // The clear header says who sent it, so whose key opens it.
-        let (peek, _) = Header::parse(frame).ok()?;
+        let Ok((peek, _)) = Header::parse(frame) else {
+            return not_for_us;
+        };
         if peek.frame_type == FrameType::JoinReq && peek.flags & flags::KEYED != 0 && peek.dest == 0 {
             // A keyed join: answered like an acknowledgement, never an uplink.
             if let Some((node, answer)) = self.keyed_answer(frame) {
@@ -380,19 +425,25 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
                     self.keyed_joined = Some(node);
                 }
             }
-            return None;
+            return Heard::Answered;
         }
         if peek.dest != self.addr || peek.frame_type != FrameType::Data {
-            return None;
+            return not_for_us;
         }
         // Known nodes only: an unknown sender is dropped before any CCM work, and not answered.
-        let key = self.peer(peek.src)?.key;
-        let (hdr, range) = frame::open_frame(&mut self.ccm, &key, frame).ok()?;
+        let Some(key) = self.peer(peek.src).map(|p| p.key) else {
+            return Heard::PassedOver(PassedOver::UnknownNode);
+        };
+        let Ok((hdr, range)) = frame::open_frame(&mut self.ccm, &key, frame) else {
+            return Heard::PassedOver(PassedOver::NotAuthentic);
+        };
         if hdr.frame_type != FrameType::Data {
-            return None;
+            return not_for_us;
         }
         let confirmed = hdr.flags & flags::CONFIRMED != 0;
-        let peer = self.peer_mut(hdr.src)?;
+        let Some(peer) = self.peer_mut(hdr.src) else {
+            return Heard::PassedOver(PassedOver::UnknownNode);
+        };
         match peer.lane.classify(hdr.counter) {
             ReplayVerdict::Fresh => {
                 // The lane is not kept here: the agent keeps each node's last counter (D8), so
@@ -401,7 +452,9 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
                 if confirmed {
                     self.send_ack(hdr.src, hdr.counter, rssi).await;
                 }
-                let payload = frame.get(range)?;
+                let Some(payload) = frame.get(range) else {
+                    return not_for_us;
+                };
                 let mut out = Uplink {
                     src: hdr.src,
                     counter: hdr.counter,
@@ -411,7 +464,7 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
                     buf: [0; MAX_PAYLOAD],
                 };
                 out.buf[..payload.len()].copy_from_slice(payload);
-                Some(out)
+                Heard::Uplink(out)
             }
             ReplayVerdict::Retransmit => {
                 // The node did not hear the acknowledgement: answer again, never deliver again,
@@ -419,9 +472,9 @@ impl<R: Radio, C: Clock, A: AesBlock, W: Watermark> Gateway<R, C, A, W> {
                 if confirmed && peer.lane.reack() {
                     self.send_ack(hdr.src, hdr.counter, rssi).await;
                 }
-                None
+                Heard::PassedOver(PassedOver::Repeated)
             }
-            ReplayVerdict::Replay => None,
+            ReplayVerdict::Replay => Heard::PassedOver(PassedOver::Replayed),
         }
     }
 
