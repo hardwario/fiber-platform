@@ -17,10 +17,12 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-/// How long a message's answer may take.
-pub const ANSWER_WAIT: Duration = Duration::from_millis(200);
-/// A message is sent this many times in all.
-pub const TRIES: u32 = 3;
+/// How long a message's answer may take before it is sent again.
+pub const ANSWER_WAIT: Duration = Duration::from_secs(1);
+/// A message is sent this many times in all: 6 s, longer than the north bridge's longest turn (a
+/// pairing handshake, up to about 4.4 s), during which it reads no message. 3 tries of 200 ms gave
+/// up in the middle of one, and the `Paired` it sent then was lost (found in a review, 2026-11-21).
+pub const TRIES: u32 = 6;
 /// No frame for this long (a `Status` comes every 10 s): the north bridge has stopped.
 pub const SILENT_AFTER: Duration = Duration::from_secs(30);
 /// How long to wait before opening the port again.
@@ -30,6 +32,10 @@ const REOPEN: Duration = Duration::from_secs(5);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
     Message(Message),
+    /// The north bridge refused a message of the agent's (its `Answer`), and why.
+    Refused(Message, Outcome),
+    /// A message got no answer after all its tries, and was dropped; the link stays.
+    Unanswered(Message),
     /// The north bridge stopped answering, or the port broke: what it held is gone.
     Lost,
     /// A whole frame with another schema tag: a firmware from another build.
@@ -178,17 +184,25 @@ pub async fn serve<S: AsyncRead + AsyncWrite + Unpin>(
                         Ok((_, message)) => {
                             heard = Instant::now();
                             match message {
-                                Message::Answer(a) if in_flight.is_some_and(|(s, ..)| s == a.seq) => {
-                                    in_flight = None;
-                                }
+                                Message::Answer(a) => match in_flight {
+                                    Some((s, sent, ..)) if s == a.seq => {
+                                        in_flight = None;
+                                        if a.result == Outcome::Done {
+                                            continue;
+                                        }
+                                        Event::Refused(sent, a.result)
+                                    }
+                                    // An answer to a message dropped already.
+                                    _ => continue,
+                                },
                                 // It started again: whatever was on its way is out of date.
                                 Message::Hello(_) => {
                                     queue.clear();
                                     in_flight = None;
+                                    Event::Message(message)
                                 }
-                                _ => {}
+                                _ => Event::Message(message),
                             }
-                            Event::Message(message)
                         }
                         Err(Error::SchemaMismatch { .. }) => Event::OtherSchema,
                         Err(_) => continue,
@@ -202,27 +216,40 @@ pub async fn serve<S: AsyncRead + AsyncWrite + Unpin>(
             Step::Out(None) | Step::Flash(None) => return Ok(None),
             Step::Flash(Some(image)) => return Ok(Some(image)),
             Step::NoAnswer => match in_flight {
-                Some((_, message, tries, _)) if tries < TRIES => {
-                    let sent = write(&mut writer, &message, &mut seq).await?;
-                    in_flight = Some((sent, message, tries + 1, Instant::now() + ANSWER_WAIT));
+                // Sent again with its own seq, so that an answer to any of its tries settles it.
+                Some((s, message, tries, _)) if tries < TRIES => {
+                    send(&mut writer, &message, s).await?;
+                    in_flight = Some((s, message, tries + 1, Instant::now() + ANSWER_WAIT));
                 }
-                _ => return Err(io::Error::other(format!("no answer after {TRIES} tries"))),
+                Some((_, message, ..)) => {
+                    in_flight = None;
+                    if events.send(Event::Unanswered(message)).await.is_err() {
+                        return Ok(None);
+                    }
+                }
+                None => {}
             },
             Step::Silent => return Err(io::Error::other("the north bridge is silent")),
         }
     }
 }
 
+/// Sends `message` with the next seq; that seq.
 async fn write<W: AsyncWrite + Unpin>(writer: &mut W, message: &Message, seq: &mut u16) -> io::Result<u16> {
-    let mut wire = [0u8; MAX_WIRE];
-    let n = message
-        .encode(*seq, &mut wire)
-        .map_err(|e| io::Error::other(format!("{e:?}")))?;
-    writer.write_all(&wire[..n]).await?;
-    writer.flush().await?;
     let sent = *seq;
+    send(writer, message, sent).await?;
     *seq = seq.wrapping_add(1);
     Ok(sent)
+}
+
+/// Sends `message` with `seq`.
+async fn send<W: AsyncWrite + Unpin>(writer: &mut W, message: &Message, seq: u16) -> io::Result<()> {
+    let mut wire = [0u8; MAX_WIRE];
+    let n = message
+        .encode(seq, &mut wire)
+        .map_err(|e| io::Error::other(format!("{e:?}")))?;
+    writer.write_all(&wire[..n]).await?;
+    writer.flush().await
 }
 
 /// A north bridge made up in software, for the tests: it says `Hello`, answers every message
@@ -269,7 +296,9 @@ pub async fn simulate<S: AsyncRead + AsyncWrite + Unpin>(
                         continue;
                     }
                     let result = match message {
+                        // As the firmware: a fresh start, its nodes forgotten.
                         Message::HelloRequest => {
+                            nodes.clear();
                             write(&mut writer, &hello, &mut seq).await?;
                             continue;
                         }
@@ -381,18 +410,20 @@ mod tests {
         .unwrap();
         b.to.send(Message::NodeRemove(NodeRef { node: 0x9999_9999 }))
             .unwrap();
-        let answers: Vec<Outcome> = [
-            next_message(&mut b.events).await,
-            next_message(&mut b.events).await,
-            next_message(&mut b.events).await,
-        ]
-        .iter()
-        .map(|m| match m {
-            Message::Answer(a) => a.result,
-            other => panic!("{other:?}"),
-        })
-        .collect();
-        assert_eq!(answers, [Outcome::Done, Outcome::Done, Outcome::Unknown]);
+        // The answers `Done` say nothing; a refusal comes up with the message it refuses.
+        let refused = loop {
+            match b.events.recv().await {
+                Some(Event::Message(Message::Status(_))) => continue,
+                other => break other,
+            }
+        };
+        assert_eq!(
+            refused,
+            Some(Event::Refused(
+                Message::NodeRemove(NodeRef { node: 0x9999_9999 }),
+                Outcome::Unknown
+            ))
+        );
         // What the north bridge got, in order, each once.
         let mut got = Vec::new();
         while let Ok(m) = b.seen.try_recv() {
@@ -415,21 +446,84 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn sent_again_and_then_given_up() {
+    async fn sent_again_then_dropped_and_said() {
         let mut b = bench(true);
         // Once the link has begun (what was queued before is dropped).
         assert_eq!(b.seen.recv().await, Some(Message::HelloRequest));
         b.to.send(settings()).unwrap();
-        // Nothing answers: the HelloRequest, then the settings three times, 200 ms apart, then
-        // the link gives up.
-        let result = b.link.await.unwrap();
-        assert!(result.is_err());
+        // Nothing answers: the settings 6 times, 1 s apart, then dropped and said; the link stays
+        // until 30 s of silence.
+        let start = Instant::now();
+        assert_eq!(b.events.recv().await, Some(Event::Unanswered(settings())));
+        assert_eq!(start.elapsed(), ANSWER_WAIT * TRIES);
         let mut got = Vec::new();
         while let Ok(m) = b.seen.try_recv() {
             got.push(m);
         }
         assert_eq!(got, vec![settings(); TRIES as usize]);
-        assert!(b.events.try_recv().is_err());
+        let result = b.link.await.unwrap();
+        assert!(result.is_err(), "silent for 30 s");
+        assert_eq!(start.elapsed(), SILENT_AFTER);
+    }
+
+    /// The other end of the link, written by hand: each message the agent sends, and its seq.
+    async fn next_frame(reader: &mut (impl AsyncRead + Unpin)) -> (u16, Message) {
+        let mut decoder = FrameDecoder::<MAX_WIRE>::new();
+        let mut byte = [0u8; 1];
+        loop {
+            reader.read_exact(&mut byte).await.unwrap();
+            if let Some(frame) = decoder.push(byte[0]) {
+                return Message::decode(frame).unwrap();
+            }
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_long_turn_and_a_refusal() {
+        let (ours, theirs) = tokio::io::duplex(1024);
+        let (to, mut outgoing) = mpsc::unbounded_channel();
+        let (_flash, mut flashes) = mpsc::unbounded_channel::<&'static [u8]>();
+        let (events_tx, mut events) = mpsc::channel(8);
+        let link = tokio::spawn(async move { serve(ours, &mut outgoing, &mut flashes, &events_tx).await });
+        let (mut reader, mut writer) = tokio::io::split(theirs);
+        assert!(matches!(next_frame(&mut reader).await.1, Message::HelloRequest));
+        // A message during a turn of 4.4 s (a pairing handshake): sent again with its own seq,
+        // and the answer to its first try, late, settles it. Nothing is said, the link stays.
+        to.send(settings()).unwrap();
+        let (first, _) = next_frame(&mut reader).await;
+        for _ in 0..4 {
+            assert_eq!(next_frame(&mut reader).await, (first, settings()));
+        }
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let mut wire = [0u8; MAX_WIRE];
+        let n = Message::Answer(Answer {
+            seq: first,
+            result: Outcome::Done,
+        })
+        .encode(0, &mut wire)
+        .unwrap();
+        writer.write_all(&wire[..n]).await.unwrap();
+        // A refusal comes up with the message it refuses.
+        let queue = Message::Queue(fiber_protocol::north::Queue {
+            node: 0x1111_1111,
+            data: fiber_protocol::north::Bytes::new(b"x").unwrap(),
+        });
+        to.send(queue).unwrap();
+        let (seq, _) = next_frame(&mut reader).await;
+        let n = Message::Answer(Answer {
+            seq,
+            result: Outcome::Unknown,
+        })
+        .encode(1, &mut wire)
+        .unwrap();
+        writer.write_all(&wire[..n]).await.unwrap();
+        assert_eq!(events.recv().await, Some(Event::Refused(queue, Outcome::Unknown)));
+        assert!(
+            events.try_recv().is_err(),
+            "the settings' late answer said nothing"
+        );
+        assert!(!link.is_finished());
+        link.abort();
     }
 
     /// The images the fake flasher was given.

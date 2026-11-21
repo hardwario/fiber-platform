@@ -866,22 +866,69 @@ makes moving the pin a procedure and not an adventure.
 - Needs: T26.
 - Done when: the bench run and the 24 hours pass, and their results are written down.
 
-### T49. `fiber radio remove` and `fiber radio rename` (M5)
+### T48. A review of the radio code written without hardware (M5)
 
-State (2026-11-21): started at the maintainer's word. Taking a node off the FIBER, which pairing it
-again needs, takes `radio.node_remove` sent over MQTT by hand today (on the bench with
-`mosquitto_rr`); renaming takes `radio.node_rename` the same way. Written the same day: the node
-named by its address or its name, looked up in the retained node topics, then the agent's request
-(its refusal, a name too long, ends the command with 1 and says why). `just check` passes. Left: a
-commit and its CI run. Not run against a FIBER yet.
+State (2026-11-21): started at the maintainer's word. The agent's radio service, the north link,
+the gateway and the north bridge's firmware were written in two days, mostly without a FIBER; the
+bench found two bugs in them (the start after the bootloader's `Go`, frames cut off at a slice's
+end, T25). A reviewer that did not write them reads them for more, the error paths the bench does
+not reach above all; each finding is checked here before anything changes.
+The review came back the same day with six findings, each checked here against the code (no nonce
+reuse and no replay found; the counter, its floor, the watermark's logic, the flash path and the
+replay floor read sound). All six are real:
+1. **The link gives up too soon:** 3 tries of 200 ms (600 ms), then `Lost` and the port closed for
+   5 s; a turn of the firmware's loop is longer when a pairing handshake runs (500 ms and up to
+   3.88 s) or a downlink goes unanswered (about 0.7 s). A `Paired` sent meanwhile is lost: the north
+   bridge holds a node the agent never heard of. Fix: 6 tries of 1 s, then that message alone is
+   dropped and said; the link stays (30 s of silence still means it stopped).
+2. **A `Hello` after a lost link is not a fresh start:** the agent resets the north bridge only
+   before its first `Hello`, so after a reconnect it still holds its nodes, a pairing window and
+   what waited; a node removed meanwhile, or a window cancelled, stays. Fix: a `HelloRequest`
+   resets the north bridge, so every `Hello` is a fresh start, as the agent already treats it.
+3. **A node's queue can jam:** `node_add` with a new key makes the north bridge drop what waited,
+   while the agent still counts it as on the north bridge; the same after a `Queue` refused. Fix:
+   then the item goes back to waiting in the agent.
+4. **A watermark record cut short** by a power cut may read as a double ECC error, which raises an
+   NMI; no handler: a reset loop that a flash does not cure (the watermark pages are not erased).
+   Fix: an NMI handler that clears the ECC flag, and the record counted as torn. Not tried on a
+   chip.
+5. **A node could pair into a full table** when a node is added while a window is open. Fix: the
+   agent refuses `radio.node_add` while a window is open.
+6. **The nodes' counters are not saved when the agent stops** (`flush` is never called, nothing
+   handles `SIGTERM`). Fix: on `SIGTERM` and Ctrl+C the agent saves them before it ends.
+Docs first (`north-link.md` for 1 and 2, `mqtt-api.md` for 5, `north.md` for 4), then each fix with
+a test where one can show it. Done the same day:
+1. `north.rs`: 6 tries of 1 s, each with the same `seq` (an answer to any try settles it); a
+   message unanswered after them comes up as `Unanswered` and is dropped, the link stays; a
+   refused one comes up as `Refused` with the message it refuses, and a `Done` says nothing. Tests:
+   a message during a turn of 4.4 s, answered late, settles with nothing said; one never answered
+   is dropped after 6 s and said, the link ending only at 30 s of silence.
+2. The firmware resets on `HelloRequest` (the counter resumes at its watermark, as at any start);
+   the agent's simulated north bridge forgets its nodes there too. And on `Lost` the agent forgets
+   the north bridge's last `Hello`, so one that stays silent after the reconnect gets its firmware
+   written, which resets it through its bootloader.
+3. `Radio::not_taken`: a `Queue` refused or unanswered goes back to waiting, and a node given a new
+   key by `radio.node_add` has its waiting value put back too; both go again with the node's next
+   uplink (a test).
+4. The firmware's `NonMaskableInt` clears `FLASH_ECCR.ECCD` while a watermark record is read and
+   counts the record as torn; any other NMI waits for the watchdog, as before. Not tried on a chip.
+5. `radio.node_add` is refused while a pairing window is open (a test).
+6. `SIGTERM` and Ctrl+C end the agent's loop (`Stop::End`); it writes the radio's store first
+   (`Agent::end`, a test: a counter taken in after the last save is on disk after the stop).
+`just check` passes; the north bridge's image is now 64 280 bytes, `0xc3703756` (the south
+bridge's is the same). Left: a commit and its CI run, and the fixes on the next bench (the agent
+writes the new firmware by itself).
 
-- [x] `docs/cli.md` first: `fiber radio remove NODE` and `fiber radio rename NODE NAME` (NODE its
-      address or its name), what they print, their exit statuses
-- [x] The two commands, through the requests the agent has (`radio.node_remove`,
-      `radio.node_rename`); tests of the lookup (an address in any case, with or without `0x`, a
-      name exact, an unnamed node not found by the empty name) and of what they print
+- [x] The review: `agent/src/agent/radio/`, `agent/src/agent/north.rs`, the radio parts of
+      `agent/src/agent/run.rs` and `daemon.rs`, `crates/tower-air/src/gateway*.rs`,
+      `crates/protocol/src/north.rs`, `firmware/north/src/`
+- [x] Each finding checked against the code and the docs: all six real (above)
+- [x] The docs for 1, 2, 4 and 5
+- [x] The fixes, each with its test: 1 and 2 (the link and the firmware), 3 (the service), 4 (the
+      firmware's NMI), 5 (the service), 6 (the agent's end)
+- [ ] `just check`, and the fixes on the next bench
 
-- Done when: both are documented, built and tested, and `just check` passes.
+- Done when: every finding is fixed or answered here, and `just check` passes.
 
 ### T30. The FIBER pages of docs.hardwario.com (M7)
 
@@ -1964,6 +2011,22 @@ the six-digit code, and the keyed join of a known node. Every decision stays `to
 
 - Needs: T24.
 - Done when: the tests pass; a real Core Module pairing with a FIBER is T26's check (M5).
+
+### T49. `fiber radio remove` and `fiber radio rename` (M5)
+
+Done 2026-11-21 (`4ea31f1`; CI run 44901139253 green in every job).
+Checked: `docs/cli.md` first; the lookup of a node by its address (any case, with or without
+`0x`) or its exact name in the retained node topics, and what the commands print, in tests; clippy,
+`just check`, and the commit alone (without T48's changes beside it) built and tested in a worktree
+of its own. Not run against a FIBER yet.
+
+- [x] `docs/cli.md` first: `fiber radio remove NODE` and `fiber radio rename NODE NAME` (NODE its
+      address or its name), what they print, their exit statuses
+- [x] The two commands, through the requests the agent has (`radio.node_remove`,
+      `radio.node_rename`); tests of the lookup (an address in any case, with or without `0x`, a
+      name exact, an unnamed node not found by the empty name) and of what they print
+
+- Done when: both are documented, built and tested, and `just check` passes.
 
 ## Decisions ahead
 

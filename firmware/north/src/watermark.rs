@@ -8,8 +8,15 @@
 //! written next, so one of the two always holds the last value. The counter only grows, so the
 //! highest record of the two pages is the watermark.
 
+use core::sync::atomic::{AtomicBool, Ordering};
+
 use embassy_stm32::flash::{Blocking, Flash};
 use fiber_tower_air::gateway::Watermark;
+
+/// A record is being read: a double ECC error now is a record cut short, not a fault.
+pub static READING: AtomicBool = AtomicBool::new(false);
+/// The NMI handler saw a double ECC error while a record was read (`main.rs`).
+pub static ECC_ERROR: AtomicBool = AtomicBool::new(false);
 
 /// The flash's pages, 2 KB on the STM32WL.
 const PAGE: u32 = 2048;
@@ -39,11 +46,14 @@ impl FlashWatermark {
 
     fn record(&mut self, page: usize, index: u32) -> Record {
         let mut bytes = [0u8; RECORD as usize];
-        if self
-            .flash
-            .blocking_read(PAGES[page] + index * RECORD, &mut bytes)
-            .is_err()
-        {
+        // The flash keeps an error-correcting code for each 8 bytes: a word whose write or erase a
+        // power cut stopped can read as a double error, which raises the NMI. Its handler clears
+        // the flag and says so here, and the record counts as torn.
+        ECC_ERROR.store(false, Ordering::SeqCst);
+        READING.store(true, Ordering::SeqCst);
+        let read = self.flash.blocking_read(PAGES[page] + index * RECORD, &mut bytes);
+        READING.store(false, Ordering::SeqCst);
+        if read.is_err() || ECC_ERROR.swap(false, Ordering::SeqCst) {
             return Record::Torn;
         }
         let value = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);

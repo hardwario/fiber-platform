@@ -119,6 +119,24 @@ unsafe fn HardFault(frame: &ExceptionFrame) -> ! {
     fault_store(FAULT_HARD, frame.pc())
 }
 
+/// A double ECC error in a flash read raises the NMI. While a watermark record is read, it is a
+/// record a power cut stopped: the flag is cleared and the record counts as torn (`watermark.rs`);
+/// without this the chip would hang here at every start (found in a review, 2026-11-21). Any other
+/// NMI waits for the watchdog, as before.
+#[exception]
+unsafe fn NonMaskableInt() {
+    let eccr = pac::FLASH.eccr();
+    if eccr.read().eccd() && watermark::READING.load(Ordering::SeqCst) {
+        // The flag is cleared by writing 1 to it.
+        eccr.modify(|w| w.set_eccd(true));
+        watermark::ECC_ERROR.store(true, Ordering::SeqCst);
+        return;
+    }
+    loop {
+        cortex_m::asm::nop();
+    }
+}
+
 // ---- What the chip says about itself -----------------------------------------------------------
 
 unsafe extern "C" {
@@ -270,12 +288,11 @@ impl North {
     async fn handle(&mut self, seq: u16, message: Message) {
         let result = match message {
             Message::HelloRequest => {
-                let mut hello = self.hello;
-                if let Some(gw) = &self.gateway {
-                    hello.tx_floor = gw.tx_floor();
-                }
-                self.sender.send(&Message::Hello(hello)).await;
-                return;
+                // A fresh start, so that every Hello is one (`docs/firmware/north-link.md`): the
+                // agent sends it whenever it opens the port, and then sends the settings, the
+                // nodes and what waits again. The counter resumes at its kept watermark, as at any
+                // start, above every counter used.
+                cortex_m::peripheral::SCB::sys_reset()
             }
             Message::SetPersonality(m) => match m.personality {
                 Personality::TowerFsk => Outcome::Done,

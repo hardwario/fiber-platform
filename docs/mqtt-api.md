@@ -455,7 +455,8 @@ Adds a node whose key is known already (provisioned by cable, or moved from anot
 | `key` | Its AES-128 key, 32 hex digits |
 | `name` | Optional, at most 16 bytes |
 
-`data`: none.
+`data`: none. Refused while a pairing window is open: a node that paired meanwhile could find the
+north bridge's 16 places taken. Close the window first (`radio.pairing_cancel`).
 
 ### `radio.node_remove`, `radio.node_rename`
 

@@ -75,6 +75,11 @@ image may take 252 KB):
   a counter used twice under one key would break the encryption. One record covers 1024 counters,
   so a page lasts 262 144 frames sent, and the flash's 10 000 erases a page far longer than the
   product.
+- **A record cut short may not even read:** the flash keeps an error-correcting code for each
+  8 bytes, and a word whose write or erase a power cut stopped can read as a double error, which
+  raises an NMI. The firmware's NMI handler clears the flash's flag and the record counts as torn,
+  where without it the chip would hang in its start until the watchdog, again and again (found in
+  a review, 2026-11-21; not tried on a chip).
 
 ## Not done yet
 

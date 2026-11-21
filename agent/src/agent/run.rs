@@ -54,6 +54,8 @@ pub enum Stop {
     Flash { request: Option<String> },
     /// The time without the link is over: try to open the port again.
     Reopen,
+    /// The agent is to end (`SIGTERM`, Ctrl+C): what it keeps is written first ([`Agent::end`]).
+    End,
 }
 
 /// What comes from the broker.
@@ -113,6 +115,8 @@ pub struct Agent<B: Bus> {
     stale: std::collections::BTreeSet<String>,
     /// The buttons' gestures, from the thread that watches them; none without the lines.
     pub gestures: Option<mpsc::Receiver<ButtonEvent>>,
+    /// A word that the agent is to end (`SIGTERM`, Ctrl+C), from the daemon; none in most tests.
+    pub stopping: Option<mpsc::Receiver<()>>,
     /// The buzzer's patterns; none without its line.
     pub buzzer: Option<mpsc::UnboundedSender<Pattern>>,
     /// The backlight's duty cycle, 0 to 100 %; none without it.
@@ -211,6 +215,7 @@ impl<B: Bus> Agent<B> {
             thermometers_sent: Default::default(),
             stale: Default::default(),
             gestures: None,
+            stopping: None,
             buzzer: None,
             backlight: None,
             backlight_sent: None,
@@ -782,14 +787,23 @@ impl<B: Bus> Agent<B> {
                 radio.service.on_north(message, ts, offset)
             }
             Event::Lost => {
-                // Nothing heard from it since the agent started or since it was written: a
-                // north bridge without this firmware.
+                // Nothing heard from it since the agent started or since it was written, nor
+                // since the last time it was lost: a north bridge without this firmware, or one
+                // that hangs. Writing it resets it through its bootloader. The first time it is
+                // lost after a `Hello`, the port opening again resets it (its `HelloRequest`).
                 if radio.chip.hello.is_none() && !radio.chip.flashing {
                     radio.chip.state = FirmwareState::Silent;
                     seen = Some(Seen::Silent);
                 }
+                radio.chip.hello = None;
                 radio.service.north_lost(ts)
             }
+            Event::Refused(message, outcome) => {
+                radio.service.not_taken(&message, &format!("refused {outcome:?}"))
+            }
+            Event::Unanswered(message) => radio
+                .service
+                .not_taken(&message, &format!("did not answer {} tries", super::north::TRIES)),
             Event::OtherSchema => {
                 seen = Some(Seen::OtherSchema);
                 vec![super::radio::service::Effect::Say(
@@ -936,6 +950,17 @@ impl<B: Bus> Agent<B> {
         }
     }
 
+    /// Before the agent ends: the radio's nodes and their counters written, which it otherwise
+    /// writes at most every 60 s; without it a counter taken in meanwhile was lost with the agent
+    /// (found in a review, 2026-11-21).
+    pub async fn end(&mut self) {
+        let effects = match &mut self.radio {
+            Some(radio) => radio.service.flush(),
+            None => return,
+        };
+        self.apply_radio(effects).await;
+    }
+
     /// The local time's offset from UTC, in minutes, for a node's clock.
     fn utc_offset_min(&mut self, ts: u64) -> i16 {
         self.sources.as_mut().map_or(0, |s| (s.zone.at(ts).0 / 60) as i16)
@@ -1013,6 +1038,15 @@ where
                 None => std::future::pending().await,
             }
         };
+        let stopping = async {
+            match &mut agent.stopping {
+                Some(stopping) => match stopping.recv().await {
+                    Some(()) => {}
+                    None => std::future::pending().await,
+                },
+                None => std::future::pending().await,
+            }
+        };
         let from_north = async {
             match &mut agent.radio {
                 Some(radio) => match radio.north.from.recv().await {
@@ -1035,6 +1069,7 @@ where
                 BusEvent::Set { topic, payload } => agent.radio_set(topic, payload).await,
             },
             () = over => return Ok(Stop::Reopen),
+            () = stopping => return Ok(Stop::End),
         }
         if let Some(request) = agent.flash.take() {
             return Ok(Stop::Flash { request });
@@ -1361,6 +1396,37 @@ mod tests {
             2,
             "the new node kept"
         );
+
+        // A counter taken in after the last save is written when the agent is stopped (SIGTERM),
+        // not lost with it.
+        inject
+            .send(Message::Uplink(Uplink {
+                node: 0x1111_1111,
+                counter: 102,
+                rssi: -70,
+                confirmed: true,
+                data: Bytes::new(&buf[..n]).unwrap(),
+            }))
+            .unwrap();
+        run_without_link(&mut agent, Duration::from_secs(1)).await;
+        let counter = |path: &std::path::Path| {
+            let kept = store::Store::load(path).unwrap().unwrap();
+            kept.nodes
+                .iter()
+                .find(|n| n.addr == 0x1111_1111)
+                .unwrap()
+                .last_counter
+        };
+        assert_eq!(counter(&path), 101, "not written yet: at most every 60 s");
+        let (stop, stopping) = mpsc::channel(1);
+        agent.stopping = Some(stopping);
+        stop.send(()).await.unwrap();
+        assert!(matches!(
+            run_without_link(&mut agent, Duration::from_secs(5)).await,
+            Stop::End
+        ));
+        agent.end().await;
+        assert_eq!(counter(&path), 102);
     }
 
     #[tokio::test(start_paused = true)]

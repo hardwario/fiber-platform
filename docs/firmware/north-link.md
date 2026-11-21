@@ -60,9 +60,13 @@ personality on the same link: one at a time, chosen by the agent.
 | `0x1A` | `StatusRequest` | agent to north | When the agent wants a `Status` now |
 
 **Every message from the agent is answered** (but `HelloRequest`, which a `Hello` answers): an
-`Answer` with its `seq` and how it went. The agent sends one message at a time, waits up to
-200 ms for its answer, and sends it again when none comes. A message that arrives twice (its
-answer was lost) does the same thing twice, and each message is made so that this is harmless.
+`Answer` with its `seq` and how it went. The agent sends one message at a time, waits up to 1 s
+for its answer, and sends it again when none comes, 6 times in all: longer than the north bridge's
+longest turn, a pairing handshake of up to about 4.4 s, during which it reads no message (it keeps
+them, four deep). A message that arrives twice (its answer was lost) does the same thing twice,
+and each message is made so that this is harmless. One still unanswered after its 6 tries is
+dropped, and the agent says so; the link stays, as only 30 s without a frame means the north
+bridge has stopped.
 
 ### `Hello`
 
@@ -202,13 +206,19 @@ wait until it closes (they send again, as TOWER's own gateway does).
 
 ### `HelloRequest`, `StatusRequest`
 
-No payload: answered with a `Hello`, a `Status`.
+No payload. **`HelloRequest` starts the north bridge again** (a reset), and it says its `Hello`
+as at every start: what it held, the nodes, a pairing window, what waited for a node, is gone. So
+every `Hello` is a fresh start, and the agent sends it all again. The agent sends a `HelloRequest`
+each time it opens the port: at its own start, after writing the firmware, after a lost link.
+`StatusRequest` is answered with a `Status`.
 
 ## The timing
 
 - **At start** the firmware sends a `Hello` and waits, silent on the radio, for `Settings`.
 - **The agent, on a `Hello`:** `Settings`, then a `NodeAdd` for each node, each answered before
   the next. The radio starts with the `Settings`.
-- **A `Status` every 10 s.** The agent keeps its `tx_floor`; no `Status` for 30 s means the north
-  bridge has stopped, and the agent resets it (T26).
+- **A `Status` every 10 s.** The agent keeps its `tx_floor`. No frame for 30 s means the north
+  bridge has stopped: the agent opens the port again, and its `HelloRequest` resets the north
+  bridge. One that still says nothing for 30 s gets its firmware written again, which resets it
+  through its bootloader.
 - **Uplinks as they come,** each passed on before the north bridge takes the next frame in.

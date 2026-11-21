@@ -4,9 +4,7 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use fiber_protocol::north::{
-    self, Band, Bytes, Message, NodeAdd, NodeRef, Outcome, Personality, Sent, Status,
-};
+use fiber_protocol::north::{self, Band, Bytes, Message, NodeAdd, NodeRef, Personality, Sent, Status};
 use serde_json::{Value, json};
 use tower_protocol::props::{self, Access, Kind};
 use tower_protocol::radio::{
@@ -101,6 +99,24 @@ impl Live {
     }
 }
 
+/// A message of the agent's to the north bridge, in a few words for a log line: never its key.
+fn what(message: &Message) -> String {
+    match message {
+        Message::Settings(s) => format!("the settings (channel {})", s.channel),
+        Message::NodeAdd(n) => format!("adding {}", address(n.node)),
+        Message::NodeRemove(n) => format!("removing {}", address(n.node)),
+        Message::Queue(q) => format!("a message for {}", address(q.node)),
+        Message::Unqueue(n) => format!("dropping the message for {}", address(n.node)),
+        Message::PairingOpen(p) => format!("a pairing window of {} s", p.seconds),
+        Message::PairingCancel => "closing the pairing window".into(),
+        Message::SetPersonality(_) => "the personality".into(),
+        Message::ListNodes => "the list of nodes".into(),
+        Message::StatusRequest => "a status".into(),
+        Message::HelloRequest => "a hello".into(),
+        _ => "a message".into(),
+    }
+}
+
 /// The radio in short, for the front panel.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Summary {
@@ -168,6 +184,19 @@ impl Radio {
         vec![self.status(now)]
     }
 
+    /// A message of the agent's that the north bridge refused, or never answered (`why`): said,
+    /// and a value it was to keep for a node goes back to waiting here, to go again after the next
+    /// `Hello` or the node's next uplink.
+    pub fn not_taken(&mut self, message: &Message, why: &str) -> Vec<Effect> {
+        if let Message::Queue(q) = message
+            && let Some(live) = self.live.get_mut(&q.node)
+            && let Some(item) = live.on_north.take()
+        {
+            live.waiting.push_front(item);
+        }
+        vec![Effect::Say(format!("the north bridge {why}: {}", what(message)))]
+    }
+
     /// One message from the north bridge.
     pub fn on_north(&mut self, message: Message, now: u64, utc_offset_min: i16) -> Vec<Effect> {
         let mut out = Vec::new();
@@ -214,12 +243,6 @@ impl Radio {
                 if changed {
                     out.push(self.status(now));
                 }
-            }
-            Message::Answer(answer) if answer.result != Outcome::Done => {
-                out.push(Effect::Say(format!(
-                    "the north bridge refused a message: {:?}",
-                    answer.result
-                )));
             }
             Message::Uplink(up) => out.extend(self.uplink(up, now, utc_offset_min)),
             Message::Delivery(d) => {
@@ -484,12 +507,18 @@ impl Radio {
                 if name.len() > NAME_MAX {
                     return Err(format!("invalid argument: name is at most {NAME_MAX} bytes"));
                 }
+                // A node that paired meanwhile could find the north bridge's places taken.
+                if self.pairing_until.is_some() {
+                    return Err("a pairing window is open: close it first (radio.pairing_cancel)".into());
+                }
                 let full = self.store.nodes.len() >= MAX_NODES;
+                let mut rekeyed = false;
                 match self.store.node_mut(addr) {
                     Some(node) => {
                         if node.key != key {
                             node.key = key;
                             node.last_counter = 0;
+                            rekeyed = true;
                         }
                         if !name.is_empty() {
                             node.name = name;
@@ -505,6 +534,14 @@ impl Radio {
                     }),
                 }
                 out.push(Effect::Save);
+                // Under another key the north bridge drops what waited for the node: it goes back
+                // to waiting here, and to the north bridge again with the node's next uplink.
+                if rekeyed
+                    && let Some(live) = self.live.get_mut(&addr)
+                    && let Some(item) = live.on_north.take()
+                {
+                    live.waiting.push_front(item);
+                }
                 if self.north_up
                     && let Some(node) = self.store.node(addr)
                 {
@@ -1082,6 +1119,54 @@ mod tests {
             published(&radio.tick(380), "radio/pairing").unwrap()["state"],
             "idle"
         );
+    }
+
+    #[test]
+    fn a_value_the_north_bridge_dropped_goes_again() {
+        let mut radio = radio_with_node("climate");
+        radio.on_north(hello(0), 0, 60);
+        let report = || {
+            let mut values = heapless::Vec::new();
+            values.push((0u8, 2150)).unwrap();
+            NodeMsg::Report(values)
+        };
+        let queue_in = |out: &[Effect]| to_north(out).into_iter().find(|m| matches!(m, Message::Queue(_)));
+        let out = radio.set("0x11111111", "heartbeat", b"600", 1, 60).unwrap();
+        let queued = queue_in(&out).expect("on its way to the north bridge");
+        // Refused (or never answered): said, and it goes again with the node's next uplink.
+        let said = radio.not_taken(&queued, "refused Unknown");
+        assert_eq!(
+            said,
+            vec![Effect::Say(
+                "the north bridge refused Unknown: a message for 0x11111111".into()
+            )]
+        );
+        let out = radio.on_north(uplink(101, &report()), 2, 60);
+        assert_eq!(queue_in(&out), Some(queued), "sent again");
+        // Under another key the north bridge drops it too: it goes again the same way.
+        let key = "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a";
+        let (_, out) = radio
+            .request("radio.node_add", &json!({"addr": "0x11111111", "key": key}), 3)
+            .unwrap();
+        assert!(matches!(to_north(&out)[..], [Message::NodeAdd(_)]));
+        let out = radio.on_north(uplink(1, &report()), 4, 60);
+        assert_eq!(queue_in(&out), Some(queued), "sent again under the new key");
+    }
+
+    #[test]
+    fn no_node_added_while_a_window_is_open() {
+        let mut radio = radio_with_node("climate");
+        radio.on_north(hello(0), 0, 60);
+        radio
+            .request("radio.pairing_open", &json!({"seconds": 60}), 1)
+            .unwrap();
+        let add = json!({"addr": "0x22222222", "key": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"});
+        assert_eq!(
+            radio.request("radio.node_add", &add, 2).map(|_| ()),
+            Err("a pairing window is open: close it first (radio.pairing_cancel)".into())
+        );
+        radio.request("radio.pairing_cancel", &json!({}), 3).unwrap();
+        assert!(radio.request("radio.node_add", &add, 4).is_ok());
     }
 
     #[test]

@@ -95,6 +95,20 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
             env!("CARGO_PKG_VERSION"),
             board::SOUTH_BRIDGE_UART
         );
+        // SIGTERM (systemd's stop) or Ctrl+C: the loop ends, and what the agent keeps is written.
+        let (stop, stopping) = tokio::sync::mpsc::channel(1);
+        agent.stopping = Some(stopping);
+        tokio::spawn(async move {
+            let Ok(mut term) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            else {
+                return;
+            };
+            tokio::select! {
+                _ = term.recv() => {}
+                _ = tokio::signal::ctrl_c() => {}
+            }
+            let _ = stop.send(()).await;
+        });
         agent.notify.send("READY=1");
         // For the tests: another serial port, a pseudo-terminal to the simulated south bridge.
         let port = std::env::var("FIBER_SOUTH_PORT").unwrap_or_else(|_| board::SOUTH_BRIDGE_UART.to_owned());
@@ -120,9 +134,16 @@ pub fn agent(paths: &Paths) -> Result<ExitCode> {
                     run_without_link(&mut agent, REOPEN).await
                 }
             };
-            // The link's port is closed again before the flasher opens it.
-            if let Stop::Flash { request } = stop {
-                flash(&mut agent, request).await;
+            match stop {
+                // The link's port is closed again before the flasher opens it.
+                Stop::Flash { request } => flash(&mut agent, request).await,
+                Stop::End => {
+                    agent.notify.send("STOPPING=1");
+                    agent.end().await;
+                    eprintln!("fiber agent: stopped");
+                    return Ok(ExitCode::SUCCESS);
+                }
+                Stop::Reopen => {}
             }
         }
     })
