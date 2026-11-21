@@ -209,7 +209,10 @@ wait until it closes (they send again, as TOWER's own gateway does).
 No payload. **`HelloRequest` starts the north bridge again** (a reset), and it says its `Hello`
 as at every start: what it held, the nodes, a pairing window, what waited for a node, is gone. So
 every `Hello` is a fresh start, and the agent sends it all again. The agent sends a `HelloRequest`
-each time it opens the port: at its own start, after writing the firmware, after a lost link.
+each time it opens the port: at its own start, after writing the firmware, after a lost link. A
+`Status` that comes before any `Hello` since then means the request was lost (seen on a FIBER, right
+after writing the firmware: the north bridge was still starting): the agent sends it again, at
+most once for each `Status`.
 `StatusRequest` is answered with a `Status`.
 
 ## The timing

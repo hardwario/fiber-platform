@@ -148,6 +148,9 @@ pub async fn serve<S: AsyncRead + AsyncWrite + Unpin>(
     // The message waiting for its answer: its seq, itself, how often sent, until when.
     let mut in_flight: Option<(u16, Message, u32, Instant)> = None;
     let mut heard = Instant::now();
+    // No `Hello` yet on this port: a `Status` meanwhile means the `HelloRequest` was lost (right
+    // after a write the north bridge may still be starting), and it is sent again.
+    let mut hello_seen = false;
     loop {
         if in_flight.is_none()
             && let Some(message) = queue.pop_front()
@@ -197,8 +200,13 @@ pub async fn serve<S: AsyncRead + AsyncWrite + Unpin>(
                                 },
                                 // It started again: whatever was on its way is out of date.
                                 Message::Hello(_) => {
+                                    hello_seen = true;
                                     queue.clear();
                                     in_flight = None;
+                                    Event::Message(message)
+                                }
+                                Message::Status(_) if !hello_seen => {
+                                    write(&mut writer, &Message::HelloRequest, &mut seq).await?;
                                     Event::Message(message)
                                 }
                                 _ => Event::Message(message),
@@ -476,6 +484,55 @@ mod tests {
                 return Message::decode(frame).unwrap();
             }
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_hello_asked_again_when_a_status_comes_first() {
+        let (ours, theirs) = tokio::io::duplex(1024);
+        let (_to, mut outgoing) = mpsc::unbounded_channel();
+        let (_flash, mut flashes) = mpsc::unbounded_channel::<&'static [u8]>();
+        let (events_tx, mut events) = mpsc::channel(8);
+        let link = tokio::spawn(async move { serve(ours, &mut outgoing, &mut flashes, &events_tx).await });
+        let (mut reader, mut writer) = tokio::io::split(theirs);
+        let mut wire = [0u8; MAX_WIRE];
+        let mut say = async |message: Message, seq| {
+            let n = message.encode(seq, &mut wire).unwrap();
+            writer.write_all(&wire[..n]).await.unwrap();
+        };
+        // Its HelloRequest is lost (the north bridge still starting), and a Status comes: asked again.
+        assert!(matches!(next_frame(&mut reader).await.1, Message::HelloRequest));
+        say(Message::Status(Status::default()), 0).await;
+        assert!(matches!(next_frame(&mut reader).await.1, Message::HelloRequest));
+        assert!(matches!(
+            events.recv().await,
+            Some(Event::Message(Message::Status(_)))
+        ));
+        // Its Hello: from now on a Status asks for nothing.
+        let hello = Message::Hello(Hello {
+            version: [0, 1, 0],
+            image_crc: 1,
+            uid: [0; 12],
+            reset: Reset::Software,
+            fault: None,
+            personalities: 1,
+            active: Personality::TowerFsk,
+            tx_floor: 0,
+        });
+        say(hello, 1).await;
+        assert_eq!(events.recv().await, Some(Event::Message(hello)));
+        say(Message::Status(Status::default()), 2).await;
+        assert!(matches!(
+            events.recv().await,
+            Some(Event::Message(Message::Status(_)))
+        ));
+        let mut byte = [0u8; 1];
+        assert!(
+            tokio::time::timeout(Duration::from_secs(1), reader.read_exact(&mut byte))
+                .await
+                .is_err(),
+            "nothing more was sent"
+        );
+        link.abort();
     }
 
     #[tokio::test(start_paused = true)]

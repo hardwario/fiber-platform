@@ -859,76 +859,14 @@ makes moving the pin a procedure and not an adventure.
       press (a second try comes 200 ms or more later), the counts without a gap, a `set`, a
       restart of each side; its arithmetic in a `--self-test` that `just check-hil` runs
 - [x] The bench run with the script (2026-11-20): `clicks`, `set`, `restarts`, a short `soak`
+- [ ] A pairing while the other node clicks: its events held up by the handshake arrive late,
+      none lost (T48's fix 1)
 - [ ] A replay sent on air, if a radio that can send a captured frame turns up
 - [ ] The 24-hour run, with what it found
 - [ ] The procedure used once, for real, on the next move of the pin
 
 - Needs: T26.
 - Done when: the bench run and the 24 hours pass, and their results are written down.
-
-### T48. A review of the radio code written without hardware (M5)
-
-State (2026-11-21): started at the maintainer's word. The agent's radio service, the north link,
-the gateway and the north bridge's firmware were written in two days, mostly without a FIBER; the
-bench found two bugs in them (the start after the bootloader's `Go`, frames cut off at a slice's
-end, T25). A reviewer that did not write them reads them for more, the error paths the bench does
-not reach above all; each finding is checked here before anything changes.
-The review came back the same day with six findings, each checked here against the code (no nonce
-reuse and no replay found; the counter, its floor, the watermark's logic, the flash path and the
-replay floor read sound). All six are real:
-1. **The link gives up too soon:** 3 tries of 200 ms (600 ms), then `Lost` and the port closed for
-   5 s; a turn of the firmware's loop is longer when a pairing handshake runs (500 ms and up to
-   3.88 s) or a downlink goes unanswered (about 0.7 s). A `Paired` sent meanwhile is lost: the north
-   bridge holds a node the agent never heard of. Fix: 6 tries of 1 s, then that message alone is
-   dropped and said; the link stays (30 s of silence still means it stopped).
-2. **A `Hello` after a lost link is not a fresh start:** the agent resets the north bridge only
-   before its first `Hello`, so after a reconnect it still holds its nodes, a pairing window and
-   what waited; a node removed meanwhile, or a window cancelled, stays. Fix: a `HelloRequest`
-   resets the north bridge, so every `Hello` is a fresh start, as the agent already treats it.
-3. **A node's queue can jam:** `node_add` with a new key makes the north bridge drop what waited,
-   while the agent still counts it as on the north bridge; the same after a `Queue` refused. Fix:
-   then the item goes back to waiting in the agent.
-4. **A watermark record cut short** by a power cut may read as a double ECC error, which raises an
-   NMI; no handler: a reset loop that a flash does not cure (the watermark pages are not erased).
-   Fix: an NMI handler that clears the ECC flag, and the record counted as torn. Not tried on a
-   chip.
-5. **A node could pair into a full table** when a node is added while a window is open. Fix: the
-   agent refuses `radio.node_add` while a window is open.
-6. **The nodes' counters are not saved when the agent stops** (`flush` is never called, nothing
-   handles `SIGTERM`). Fix: on `SIGTERM` and Ctrl+C the agent saves them before it ends.
-Docs first (`north-link.md` for 1 and 2, `mqtt-api.md` for 5, `north.md` for 4), then each fix with
-a test where one can show it. Done the same day:
-1. `north.rs`: 6 tries of 1 s, each with the same `seq` (an answer to any try settles it); a
-   message unanswered after them comes up as `Unanswered` and is dropped, the link stays; a
-   refused one comes up as `Refused` with the message it refuses, and a `Done` says nothing. Tests:
-   a message during a turn of 4.4 s, answered late, settles with nothing said; one never answered
-   is dropped after 6 s and said, the link ending only at 30 s of silence.
-2. The firmware resets on `HelloRequest` (the counter resumes at its watermark, as at any start);
-   the agent's simulated north bridge forgets its nodes there too. And on `Lost` the agent forgets
-   the north bridge's last `Hello`, so one that stays silent after the reconnect gets its firmware
-   written, which resets it through its bootloader.
-3. `Radio::not_taken`: a `Queue` refused or unanswered goes back to waiting, and a node given a new
-   key by `radio.node_add` has its waiting value put back too; both go again with the node's next
-   uplink (a test).
-4. The firmware's `NonMaskableInt` clears `FLASH_ECCR.ECCD` while a watermark record is read and
-   counts the record as torn; any other NMI waits for the watchdog, as before. Not tried on a chip.
-5. `radio.node_add` is refused while a pairing window is open (a test).
-6. `SIGTERM` and Ctrl+C end the agent's loop (`Stop::End`); it writes the radio's store first
-   (`Agent::end`, a test: a counter taken in after the last save is on disk after the stop).
-`just check` passes; the north bridge's image is now 64 280 bytes, `0xc3703756` (the south
-bridge's is the same). Left: a commit and its CI run, and the fixes on the next bench (the agent
-writes the new firmware by itself).
-
-- [x] The review: `agent/src/agent/radio/`, `agent/src/agent/north.rs`, the radio parts of
-      `agent/src/agent/run.rs` and `daemon.rs`, `crates/tower-air/src/gateway*.rs`,
-      `crates/protocol/src/north.rs`, `firmware/north/src/`
-- [x] Each finding checked against the code and the docs: all six real (above)
-- [x] The docs for 1, 2, 4 and 5
-- [x] The fixes, each with its test: 1 and 2 (the link and the firmware), 3 (the service), 4 (the
-      firmware's NMI), 5 (the service), 6 (the agent's end)
-- [ ] `just check`, and the fixes on the next bench
-
-- Done when: every finding is fixed or answered here, and `just check` passes.
 
 ### T30. The FIBER pages of docs.hardwario.com (M7)
 
@@ -2102,6 +2040,91 @@ of its own. Not run against a FIBER yet.
       name exact, an unnamed node not found by the empty name) and of what they print
 
 - Done when: both are documented, built and tested, and `just check` passes.
+
+### T48. A review of the radio code written without hardware (M5)
+
+Done 2026-11-21 (`b45d3b1`, and the lost `HelloRequest` found on the bench in a commit of its own).
+Checked: `just check` with every fix and its test; on a FIBER (bench.20) fix 2, and the fix of the
+lost request it brought out, below. Not tried on a FIBER: fix 1 (a message during a pairing
+handshake, now a step of T27's bench run) and fix 4 (a power cut timed to a watermark write).
+Started at the maintainer's word. The agent's radio service, the north link,
+the gateway and the north bridge's firmware were written in two days, mostly without a FIBER; the
+bench found two bugs in them (the start after the bootloader's `Go`, frames cut off at a slice's
+end, T25). A reviewer that did not write them reads them for more, the error paths the bench does
+not reach above all; each finding is checked here before anything changes.
+The review came back the same day with six findings, each checked here against the code (no nonce
+reuse and no replay found; the counter, its floor, the watermark's logic, the flash path and the
+replay floor read sound). All six are real:
+1. **The link gives up too soon:** 3 tries of 200 ms (600 ms), then `Lost` and the port closed for
+   5 s; a turn of the firmware's loop is longer when a pairing handshake runs (500 ms and up to
+   3.88 s) or a downlink goes unanswered (about 0.7 s). A `Paired` sent meanwhile is lost: the north
+   bridge holds a node the agent never heard of. Fix: 6 tries of 1 s, then that message alone is
+   dropped and said; the link stays (30 s of silence still means it stopped).
+2. **A `Hello` after a lost link is not a fresh start:** the agent resets the north bridge only
+   before its first `Hello`, so after a reconnect it still holds its nodes, a pairing window and
+   what waited; a node removed meanwhile, or a window cancelled, stays. Fix: a `HelloRequest`
+   resets the north bridge, so every `Hello` is a fresh start, as the agent already treats it.
+3. **A node's queue can jam:** `node_add` with a new key makes the north bridge drop what waited,
+   while the agent still counts it as on the north bridge; the same after a `Queue` refused. Fix:
+   then the item goes back to waiting in the agent.
+4. **A watermark record cut short** by a power cut may read as a double ECC error, which raises an
+   NMI; no handler: a reset loop that a flash does not cure (the watermark pages are not erased).
+   Fix: an NMI handler that clears the ECC flag, and the record counted as torn. Not tried on a
+   chip.
+5. **A node could pair into a full table** when a node is added while a window is open. Fix: the
+   agent refuses `radio.node_add` while a window is open.
+6. **The nodes' counters are not saved when the agent stops** (`flush` is never called, nothing
+   handles `SIGTERM`). Fix: on `SIGTERM` and Ctrl+C the agent saves them before it ends.
+Docs first (`north-link.md` for 1 and 2, `mqtt-api.md` for 5, `north.md` for 4), then each fix with
+a test where one can show it. Done the same day:
+1. `north.rs`: 6 tries of 1 s, each with the same `seq` (an answer to any try settles it); a
+   message unanswered after them comes up as `Unanswered` and is dropped, the link stays; a
+   refused one comes up as `Refused` with the message it refuses, and a `Done` says nothing. Tests:
+   a message during a turn of 4.4 s, answered late, settles with nothing said; one never answered
+   is dropped after 6 s and said, the link ending only at 30 s of silence.
+2. The firmware resets on `HelloRequest` (the counter resumes at its watermark, as at any start);
+   the agent's simulated north bridge forgets its nodes there too. And on `Lost` the agent forgets
+   the north bridge's last `Hello`, so one that stays silent after the reconnect gets its firmware
+   written, which resets it through its bootloader.
+3. `Radio::not_taken`: a `Queue` refused or unanswered goes back to waiting, and a node given a new
+   key by `radio.node_add` has its waiting value put back too; both go again with the node's next
+   uplink (a test).
+4. The firmware's `NonMaskableInt` clears `FLASH_ECCR.ECCD` while a watermark record is read and
+   counts the record as torn; any other NMI waits for the watchdog, as before. Not tried on a chip.
+5. `radio.node_add` is refused while a pairing window is open (a test).
+6. `SIGTERM` and Ctrl+C end the agent's loop (`Stop::End`); it writes the radio's store first
+   (`Agent::end`, a test: a counter taken in after the last save is on disk after the stop).
+`just check` passes; the north bridge's image is now 64 280 bytes, `0xc3703756` (the south
+bridge's is the same). Commit `b45d3b1` (checked alone in a worktree of its own first), CI run
+44912813511 green in every job. Left: the fixes on the next bench (the agent writes the new
+firmware by itself). 2026-11-21, the bench back (the J-Link taken off): release `0.1.0-bench.19`
+(`a005aff`, north image `0xc3703756`) goes onto the FIBER, which ran bench.18 (north `0xdab1a01a`);
+the agent should find the north bridge on another schema tag and write it. It did (in about 22 s),
+and then heard no `Hello` for 6 minutes: "the north bridge does not answer", sending held back,
+while its `Status` came every 10 s. A restart of the agent brought the `Hello` at once. So the
+`HelloRequest` sent right after the write was lost (the north bridge still starting after `Go`;
+it was reset by nothing, and its own `Hello` at the start had gone while the port was closed), and
+the `Status` kept the link from counting as silent: fix 2 of the review made a lost request matter.
+Fixed in the agent: a `Status` before any `Hello` on the port sends the `HelloRequest` again (a
+test); `docs/firmware/north-link.md` says so. Release `0.1.0-bench.20` carries it: installed, then
+the north bridge written again by `fiber firmware flash north`, and its `Hello` came within one
+`Status` after the write (15:45:08 to 15:45:21). On it: 20 clicks of the two nodes in turn, all at
+the first try (`hil/tower_bench.py clicks`, 0.08 s after each); a restart of the agent and a read of
+the north bridge's bootloader (`fiber firmware chip north`, which restarts it), each followed by its
+`Hello` at once. Not tried on a FIBER: a message during a pairing handshake (fix 1), a power cut
+during a watermark write (fix 4).
+
+- [x] The review: `agent/src/agent/radio/`, `agent/src/agent/north.rs`, the radio parts of
+      `agent/src/agent/run.rs` and `daemon.rs`, `crates/tower-air/src/gateway*.rs`,
+      `crates/protocol/src/north.rs`, `firmware/north/src/`
+- [x] Each finding checked against the code and the docs: all six real (above)
+- [x] The docs for 1, 2, 4 and 5
+- [x] The fixes, each with its test: 1 and 2 (the link and the firmware), 3 (the service), 4 (the
+      firmware's NMI), 5 (the service), 6 (the agent's end)
+- [x] `just check`, and the fixes on the next bench (2026-11-21: fix 2 and a lost `HelloRequest`
+      after a write, fixed; 1 and 4 not tried on a FIBER)
+
+- Done when: every finding is fixed or answered here, and `just check` passes.
 
 ## Decisions ahead
 
