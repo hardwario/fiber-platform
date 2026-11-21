@@ -479,7 +479,24 @@ board the two voltages read nothing useful, and `power` has to say so.
 
 ### T19. Thermometers (M3)
 
-State (2026-11-19): three DS18B20 on ports 1, 2 and 5 of the bench's FIBER (the maintainer).
+State (2026-11-21): on the bench (release bench.20, three probes). Seen: the starter flow's
+dashboard (`/dashboard/thermometers`, in a headless Chrome with the login) shows the probes on
+ports 1, 2 and 5 with their readings. Ports 3 and 4 switched off: their LEDs dark, the six others
+green. The probe pulled out of port 5 (about 16:28:50) and left out: `null` at 16:29:18 (3 rounds
+without a reading), the LED red, then gone (an empty retained message, `ports/5` without it) at
+16:30:38, about 108 s after the pull, and the LED green again. The probes moved 1 to 3, 2 to 4
+and the pulled one to 6 (16:32): port 6 had it at once, ports 3 and 4 only after Linux dropped
+the probes from ports 1 and 2 (16:33:38, 16:33:48), 10 s later each. Then 3 to 7 and 4 to 8 (on 7
+and 8 at 16:36:18 and 16:36:28; the maintainer saw 3 and 4 red, then green), and back to 1, 2
+and 5 (16:38:38 to 16:39:08). So every port has had a probe, and master k is port k for all
+eight. **Linux lists a probe on one bus only:** the new bus's attach fails with `cannot create
+duplicate filename '/bus/w1/devices/28-...'` (`err=-17`) until the old bus drops it, so a moved
+probe is red on its old port, then on its new one, 100 to 115 s after the pull. The agent's
+comment that assumed both buses list it is put right, and `docs/hardware.md` and
+`docs/mqtt-api.md` say it. Left: a shorted port (another day, the maintainer), eight probes at
+once (only three at hand). Good to know: this unit's Node-RED login is still `fiber` / `fiber`,
+from before `login.json` was changed by hand; `settings.js` is written once.
+2026-11-19: three DS18B20 on ports 1, 2 and 5 of the bench's FIBER (the maintainer).
 `fiber thermometers` lists each on its port (about 24 °C), and `thermometers/{id}` and `ports/{n}`
 carry them. The k-th master is port k, for these three: switching one port off (`fiber ports
 cycle`) takes away its probe alone, gone (an empty retained message) within 10 s, back 3 to 7 s
@@ -521,7 +538,10 @@ The first thing most users will plug in: a DS18B20 on one of the eight ports.
 - [x] On a FIBER: a probe shows up on its port; the k-th master is port k, by switching a port off
       (ports 1, 2 and 5, 2026-11-19); a probe that loses its power is gone within 10 s and back
       within 7 s
-- [ ] On a FIBER: the port lights; a shorted port; eight ports with probes; the starter flow
+- [x] On a FIBER: the port lights (green, dark with the power off, red for a probe without
+      readings); the starter flow's dashboard; a probe on each of the eight ports in turn, and
+      a probe moved (2026-11-21)
+- [ ] On a FIBER: a shorted port; eight probes at once
 
 Watch out: if plugging in feels slow (the kernel searches a bus only every ten seconds), the
 other implementation is a driver of our own for the DS2482 over `i2c-dev`, about 700 lines. The

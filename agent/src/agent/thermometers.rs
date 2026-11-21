@@ -167,8 +167,10 @@ impl Probes {
     /// without power are gone at once. Returns the ids of the probes that are gone.
     pub fn take(&mut self, round: Round, powered: u8) -> Vec<String> {
         self.buses = Some(round.ports.is_some());
-        // Each probe with the ports that list it: a probe moved to another port stays listed on
-        // its old one for about 100 s, and reads only on the new one.
+        // Each probe with the ports that list it. Linux lists a probe on one port only (its name
+        // is one in all of sysfs), and keeps a moved probe on its old port for about 100 s,
+        // before the new port may take it (seen on a FIBER, 2026-11-21). Another reader could
+        // list it on both, and it reads only on the new one.
         let mut listed: BTreeMap<String, Vec<(u8, Option<i32>)>> = BTreeMap::new();
         for (index, probes) in round.ports.into_iter().flatten().enumerate() {
             if powered & (1 << index) == 0 {

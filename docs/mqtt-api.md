@@ -142,6 +142,10 @@ when its temperature changed by 0.1 °C or more since the last one sent, and at 
 minute. **An empty retained message** means the probe is gone: Linux no longer lists it (about
 100 s after it was unplugged), or its port's power was switched off.
 
+**A probe moved to another port** shows there only after Linux has let it go on its old port:
+about 100 s after it was pulled. Until then its old port is red and its `temperature` is `null`;
+then its topic names the new port.
+
 What is not a reading: an empty read (Linux reads every error as empty), and 85.00 °C, the value
 a DS18B20 holds after power-on, unless the reading before it was above 75 °C.
 

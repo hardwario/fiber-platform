@@ -132,7 +132,10 @@ PC5 all high; transmit on the low-power PA = PC3 and PC4 high, PC5 low; off = al
 ## The 1-Wire ports in Linux
 
 What the kernel's drivers (`ds2482`, `wire`, `w1_therm`) give, read in their source at
-`raspberrypi/linux` `rpi-6.12.y` and mainline v6.12 (2026-11-18). Not seen on a FIBER yet.
+`raspberrypi/linux` `rpi-6.12.y` and mainline v6.12 (2026-11-18). Seen on a FIBER with kernel
+6.18.60 (2026-11-19 and 2026-11-21): the eight masters, master k as port k (a probe on each of
+the eight ports in turn), a probe dropped about 100 s after it was unplugged, and a moved probe.
+Not seen: 85 °C after power-on, the strong pull-up with several busy ports.
 
 - **Eight bus masters,** `/sys/devices/w1_bus_master1` and up (linked from
   `/sys/bus/w1/devices/`). The `ds2482` driver registers one for each channel, channel 0 first,
@@ -147,6 +150,10 @@ What the kernel's drivers (`ds2482`, `wire`, `w1_therm`) give, read in their sou
   its serial number). The kernel searches each bus every 10 s (`wire.timeout`), and drops a
   probe after 10 searches in a row without it (`wire.slave_ttl`): about 100 s. Writing to
   `w1_master_search` starts a search at once (root only).
+- **A probe is listed on one bus only:** its name is one in all of sysfs. A probe moved to
+  another port stays on its old bus until that bus drops it, and the new bus's search fails to
+  take it until then (`cannot create duplicate filename '/bus/w1/devices/28-...'`, `err=-17`). On
+  a FIBER a moved probe showed on its new port 100 to 115 s after it was pulled.
 - **Reading `temperature`** starts a conversion and blocks until it is done: 750 ms at 12 bits.
   It reads millidegrees as text (`21437`). Every error, a probe gone, a bad CRC after 5 tries,
   reads as an empty file, not as an error code. Each master has its own lock, so the eight ports
