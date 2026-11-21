@@ -136,6 +136,8 @@ jobs:
   image:
     name: Build and try the ready-made image
     needs: build
+    # As the build job: on a dry run the tag gate is skipped, and without this the image would be too.
+    if: always() && needs.build.result == 'success'
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
