@@ -321,8 +321,9 @@ bytes have `nBOOT_SEL` = 0 already, so the one-time write did not run. The pins 
 read over SWD while it ran (the output registers of GPIOA, B and D): all ports on and every LED
 green as the agent asked; port 3 off (PB7 low, its LED dark); port 1's LED red; with the agent
 stopped, after 5 s, every LED dark but the power LED's yellow line, low for about 150 ms once a
-second, and the ports as they were. Not seen by eye: that the LEDs light (low = lit, by the
-schematic). It stays in progress with T13's drafts.
+second, and the ports as they were. By eye (2026-11-21, T19): two ports' LEDs red while their
+probes had no readings, then green (the maintainer); the fallback not looked at. It stays in
+progress with T13's drafts.
 Earlier (2026-11-18): built on the draft of `docs/firmware/south-link.md`: `crates/south-core` (6 tests) and `firmware/south`, 16224 bytes of
 flash (15.8 KB of the 24 KB), with fmt, clippy, rustdoc and the size in `just check-south` and a CI
 job, green since `30fb908` (44202681510). Not run on a chip: not the LEDs, not the ports, not the
@@ -375,8 +376,8 @@ read over SWD (M2's third line, T16); `fiber status`, `power`, `ports`, `leds`, 
 and `firmware flash` work through MQTT. The voltages were too low until the firmware's fix (T36),
 and a single reading was too noisy for the 0.05 V rule: 38 messages on `power` in 2 minutes, so
 the agent averages 8 readings now (T36). Left: the mini-PCIe lines (a card). After the agent restarts, the ports are all on and the LEDs automatic
-again, whatever a client had set: as the code has it, and now written in `docs/mqtt-api.md`. Open: with no cell the
-battery reads 1.7 V and is shown as a voltage; perhaps `power` should say there is no battery.
+again, whatever a client had set: as the code has it, and now written in `docs/mqtt-api.md`. With no cell
+`power` says `"battery": null` since T37.
 Earlier (2026-11-18): everything that needs no board is written and tested (`just check` and
 the converge test pass on the computer; commit `b8f038d`, CI run 44206746581 green). `fiber agent`
 runs: the core's logic (`agent/src/agent/`), the loop around it (the south link every second, MQTT,
@@ -443,7 +444,7 @@ eight. **Linux lists a probe on one bus only:** the new bus's attach fails with 
 duplicate filename '/bus/w1/devices/28-...'` (`err=-17`) until the old bus drops it, so a moved
 probe is red on its old port, then on its new one, 100 to 115 s after the pull. The agent's
 comment that assumed both buses list it is put right, and `docs/hardware.md` and
-`docs/mqtt-api.md` say it (`d782d57`). Left: a shorted port (another day, the maintainer), eight probes at
+`docs/mqtt-api.md` say it (`d782d57`, CI run 44921498244 green). Left: a shorted port (another day, the maintainer), eight probes at
 once (only three at hand). Good to know: this unit's Node-RED login is still `fiber` / `fiber`,
 from before `login.json` was changed by hand; `settings.js` is written once.
 2026-11-19: three DS18B20 on ports 1, 2 and 5 of the bench's FIBER (the maintainer).
@@ -936,7 +937,7 @@ tag gate is skipped (the build job had the guard, the image job not). Given it (
 second dry run (44913866458) built the image from the very release its build job tried (623 MB
 compressed) and its first-start test passed, in 7 minutes; the publish job was skipped, as on every
 dry run. Left: `SHA256SUMS` with the image in it (the first release, D24), FIBER Setup's catalog
-(with the first release), and a FIBER.
+(waiting for D28, which image it writes, and for the first release), and a FIBER.
 
 - [x] `docs/provisioning.md` first: "The ready-made image": what is in it and what is not, how it
       is built, the first start on it, where it is published, its size
@@ -956,8 +957,9 @@ dry run. Left: `SHA256SUMS` with the image in it (the first release, D24), FIBER
       as a container with systemd and no network, seeds it and applies it, every component up
       (dry run 44913866458, 2026-11-21)
 - [ ] The first release: the image published beside the archive, in `SHA256SUMS`
-- [ ] FIBER Setup: its catalog offers the image in place of Raspberry Pi OS Lite; its first-start
-      script, finding the platform there, seeds and applies without a download
+- [ ] FIBER Setup: its catalog offers the image in place of Raspberry Pi OS Lite (waiting for
+      D28); its first-start script, finding the platform there, seeds and applies without a
+      download (done, FIBER Setup's `92f01f5`)
 - [ ] On a FIBER: written by FIBER Setup, the first start without the internet
 
 - Needs: T11 (done).
@@ -2036,7 +2038,7 @@ at 15:51:57 (its 30 s), wrote it again (vector table at 15:52:19) and started it
 then showed the north bridge running `0xc3703756`, the image carried, and `fiber radio` both
 nodes, with sending no longer held back. Tried on the north bridge, whose write is long enough to
 cut by hand; the south bridge's 6 s write goes through the same flasher, and its hard stop was
-recovered the same way. No commit of its own: the record only.
+recovered the same way. No code changed: the record only (`1de01d5`, CI run 44921498244 green).
 Earlier (2026-11-18): `crates/flasher` is built and its 11 tests pass against the simulated chip: the image written and started; another chip, readout
 protection and a bad image refused before anything is erased; three attempts with BOOT0 held
 longer; a write cut short by a power cut leaves the chip waiting in its bootloader, and the next
@@ -2081,7 +2083,8 @@ the south bridge firmware changes them, once (T16).
 
 ### T48. A review of the radio code written without hardware (M5)
 
-Done 2026-11-21 (`b45d3b1`, and `560f816` for the lost `HelloRequest` found on the bench).
+Done 2026-11-21 (`b45d3b1`, and `560f816` for the lost `HelloRequest` found on the bench; CI run
+44921498244 green).
 Checked: `just check` with every fix and its test; on a FIBER (bench.20) fix 2, and the fix of the
 lost request it brought out, below. Not tried on a FIBER: fix 1 (a message during a pairing
 handshake, now a step of T27's bench run) and fix 4 (a power cut timed to a watermark write).
@@ -2166,8 +2169,8 @@ during a watermark write (fix 4).
 
 ### T50. The documents say what the bench has shown (M7)
 
-Done 2026-11-21. Checked: every change against the dated records in `TASKS.md` and
-`docs/bench-checks.md`; `just check`. Started while every other task waits for the bench, the first
+Done 2026-11-21 (`0598fbc`, CI run 44921999971 green). Checked: every change against the dated
+records in `TASKS.md` and `docs/bench-checks.md`; `just check`. Started while every other task waits for the bench, the first
 release (D24) or a reading by the maintainer. Many status lines and "not yet" sentences in `docs/` and the
 READMEs were written before the bench of 2026-11-19 to 21 and say less than is known now: the
 north bridge's firmware "not run on a FIBER", the radio "not run with a real one", the LEDs "not
@@ -2198,7 +2201,22 @@ they are: the "draft" marks of the documents the maintainer has not read (T13, T
 
 ## Decisions ahead
 
-None open. (D24 waits only for the maintainer to say when: the first release.)
+D24 waits only for the maintainer to say when: the first release.
+
+- **D28. Which image does FIBER Setup write, now that there is a ready-made one?** (T32) FIBER
+  Setup gets its image ready on the step before the settings, where the components are picked. The
+  ready-made image (about 625 MB) has every component installed and off; the stock Raspberry Pi OS
+  Lite (525 MB) has none. What is ticked to begin with is the agent and Node-RED. Choices:
+  1. **(Recommended)** The image follows the picker: with any component ticked, the ready-made
+     image of the release FIBER Setup names; with nothing ticked, the stock Raspberry Pi OS Lite,
+     as now. The image step moves after the settings. The user still makes one choice, and a
+     FIBER with nothing ticked stays a plain Raspberry Pi OS.
+  2. Always the ready-made image: one download and no change to the steps, but with nothing ticked
+     the FIBER has every component installed and off, where the README and FIBER Setup say it
+     stays a plain Raspberry Pi OS.
+  3. The user picks the image on its step, the ready-made one suggested; on the stock image the
+     components download at the first start, as now. One more thing to understand, for little.
+  Either way its address, sha256 and size wait for the first release (D24). T32 waits for it.
 
 ## Decisions done
 
