@@ -40,7 +40,7 @@ with, and the schema tag of the TOWER radio messages.
 
 ## The board: the agent and the commands that talk to it
 
-**Built on the drafts of T13, which the maintainer has yet to read (T17).** Tested in a container
+**Built on T13's documents, agreed by the maintainer on 2026-11-21 (T17).** Tested in a container
 against a simulated south bridge, through Mosquitto; flashing and `fiber firmware chip` are tested
 against a simulated bootloader. On a FIBER (2026-11-19): `status`, `power`, `ports`, `leds`,
 `display`, `buzzer beep`, `thermometers` with three probes, `firmware status`, `firmware flash` (the

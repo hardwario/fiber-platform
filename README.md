@@ -71,7 +71,9 @@ In FIBER Setup you choose what the FIBER installs on its first start:
 | Node-RED | Flows wired to the broker, with one to start from, and a dashboard |
 | ChirpStack | A LoRaWAN network server. With a concentrator card in the FIBER it is the gateway too |
 
-With nothing chosen the FIBER stays a plain Raspberry Pi OS.
+FIBER Setup writes a Raspberry Pi OS with every component already in it, so the first start
+needs no internet. With nothing chosen, nothing of it is turned on; `fiber platform enable` turns a
+component on later.
 
 ### Good to know
 

@@ -4,10 +4,10 @@ The agent shows the board on MQTT, and takes requests there. This page is the re
 anyone who talks to a FIBER through its broker: a Node-RED flow, a program of your own, and the
 `fiber` command line itself, which is a client of exactly these topics (D19).
 
-**Status: a draft for the maintainer to read (T13).** Built in the agent and tested against a
-simulated south bridge and north bridge through Mosquitto. On a FIBER: `status`, `power`, `ports`,
-`firmware/south`, `display` and the requests `ports.power`, `leds.set`, `leds.auto`,
-`display.message` and `firmware.flash` work, also from another computer on port 1884
+**Status: agreed by the maintainer (T13, 2026-11-21), but for the radio's part.** Built in the agent
+and tested against a simulated south bridge and north bridge through Mosquitto. On a FIBER:
+`status`, `power`, `ports`, `firmware/south`, `display` and the requests `ports.power`, `leds.set`,
+`leds.auto`, `display.message` and `firmware.flash` work, also from another computer on port 1884
 (2026-11-19); `thermometers` with three probes, on each of the eight ports in turn (2026-11-21);
 `buttons/event` and `buzzer.beep` through the examples' flows (2026-11-19); the radio, its own
 section says what.

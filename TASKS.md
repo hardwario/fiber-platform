@@ -260,112 +260,6 @@ password also opens services on the network. ChirpStack's user is `admin` (T9), 
 - Done when: a FIBER written by the new FIBER Setup comes up with the chosen components, and the
   last step shows a link for each.
 
-### T13. The interfaces, written first (M2)
-
-State (2026-11-18): waiting for the maintainer to read the three drafts. Written:
-`docs/mqtt-api.md`, the board's commands in `docs/cli.md`, `docs/firmware/south-link.md`. Settled
-for the drafts: a request carries `op`, as TOWER's gateway API does, not `method` as this task first
-said, so that one client shape fits both; the south link's `Desired` has a state for each of the 18
-LED lines (in ticks of 20 ms), the agent can ask for a `Hello` at any time (`HelloRequest`), and
-`Status` counts the frames the firmware dropped.
-
-Nothing of the agent is written before its interfaces are on paper (D19).
-
-- [x] `docs/mqtt-api.md`: the rules (the prefix `fiber/`, QoS 1, state retained, events not, a
-      request on `cmd` as `{id, op, params}` answered on `rsp/{id}` as `{id, ok, data}` or
-      `{id, ok, error}`, the `schema` number, the last will), then the topics `status`, `power`,
-      `power/event`, `ports/{1..8}`, `firmware/{south,north}`, each with its payload and an
-      example, and the ops `ports.power`, `leds.set`, `leds.auto`, `firmware.flash`
-- [x] `docs/cli.md`: `fiber agent`, `status`, `power`, `ports [on|off|cycle N]`, `leds`,
-      `firmware [status|flash|chip]`, `doctor`; what each prints, and its exit statuses
-- [x] `docs/firmware/south-link.md`: the frame, the messages `Hello`, `Desired` and `Status`
-      field by field, and the timing (a `Desired` every second, the fallback after 5 s)
-
-- Done when: the maintainer has read and agreed the three documents.
-
-### T14. `fiber-protocol` (M2)
-
-State (2026-11-18): built on the draft of `docs/firmware/south-link.md`, and `just check` passes: 11
-tests, and the builds for `thumbv6m` and `thumbv7em`. Next: the push and CI. It stays in progress
-until T13's drafts are agreed: a change there is a change here. Settled: the schema tag is worked
-out as TOWER's is (a structural hash of the postcard schema, names left out, folded to 16 bits), by
-code of our own, so it does not move with the TOWER pin; the south link's tag is `0x9a90` now
-(`Hello` got `vrefint_cal` for T17); `serde` and `postcard` without their standard library.
-
-The one contract between the agent and the firmware, built by both from the same source.
-
-- [x] The frame: COBS around `type(1) | tag(2) | seq(2) | payload | crc32(4)`, ended by a zero
-      byte; the payload is postcard. A decoder that takes bytes as they come, and a check that
-      looks at the CRC first, then the tag, then the type
-- [x] The schema tag: worked out from the message types when the crate is built, one for each
-      link, so that a firmware and an agent from different builds refuse each other. It is ours
-      alone and does not move with the TOWER pin
-- [x] The south link's messages: `Hello` (who it is, the CRC-32 of its own image, why it reset,
-      a fault code, its option bytes), `Desired` (18 LED states and the port mask), `Status`
-      (what is applied, the three raw ADC counts, the time since start), `HelloRequest`
-- [x] `no_std`, nothing allocated, no growing collections in a message
-- [x] Tests: every message there and back; a damaged frame, a wrong tag and a frame with bytes
-      left over are refused; a few frames kept as bytes; the crate builds for `thumbv6m` and
-      `thumbv7em` in `just check`
-
-- Needs: T13.
-- Done when: the tests pass and both microcontroller targets build.
-
-### T16. The south bridge firmware (M2)
-
-State (2026-11-19): runs on a FIBER, flashed there by the agent: its `Hello` names its image, a
-`Status` comes every second, the agent's `Desired` goes in (a port cycled and its LED set through
-MQTT were answered). One fix from the bench: `VREFINT_CAL` is at 0x1FFF 756A, not 0x1FFF 7568
-(`TS_CAL1`), so the first build's voltages were 1.59 times too low (T36). This unit's option
-bytes have `nBOOT_SEL` = 0 already, so the one-time write did not run. The pins follow `Desired`,
-read over SWD while it ran (the output registers of GPIOA, B and D): all ports on and every LED
-green as the agent asked; port 3 off (PB7 low, its LED dark); port 1's LED red; with the agent
-stopped, after 5 s, every LED dark but the power LED's yellow line, low for about 150 ms once a
-second, and the ports as they were. By eye (2026-11-21, T19): two ports' LEDs red while their
-probes had no readings, then green (the maintainer); the fallback not looked at. It stays in
-progress with T13's drafts.
-Earlier (2026-11-18): built on the draft of `docs/firmware/south-link.md`: `crates/south-core` (6 tests) and `firmware/south`, 16224 bytes of
-flash (15.8 KB of the 24 KB), with fmt, clippy, rustdoc and the size in `just check-south` and a CI
-job, green since `30fb908` (44202681510). Not run on a chip: not the LEDs, not the ports, not the
-ADC, and above all not the write of the option bytes, which is for the bench with a debug probe at
-hand. Settled: one tick counter for every LED; the start pattern is the power LED blinking green,
-the fallback the power LED blinking yellow with the port LEDs dark; a panic is reported without its
-place (3.2 KB); the ADC's longest sample time, for the dividers' resistance. The simulator for the
-agent's tests is `fiber south-simulator`, on a pseudo-terminal (made with T17).
-
-The status lights, the power of the 1-Wire ports and two voltages, in at most 24 KB.
-
-- [x] `crates/south-core`: the LED engine (off, on, blinking, by colour, on a 50 Hz tick), what
-      happens with a `Desired`, the fallback pattern after 5 s without one, the ports switched
-      on one after another at start. Tested on the computer, and built as a simulator on a
-      pseudo-terminal for the agent's tests
-- [x] `firmware/south`: a workspace of its own for `thumbv6m-none-eabi`, with the linker and
-      the profile from T3 (`docs/bench-checks.md`, check 5: `flip-link`, `opt-level = "z"`,
-      fat LTO, one codegen unit, `panic = "abort"`)
-- [x] The board: USART1 on PA9/PA10 at 115200; the 18 LED lines (low = lit) and the 8 port
-      lines (high = on) as `docs/hardware.md` has them; the ADC on PA11, PA12 and the internal
-      reference, as raw counts; the watchdog; the 32.768 kHz crystal
-- [x] `Hello` at start, with the CRC-32 the firmware works out over its own image
-- [x] A start pattern on the LEDs until the agent sends its first `Desired`
-- [x] A panic stores a fault code and the address in memory that survives a reset, resets, and
-      reports them in the next `Hello`
-- [x] The option bytes: read at start; if `nBOOT_SEL` is 1, bit 24 is cleared, once (the value
-      then is `0xDEFFE1AA` on a factory part). Nothing else in them is ever touched. The stale
-      "empty" flag is cleared at start
-- [x] `just` recipes for building and measuring; a CI job: build, clippy, rustdoc, and the size
-      against the budget
-- [x] `docs/firmware/south.md`
-
-Watch out: no formatting code, no floats: the counts are turned into volts by the agent. The
-chip has no EEPROM and keeps nothing: after a reset the agent's next `Desired` puts everything
-back. It is fed from the CM4's 3.3 V and is off whenever the CM4 is. T3's skeleton took 15.0 KB;
-a panic handler that reads the panic's location costs 3.2 KB of it (every source path in the
-HAL), so a panic may have to record its fault code without a location; the HardFault's address
-costs 82 bytes.
-
-- Needs: T3, T14.
-- Done when: it builds under 24 KB, and on a FIBER the lights and the ports follow `Desired`.
-
 ### T17. The agent's core (M2)
 
 State (2026-11-19): on a FIBER: the agent flashed the south bridge, which had the earlier firmware,
@@ -858,8 +752,10 @@ Pi Imager screenshots of the old page are removed. Every fact from the platform'
 checked against them (corrected on the way: a port's LED does not change when a probe is plugged
 in, the probes are read every 10 s, `ports.power` and `leds.set` take one port or LED). The site
 builds (`npm run build`), the FIBER pages without a warning. Before the pages are pushed, with the
-first release: the versions and CRCs in the examples to that release's, and what is still untried
-on a FIBER checked again (FIBER Setup's first start with the platform, ChirpStack with a card;
+first release: the versions and CRCs in the examples to that release's, the times on the
+installation page measured with the ready-made image (D28: the write, the first start, which no
+longer downloads), and what is still untried on a FIBER checked again (FIBER Setup's first start
+with the platform, ChirpStack with a card;
 `fiber radio remove` and `rename` were tried on the bench, 2026-11-21, as the pages have them).
 
 In `../docs/fiber`. The pages there describe a setup by hand that no longer works.
@@ -936,8 +832,10 @@ no condition of its own, a job runs only when everything before it succeeded, an
 tag gate is skipped (the build job had the guard, the image job not). Given it (`a005aff`); the
 second dry run (44913866458) built the image from the very release its build job tried (623 MB
 compressed) and its first-start test passed, in 7 minutes; the publish job was skipped, as on every
-dry run. Left: `SHA256SUMS` with the image in it (the first release, D24), FIBER Setup's catalog
-(waiting for D28, which image it writes, and for the first release), and a FIBER.
+dry run. D28 answered the same day: FIBER Setup always writes the ready-made image. Next: the
+documents say so, then FIBER Setup's catalog and texts (its values marked as not published until
+the first release). Left after that: `SHA256SUMS` with the image in it (the first release, D24),
+the catalog's values from it, and a FIBER.
 
 - [x] `docs/provisioning.md` first: "The ready-made image": what is in it and what is not, how it
       is built, the first start on it, where it is published, its size
@@ -957,9 +855,17 @@ dry run. Left: `SHA256SUMS` with the image in it (the first release, D24), FIBER
       as a container with systemd and no network, seeds it and applies it, every component up
       (dry run 44913866458, 2026-11-21)
 - [ ] The first release: the image published beside the archive, in `SHA256SUMS`
-- [ ] FIBER Setup: its catalog offers the image in place of Raspberry Pi OS Lite (waiting for
-      D28); its first-start script, finding the platform there, seeds and applies without a
-      download (done, FIBER Setup's `92f01f5`)
+- [x] FIBER Setup's first-start script, finding the platform in the image, seeds and applies
+      without a download (FIBER Setup's `92f01f5`)
+- [x] D28 in the documents: the README, `docs/provisioning.md` (FIBER Setup's side, the image's
+      first start) and `../docs/fiber/installation.md` (not committed there, T30): with nothing
+      ticked, every component installed and none on; the installation page's times are T30's to
+      measure
+- [ ] FIBER Setup writes the ready-made image in place of Raspberry Pi OS Lite, always (D28): its
+      catalog (the address from the release's version; sha256 and size from the dry run, marked
+      as not published, as the installer is), the image step, its texts in five languages where
+      they say "a plain Raspberry Pi OS", its README; its tests and checks
+- [ ] FIBER Setup's catalog takes the image's sha256 and size from the first release (D24)
 - [ ] On a FIBER: written by FIBER Setup, the first start without the internet
 
 - Needs: T11 (done).
@@ -2199,9 +2105,127 @@ they are: the "draft" marks of the documents the maintainer has not read (T13, T
 - Done when: no page says something is untried that a FIBER has shown, and none says more than
   was seen; `just check` passes.
 
+### T13. The interfaces, written first (M2)
+
+Done 2026-11-21: the maintainer agreed the three documents as they stand, asked after they had run
+on a FIBER since 2026-11-19 (the agent, the south bridge's firmware and the command line built on
+them, T14, T16, T17). Their "draft" marks came off the same day.
+Earlier (2026-11-18): waiting for the maintainer to read the three drafts. Written:
+`docs/mqtt-api.md`, the board's commands in `docs/cli.md`, `docs/firmware/south-link.md`. Settled
+for the drafts: a request carries `op`, as TOWER's gateway API does, not `method` as this task first
+said, so that one client shape fits both; the south link's `Desired` has a state for each of the 18
+LED lines (in ticks of 20 ms), the agent can ask for a `Hello` at any time (`HelloRequest`), and
+`Status` counts the frames the firmware dropped.
+
+Nothing of the agent is written before its interfaces are on paper (D19).
+
+- [x] `docs/mqtt-api.md`: the rules (the prefix `fiber/`, QoS 1, state retained, events not, a
+      request on `cmd` as `{id, op, params}` answered on `rsp/{id}` as `{id, ok, data}` or
+      `{id, ok, error}`, the `schema` number, the last will), then the topics `status`, `power`,
+      `power/event`, `ports/{1..8}`, `firmware/{south,north}`, each with its payload and an
+      example, and the ops `ports.power`, `leds.set`, `leds.auto`, `firmware.flash`
+- [x] `docs/cli.md`: `fiber agent`, `status`, `power`, `ports [on|off|cycle N]`, `leds`,
+      `firmware [status|flash|chip]`, `doctor`; what each prints, and its exit statuses
+- [x] `docs/firmware/south-link.md`: the frame, the messages `Hello`, `Desired` and `Status`
+      field by field, and the timing (a `Desired` every second, the fallback after 5 s)
+
+- Done when: the maintainer has read and agreed the three documents.
+
+### T14. `fiber-protocol` (M2)
+
+Done 2026-11-21, with T13's documents agreed (it stayed in progress only for them): the tests pass,
+both targets build, and the south link it carries runs on a FIBER since 2026-11-19.
+Earlier (2026-11-18): built on the draft of `docs/firmware/south-link.md`, and `just check` passes: 11
+tests, and the builds for `thumbv6m` and `thumbv7em`. Next: the push and CI. It stays in progress
+until T13's drafts are agreed: a change there is a change here. Settled: the schema tag is worked
+out as TOWER's is (a structural hash of the postcard schema, names left out, folded to 16 bits), by
+code of our own, so it does not move with the TOWER pin; the south link's tag is `0x9a90` now
+(`Hello` got `vrefint_cal` for T17); `serde` and `postcard` without their standard library.
+
+The one contract between the agent and the firmware, built by both from the same source.
+
+- [x] The frame: COBS around `type(1) | tag(2) | seq(2) | payload | crc32(4)`, ended by a zero
+      byte; the payload is postcard. A decoder that takes bytes as they come, and a check that
+      looks at the CRC first, then the tag, then the type
+- [x] The schema tag: worked out from the message types when the crate is built, one for each
+      link, so that a firmware and an agent from different builds refuse each other. It is ours
+      alone and does not move with the TOWER pin
+- [x] The south link's messages: `Hello` (who it is, the CRC-32 of its own image, why it reset,
+      a fault code, its option bytes), `Desired` (18 LED states and the port mask), `Status`
+      (what is applied, the three raw ADC counts, the time since start), `HelloRequest`
+- [x] `no_std`, nothing allocated, no growing collections in a message
+- [x] Tests: every message there and back; a damaged frame, a wrong tag and a frame with bytes
+      left over are refused; a few frames kept as bytes; the crate builds for `thumbv6m` and
+      `thumbv7em` in `just check`
+
+- Needs: T13.
+- Done when: the tests pass and both microcontroller targets build.
+
+### T16. The south bridge firmware (M2)
+
+Done 2026-11-21, with T13's documents agreed (it stayed in progress only for them). Checked: 16224
+bytes, under 24 KB, in CI; on a FIBER the ports and the LEDs follow `Desired` (read over SWD, and
+two LEDs red and then green by eye), the fallback 5 s after the agent stops (over SWD). Not tried
+on a chip: the one-time write of the option bytes, as the bench's unit had `nBOOT_SEL` = 0
+already (a second unit, T2, may have it at 1); the fallback by eye.
+Earlier (2026-11-19): runs on a FIBER, flashed there by the agent: its `Hello` names its image, a
+`Status` comes every second, the agent's `Desired` goes in (a port cycled and its LED set through
+MQTT were answered). One fix from the bench: `VREFINT_CAL` is at 0x1FFF 756A, not 0x1FFF 7568
+(`TS_CAL1`), so the first build's voltages were 1.59 times too low (T36). This unit's option
+bytes have `nBOOT_SEL` = 0 already, so the one-time write did not run. The pins follow `Desired`,
+read over SWD while it ran (the output registers of GPIOA, B and D): all ports on and every LED
+green as the agent asked; port 3 off (PB7 low, its LED dark); port 1's LED red; with the agent
+stopped, after 5 s, every LED dark but the power LED's yellow line, low for about 150 ms once a
+second, and the ports as they were. By eye (2026-11-21, T19): two ports' LEDs red while their
+probes had no readings, then green (the maintainer); the fallback not looked at. It stays in
+progress with T13's drafts.
+Earlier (2026-11-18): built on the draft of `docs/firmware/south-link.md`: `crates/south-core` (6 tests) and `firmware/south`, 16224 bytes of
+flash (15.8 KB of the 24 KB), with fmt, clippy, rustdoc and the size in `just check-south` and a CI
+job, green since `30fb908` (44202681510). Not run on a chip: not the LEDs, not the ports, not the
+ADC, and above all not the write of the option bytes, which is for the bench with a debug probe at
+hand. Settled: one tick counter for every LED; the start pattern is the power LED blinking green,
+the fallback the power LED blinking yellow with the port LEDs dark; a panic is reported without its
+place (3.2 KB); the ADC's longest sample time, for the dividers' resistance. The simulator for the
+agent's tests is `fiber south-simulator`, on a pseudo-terminal (made with T17).
+
+The status lights, the power of the 1-Wire ports and two voltages, in at most 24 KB.
+
+- [x] `crates/south-core`: the LED engine (off, on, blinking, by colour, on a 50 Hz tick), what
+      happens with a `Desired`, the fallback pattern after 5 s without one, the ports switched
+      on one after another at start. Tested on the computer, and built as a simulator on a
+      pseudo-terminal for the agent's tests
+- [x] `firmware/south`: a workspace of its own for `thumbv6m-none-eabi`, with the linker and
+      the profile from T3 (`docs/bench-checks.md`, check 5: `flip-link`, `opt-level = "z"`,
+      fat LTO, one codegen unit, `panic = "abort"`)
+- [x] The board: USART1 on PA9/PA10 at 115200; the 18 LED lines (low = lit) and the 8 port
+      lines (high = on) as `docs/hardware.md` has them; the ADC on PA11, PA12 and the internal
+      reference, as raw counts; the watchdog; the 32.768 kHz crystal
+- [x] `Hello` at start, with the CRC-32 the firmware works out over its own image
+- [x] A start pattern on the LEDs until the agent sends its first `Desired`
+- [x] A panic stores a fault code and the address in memory that survives a reset, resets, and
+      reports them in the next `Hello`
+- [x] The option bytes: read at start; if `nBOOT_SEL` is 1, bit 24 is cleared, once (the value
+      then is `0xDEFFE1AA` on a factory part). Nothing else in them is ever touched. The stale
+      "empty" flag is cleared at start
+- [x] `just` recipes for building and measuring; a CI job: build, clippy, rustdoc, and the size
+      against the budget
+- [x] `docs/firmware/south.md`
+
+Watch out: no formatting code, no floats: the counts are turned into volts by the agent. The
+chip has no EEPROM and keeps nothing: after a reset the agent's next `Desired` puts everything
+back. It is fed from the CM4's 3.3 V and is off whenever the CM4 is. T3's skeleton took 15.0 KB;
+a panic handler that reads the panic's location costs 3.2 KB of it (every source path in the
+HAL), so a panic may have to record its fault code without a location; the HardFault's address
+costs 82 bytes.
+
+- Needs: T3, T14.
+- Done when: it builds under 24 KB, and on a FIBER the lights and the ports follow `Desired`.
+
 ## Decisions ahead
 
-D24 waits only for the maintainer to say when: the first release.
+None open. (D24 waits only for the maintainer to say when: the first release.)
+
+## Decisions done
 
 - **D28. Which image does FIBER Setup write, now that there is a ready-made one?** (T32) FIBER
   Setup gets its image ready on the step before the settings, where the components are picked. The
@@ -2217,9 +2241,11 @@ D24 waits only for the maintainer to say when: the first release.
   3. The user picks the image on its step, the ready-made one suggested; on the stock image the
      components download at the first start, as now. One more thing to understand, for little.
   Either way its address, sha256 and size wait for the first release (D24). T32 waits for it.
-
-## Decisions done
-
+  **Answered (2026-11-21):** always the ready-made image (choice 2): one download, and FIBER
+  Setup's steps stay as they are. With nothing ticked FIBER Setup still writes no script and no
+  seed, so the FIBER starts with every component installed and none turned on; `fiber platform
+  enable` turns one on later. The README, `docs/provisioning.md` and FIBER Setup's texts say so
+  in place of "a plain Raspberry Pi OS" (T32).
 - **D25. Which password does FIBER Setup let through, now that it opens services?** Found on the
   bench (2026-11-19, T36): ChirpStack refuses a password shorter than 8 characters, and FIBER
   Setup suggests `fiber` and checks only that the field is not empty. The same password opens

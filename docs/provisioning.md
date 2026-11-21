@@ -519,7 +519,10 @@ with the sha256 it pins: it runs that one, and waits neither for the network nor
 installer finds its release unpacked and Ansible installed, takes the seed, and applies: each
 component the seed turns on runs its install step, which finds everything in place, then its
 bootstrap step (the login, the passwords, the secrets, the services started). A component the seed
-leaves out stays as the image has it, installed and off.
+leaves out stays as the image has it, installed and off. With nothing ticked FIBER Setup writes no
+script and no seed: nothing runs at the first start, and `fiber platform enable` and `apply` turn a
+component on later (Node-RED then wants the login in `/etc/fiber/secrets/login.json`, as on a
+Raspberry Pi OS set up by hand).
 
 **Where it is:** beside the release's archive, `fiber-platform-<version>-image-arm64.img.xz`, in its
 `SHA256SUMS` and with its provenance attestation: 625 MB for 0.1.0, where the stock image is 525 MB.
@@ -539,8 +542,10 @@ Built in FIBER Setup (T12), not run on a FIBER yet; tried in a container with Av
 
 - **The choice** is a list of components from a copy of `components.yaml` at the release FIBER
   Setup names, with what each requires ticked with it, the download sizes once they are measured,
-  `mqtt.lan` and `hardware.minipcie`. Nothing ticked: no script and no seed are written, and the
-  FIBER gets a plain Raspberry Pi OS.
+  `mqtt.lan` and `hardware.minipcie`. Nothing ticked: no script and no seed are written.
+- **The image** is always the ready-made one of the release FIBER Setup names (D28), so with
+  nothing ticked the FIBER starts with every component installed and none turned on. Until the
+  first release names it, FIBER Setup writes the stock Raspberry Pi OS Lite.
 - **The seed** (`fiber-seed.yaml`, above) goes beside the first-start script `fiber-install.sh`.
   The script has the release's version and the sha256 of its `install.sh` written into it (D18).
 - **The script runs as a service,** `fiber-install.service`, which cloud-init starts without
