@@ -791,6 +791,24 @@ the bench shows each node's counter going on across each restart). The agent nev
 script in `hil/` and the bench run itself (two Core Modules flashed from the pin; flashing Core
 Module B, which runs the maintainer's own app, needs the maintainer's yes), the 24-hour run, and
 the first real move of the pin.
+2026-11-20, at the bench: the bench run done by hand (T25, T26): two Core Modules at the pin
+paired, 40 of 40 and then 15 and 15 clicks at the first try, a `set`, counters across restarts and
+a power cycle. Measured without a listener: on the bench every event came 0.33 to 0.35 s after its
+press (the `tower exec` and the radio), and the one second try seen came 0.63 s after, so the delay
+tells a second try apart; both Core Modules are nodes. Next: that run as a script in `hil/`, which
+the 24-hour run then uses; the maintainer will say when the bench is free for a day.
+Done the same day: `hil/tower_bench.py` (Python's standard library; `tower exec` for the nodes,
+`ssh` for the FIBER's MQTT; the FIBER's clock against the computer's measured over SSH, the
+reply with the shortest round trip). Its self-test caught the first draft taking the median
+delay as the usual one (with few clicks, or many second tries, it falls between the two); it
+takes the shortest. A click is timed by the node's answer to the command, not the start of
+`tower`, whose start-up varies by tenths of a second (that once made a first try look like a
+second): the delay from the click to its event on the FIBER is then 0.08 s. On the FIBER: 20
+clicks of the two nodes in turn, all at the first try; `set` (`led` false and back, each
+reported); two restarts of a node, each next click at the first try (the count starting again at
+1 is a restart, not a gap); `soak` for 3 minutes, 17 and 17 at the first try, with its progress
+lines. Left: the 24-hour run (`soak --hours 24 --every 60`), when the bench is free for a day,
+and a replay on air.
 
 TOWER promises nothing about its radio between two revisions, and its nodes cannot be updated
 over the air. So a FIBER works with TOWER nodes built from the pinned revision, and this task
@@ -804,9 +822,15 @@ makes moving the pin a procedure and not an adventure.
       internet; not part of `just check`
 - [x] The list kept true by `just check-north`: every watched file exists at the pin, every TOWER
       file our radio code names is watched, and the document lists each
-- [ ] The bench run in `hil/`: two Core Modules flashed from the pinned revision; pairing; what
-      they send arrives; a `set` reaches them; the share of frames acknowledged at the first
-      try; a replay after a restart of each side
+- [x] The bench run by hand (2026-11-20, see T25 and T26): two Core Modules flashed from the pin;
+      pairing; their clicks on MQTT; a `set`; the first try; the counters across restarts
+- [x] The bench run as a script, `hil/tower_bench.py`, run from the computer the Core Modules
+      are plugged into: clicks through each node's console (`tower exec`), what arrives read on
+      the FIBER's MQTT over SSH; the share at the first try from each event's delay after its
+      press (a second try comes 200 ms or more later), the counts without a gap, a `set`, a
+      restart of each side; its arithmetic in a `--self-test` that `just check-hil` runs
+- [x] The bench run with the script (2026-11-20): `clicks`, `set`, `restarts`, a short `soak`
+- [ ] A replay sent on air, if a radio that can send a captured frame turns up
 - [ ] The 24-hour run, with what it found
 - [ ] The procedure used once, for real, on the next move of the pin
 

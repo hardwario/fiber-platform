@@ -273,11 +273,12 @@ check-container: build-fiber
         {{debian_image}} sh /bare-container.sh
 
 # The probe talks to a fake ROM bootloader on a pseudo-terminal: the protocol code is exercised,
-# no GPIO is touched. The other scripts are parsed; the radio spike (T22) is formatted and linted,
+# no GPIO is touched. The TOWER bench checks its arithmetic on made-up clicks. The other scripts are parsed; the radio spike (T22) is formatted and linted,
 # which builds it (a workspace of its own, with flip-link).
 # Self-test of the bench scripts and the radio spike (no hardware).
 check-hil:
     python3 hil/bootloader_probe.py --self-test
+    python3 hil/tower_bench.py --self-test
     python3 -c 'import ast, sys; [ast.parse(open(f).read(), f) for f in sys.argv[1:]]' hil/north_flash.py hil/lcd_test.py
     cd hil/radio-spike && cargo fmt -- --check
     cd hil/radio-spike && cargo clippy --locked --release -- -D warnings

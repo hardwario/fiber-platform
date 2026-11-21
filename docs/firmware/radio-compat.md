@@ -8,8 +8,8 @@ of its own, done as this page says.
 
 **Status: a draft (T27).** The drift report and the check of its list are built and run on the
 computer. The pin has not moved since they were written (it is TOWER's newest commit on
-2026-11-20), so the procedure has not been used for real yet. The bench run is not done: it
-waits for the north bridge's firmware to run on a FIBER (T25, T26).
+2026-11-20), so the procedure has not been used for real yet. The bench run passed on 2026-11-20
+with two Core Modules; the 24-hour run has not been made.
 
 ## What is written again here
 
@@ -89,42 +89,49 @@ does not name a watched file.
 
 ## The bench run
 
-What shows on a FIBER that the two stacks still speak to each other. **Not run yet;** the script
-in `hil/` comes with the first run.
+What shows on a FIBER that the two stacks still speak to each other. Done by hand on 2026-11-20
+(T25, T26), then with `hil/tower_bench.py`, which the steps below name.
 
 **On the bench:** a FIBER with the release under test; Core Modules flashed with TOWER's
 `radio_button` from the pinned revision (`tower flash`); TOWER's command line built from the
 same revision on the computer, which drives each node through its USB console (`tower exec
-"node pair"`, `tower exec "button simulate 100"`); the FIBER's MQTT read from the computer.
+"node pair"`, `tower exec "button simulate 100"`); SSH to the FIBER from the computer, where the
+script reads its MQTT.
 
-**With two nodes:**
+```sh
+python3 hil/tower_bench.py clicks fiber@fiber.local /dev/cu.usbserial-1120 /dev/cu.usbserial-1140
+python3 hil/tower_bench.py set fiber@fiber.local /dev/cu.usbserial-1120
+python3 hil/tower_bench.py restarts fiber@fiber.local /dev/cu.usbserial-1120
+python3 hil/tower_bench.py soak fiber@fiber.local /dev/cu.usbserial-1120 /dev/cu.usbserial-1140 --hours 24 --every 60
+```
 
-1. **Pairing:** `fiber radio pair`, and `node pair` on the node. The FIBER's code and the node's
-   (`net: pairing: SAS ...` in its log) are the same; the node is listed by `fiber radio nodes`
-   and named when its `Info` comes. The same for the second node.
-2. **What they send arrives:** a click of each (`button simulate 100`) on
-   `fiber/radio/nodes/{addr}/event/button`, its `count` one more each time; the Core Module's
-   temperature on `state/temperature/system`.
-3. **A `set` reaches them:** `led` set to `false` on `set/led`, reported on `state/led` after
-   the node's next uplink.
-4. **A restart of each side:** the north bridge (`fiber firmware flash north`, which ends in a
-   reset), the agent (`sudo systemctl restart fiber-agent`), a node (`tower exec "system
-   reboot"`). After each, the next click arrives, with a `counter` (in the event's payload) above
-   the last one before the restart. After the north bridge's restart, the agent has handed it
-   each node's last counter again (`NodeAdd`): a frame at or below it would be refused as a
-   replay.
-
-**With one node and a listener**, for the share of frames acknowledged at the first try: a node
-repeats a frame whose acknowledgement it did not get byte for byte, and counts none of its
-tries. So a second Core Module listens on the same channel (`radio_beacon` built as the gateway,
-as in T22) and logs every frame it hears; each copy of a frame after the first (the same source,
-the same counter) is a try more. 200 clicks, 10 s apart; at least 99 % without a second copy
-passes (M5).
+1. **Pairing**, by hand: `fiber radio pair`, and `node pair` on the node (`tower exec`). The
+   node is listed by `fiber radio nodes`, named when its `Info` comes, and its `node status`
+   names the FIBER's gateway; the code shows on the FIBER's display. The same for the second
+   node.
+2. **What they send arrives** (`clicks`): the nodes' clicks in turn, each on
+   `fiber/radio/nodes/{addr}/event/button`, the counts of each without a gap.
+3. **At the first try** (`clicks`): a node repeats a frame whose acknowledgement it did not get,
+   byte for byte, after waiting 200 ms for it, and counts none of its tries. So a second try
+   shows in the time from the click (the node's answer to `button simulate`) to its event on the
+   FIBER: on the bench 0.08 s at the first try, 0.2 s or more later at the second. A click
+   whose event comes more than 0.15 s later than the shortest delay, or never, was not at the
+   first try. At least 99 % passes (M5).
+4. **A `set` reaches them** (`set`): `led` set to `false` and back to `true` on `set/led`, each
+   reported on `state/led` after the node's next click.
+5. **A restart of each side:** a node (`restarts`: `system reboot`, then a click that must come
+   at the first try; its count starts again at 1, and its counter is 1024 higher, TOWER's
+   reserve); by hand, the north bridge (`fiber firmware flash north`, which ends in a reset, or a
+   power cycle) and the agent (`sudo systemctl restart fiber-agent`), each followed by `clicks`.
+   After the north bridge's restart the agent hands it each node's last counter again
+   (`NodeAdd`): a frame at or below it would be refused as a replay.
 
 **A replay sent on air** needs a radio that sends a captured frame again, and the bench has none:
 the refusal itself is tested on the computer (`crates/tower-air/tests/gateway.rs`), and the bench
-shows that each node's counter goes on across each restart (step 4).
+shows that each node's counter goes on across each restart (step 5).
 
-**The 24-hour run:** both nodes, a click every 5 minutes and their reports, and the FIBER left
-alone. It passes with every click on MQTT, no fault in `firmware/north`, and the north bridge
-answering throughout.
+**The 24-hour run** (`soak --hours 24 --every 60`): both nodes, a click a minute in turn (720
+for each), their own reports between, a line every 10 minutes with the north bridge's state,
+and the FIBER otherwise left alone. It passes with every
+click on MQTT, at least 99 % at the first try, and the north bridge running without a fault
+throughout. Not run yet.
