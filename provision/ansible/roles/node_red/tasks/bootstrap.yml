@@ -1,4 +1,8 @@
 ---
+# Its settings with the login, before its first start; then it runs.
+- name: The login, in Node-RED's settings
+  ansible.builtin.import_tasks: login.yml
+
 - name: Node-RED runs
   ansible.builtin.systemd_service:
     name: nodered

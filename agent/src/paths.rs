@@ -71,6 +71,11 @@ impl Paths {
         self.under("/etc/fiber/platform.yaml")
     }
 
+    /// The mark of the ready-made image (`docs/provisioning.md`, "The ready-made image").
+    pub fn image_mark(&self) -> PathBuf {
+        self.under("/etc/fiber/image.json")
+    }
+
     /// Root only: the login from the seed, and what the roles make (tokens, keys).
     pub fn secrets_dir(&self) -> PathBuf {
         self.under("/etc/fiber/secrets")

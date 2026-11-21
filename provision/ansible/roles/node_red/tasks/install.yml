@@ -1,6 +1,7 @@
 ---
-# Node.js from NodeSource, Node-RED from npm, its user, its service, its settings with the login,
-# and a flow to start from. Nothing here needs Node-RED running.
+# Node.js from NodeSource, Node-RED from npm, its user, its service, and a flow to start from.
+# Nothing here needs Node-RED running, and nothing here is one FIBER's own: its settings with the
+# login are the bootstrap's, so that the ready-made image (T32) carries no login.
 - name: NodeSource's key (fingerprint 6F71F525282841EEDAF851B42F59B5F99B1BE0B4)
   ansible.builtin.copy:
     src: nodesource.asc
@@ -155,9 +156,6 @@
     quiet: true
   vars:
     node_red_packages: "{{ (node_red_lock.content | b64decode | from_json).packages }}"
-
-- name: The login, in Node-RED's settings
-  ansible.builtin.import_tasks: login.yml
 
 - name: A flow to start from, when there is none
   ansible.builtin.copy:

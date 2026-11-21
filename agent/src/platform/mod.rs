@@ -10,7 +10,7 @@ mod lifecycle;
 pub mod results;
 mod seed;
 
-pub use apply::{apply, foreground as apply_foreground};
+pub use apply::{apply, foreground as apply_foreground, image};
 pub use lifecycle::{rollback, uninstall, update};
 pub use seed::seed;
 

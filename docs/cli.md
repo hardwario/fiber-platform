@@ -464,6 +464,28 @@ It writes each of the two only when it is not there yet, and says `Kept` otherwi
 `platform.yaml` that exists is the person's, and the login is set once. A seed with a mistake in
 it writes nothing. The seed itself is left alone; the installer deletes it.
 
+### `fiber platform image [--base NAME]`
+
+Makes a Raspberry Pi OS the ready-made image ([`provisioning.md`](provisioning.md), "The
+ready-made image"): it runs the install step of every component, then turns off every service
+they bring, writes `/etc/fiber/image.json` (the release, and the base's NAME), and removes what
+belongs to one FIBER (`/etc/fiber/secrets`, `/etc/fiber/platform.yaml`, the last results, the
+platform's log). `provision/image/build.sh` runs it in the image's chroot; it needs root.
+
+```
+# fiber platform image --base raspios-lite-arm64-2026-10-06
+common: up, 3 changes
+base: in the image, 4 changes
+mosquitto: in the image, 6 changes
+agent: in the image, 9 changes
+node-red: in the image, 17 changes
+chirpstack: in the image, 21 changes
+Wrote /etc/fiber/image.json.
+```
+
+It refuses on a system that runs systemd: it is for an image, not for a FIBER. It ends with 1 when
+a step failed.
+
 ### How `enable` and `disable` change the file
 
 - **Only the lines under `components:` change.** A value is changed in place, and a new

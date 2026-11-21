@@ -271,6 +271,13 @@ enum PlatformCommand {
         #[arg(value_name = "FILE")]
         file: PathBuf,
     },
+    /// Make this Raspberry Pi OS the ready-made image, in its chroot: every component installed,
+    /// none turned on, nothing of one FIBER's. For provision/image/build.sh.
+    Image {
+        /// The base image's name, for the mark.
+        #[arg(long)]
+        base: Option<String>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -337,6 +344,7 @@ fn main() -> ExitCode {
             PlatformCommand::Enable { components } => platform::change(&paths, &components, true),
             PlatformCommand::Disable { components } => platform::change(&paths, &components, false),
             PlatformCommand::Seed { file } => platform::seed(&paths, &file),
+            PlatformCommand::Image { base } => platform::image(&paths, base.as_deref()),
             PlatformCommand::Apply { foreground: true } => platform::apply_foreground(&paths),
             PlatformCommand::Apply { foreground: false } => platform::apply(&paths),
             PlatformCommand::Update { to } => platform::update(&paths, to.as_deref()),

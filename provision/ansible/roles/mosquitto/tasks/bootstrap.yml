@@ -1,5 +1,9 @@
 ---
-# What needs the running service.
+# What is one FIBER's own, and what needs the running service.
+- name: The login for the network listener
+  ansible.builtin.import_tasks: lan.yml
+  when: fiber.settings.mqtt.lan
+
 - name: Mosquitto runs
   ansible.builtin.systemd_service:
     name: mosquitto

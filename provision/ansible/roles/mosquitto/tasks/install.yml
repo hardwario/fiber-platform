@@ -1,15 +1,12 @@
 ---
-# Packages, files, enabling. Nothing here needs the service running, so it works in a chroot.
+# Packages, files, enabling. Nothing here needs the service running, so it works in a chroot, and
+# nothing here is one FIBER's own: the network listener's login is the bootstrap's (T32).
 - name: Mosquitto and its clients, from Debian
   ansible.builtin.include_role:
     name: common
     tasks_from: packages
   vars:
     common_packages: [mosquitto, mosquitto-clients]
-
-- name: The login for the network listener
-  ansible.builtin.import_tasks: lan.yml
-  when: fiber.settings.mqtt.lan
 
 - name: Our settings, in one drop-in file
   ansible.builtin.template:

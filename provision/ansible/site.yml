@@ -26,7 +26,7 @@
           - fiber is defined
           - fiber.component is string
           - fiber.roles | length > 0
-          - fiber.wanted in ['on', 'off']
+          - fiber.wanted in ['on', 'off', 'image']
         fail_msg: "site.yml is run by `fiber platform apply`, not by hand"
         quiet: true
 
@@ -42,3 +42,26 @@
       loop: "{{ fiber.roles if fiber.wanted == 'on' else fiber.roles | reverse }}"
       loop_control:
         loop_var: fiber_role
+      when: fiber.wanted in ['on', 'off']
+
+    # `fiber platform image` (docs/provisioning.md, "The ready-made image"): in the image's chroot,
+    # each component's install step, nothing of one FIBER's, then its services turned off again,
+    # so that nothing runs at the first start that the seed does not turn on. The base keeps its
+    # block in config.txt: the first start then needs no restart.
+    - name: Install the component for the ready-made image
+      ansible.builtin.include_role:
+        name: "{{ fiber_role }}"
+        tasks_from: install
+      loop: "{{ fiber.roles }}"
+      loop_control:
+        loop_var: fiber_role
+      when: fiber.wanted == 'image'
+
+    - name: Its services turned off again, for the ready-made image
+      ansible.builtin.include_role:
+        name: "{{ fiber_role }}"
+        tasks_from: disable
+      loop: "{{ fiber.roles | reverse }}"
+      loop_control:
+        loop_var: fiber_role
+      when: fiber.wanted == 'image' and fiber.component != 'base'

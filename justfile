@@ -228,7 +228,7 @@ check-keys:
 # Every shell script of the repository.
 # Run shellcheck on the shell scripts.
 shellcheck:
-    shellcheck provision/install.sh provision/tests/*.sh agent/tests/*.sh examples/shell/*.sh
+    shellcheck provision/install.sh provision/image/build.sh provision/tests/*.sh agent/tests/*.sh examples/shell/*.sh
 
 # Needs Docker on an arm64 machine and the internet (the installer installs Ansible from Debian).
 # Run the installer's tests in a container like Raspberry Pi OS.
@@ -266,6 +266,56 @@ check-converge: release test-releases build-examples
 # Needs Docker on an arm64 machine (an Apple silicon Mac, or CI's arm64 runner). The container
 # has no network, no broker, no hardware and no settings. Not part of `check`.
 # Run the static program's commands in a bare Debian container.
+# The ready-made image (T32, docs/provisioning.md): built from the release, then its first start
+# tried without a network. Needs Docker on an arm64 machine and the internet.
+check-image: release
+    {{just}} image dist target/image
+    {{just}} image-test target/image
+
+# In a privileged arm64 container: loop devices and a chroot, the same on a Mac and in CI.
+# Build the ready-made image from a release's files (RELEASE: the archive, install.sh, SHA256SUMS).
+image RELEASE OUT:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p "{{OUT}}"
+    docker run --rm --privileged --platform linux/arm64 -v /dev:/dev \
+        -v fiber-image-cache:/var/cache/fiber-image -v "{{justfile_directory()}}:/repo" -w /repo \
+        {{debian_image}} bash -c "apt-get update -qq && DEBIAN_FRONTEND=noninteractive \
+            apt-get install -y -qq --no-install-recommends ca-certificates curl xz-utils fdisk e2fsprogs \
+            zerofree mount > /dev/null && provision/image/build.sh '{{RELEASE}}' '{{OUT}}'"
+
+# The image's root imported into Docker and started with systemd and no network; the seed and the
+# image's installer run in it as FIBER Setup's first start would (provision/tests/image-test.sh).
+# Try the first start of the ready-made image in DIR, without a network.
+image-test DIR:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    images=("{{DIR}}"/fiber-platform-*-image-arm64.img.xz)
+    docker run --rm --privileged --platform linux/arm64 -v /dev:/dev \
+        -v "{{justfile_directory()}}:/repo" -w /repo {{debian_image}} bash -c "apt-get update -qq && \
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends xz-utils fdisk \
+            mount > /dev/null && provision/image/rootfs.sh '${images[0]}' '{{DIR}}/rootfs.tar'"
+    docker import --platform linux/arm64 "{{DIR}}/rootfs.tar" fiber-platform-image > /dev/null
+    rm -f "{{DIR}}/rootfs.tar"
+    docker rm -f fiber-platform-image > /dev/null 2>&1 || true
+    # In a container: no fstab (it names the FIBER's partitions, and a failed mount stops systemd in
+    # its emergency target), no zram swap (its device never comes), and no first-boot units that
+    # wait for FIBER Setup's settings (a user to make on the console, cloud-init's data). systemd as
+    # process 1 of a container takes its options from its arguments.
+    generators=/usr/lib/systemd/system-generators
+    masks=()
+    for unit in userconfig cloud-init-local cloud-init-main cloud-init-network cloud-config cloud-final; do
+        masks+=("systemd.mask=$unit.service")
+    done
+    docker run -d --name fiber-platform-image --platform linux/arm64 --privileged --cgroupns=host --network none \
+        -v /sys/fs/cgroup:/sys/fs/cgroup:rw --tmpfs /run --tmpfs /run/lock -v /dev/null:/etc/fstab:ro \
+        -v /dev/null:$generators/rpi-swap-generator:ro -v /dev/null:$generators/zram-generator:ro \
+        -v "{{justfile_directory()}}/provision/tests:/tests:ro" fiber-platform-image /sbin/init "${masks[@]}" > /dev/null
+    status=0
+    docker exec fiber-platform-image bash /tests/image-test.sh || status=$?
+    docker rm -f fiber-platform-image > /dev/null
+    exit $status
+
 check-container: build-fiber
     docker run --rm --platform linux/arm64 --network none \
         -v "{{justfile_directory()}}/target/aarch64-unknown-linux-musl/release/fiber:/usr/local/bin/fiber:ro" \

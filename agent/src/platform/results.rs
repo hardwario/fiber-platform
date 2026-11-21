@@ -42,6 +42,8 @@ pub struct ComponentResult {
 pub enum Wanted {
     On,
     Off,
+    /// Installed for the ready-made image, and turned off (`fiber platform image`).
+    Image,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]

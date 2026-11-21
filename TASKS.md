@@ -961,6 +961,90 @@ In `../docs/fiber`. The pages there describe a setup by hand that no longer work
 
 - Needs: a FIBER Setup that installs the platform is out (T12, D24) before the pages are pushed.
 
+### T32. A ready-made image (M7)
+
+State (2026-11-21): started at the maintainer's word ("now I like it"), after weighing it: a first
+start without the internet and in about a minute (today 147 MB downloaded and about 6.5 minutes of
+installing, on the bench), the bits that were tested on every FIBER (today each installs from the
+live package sources at its first start), and room for flashing many; against a file of about
+1 GB per release, a build in CI, and an image that ages between releases. Found before any code:
+the roles' install steps are not yet image-clean. Node-RED's install writes `settings.js` with the
+login (and fails without one), ChirpStack's makes the API's secret (every FIBER of one image would
+share it), and Mosquitto's, Node-RED's and the agent's enable their services; and the seed names
+only what is on, so on an image a component it leaves out would start as the image left it (Node-RED
+without a login). The choices made (written into `docs/provisioning.md` first): the base is the
+Raspberry Pi OS Lite that FIBER Setup pins; built natively in a chroot on CI's arm64 runner; the
+release unpacked into it and every component's install step run, nothing turned on, nothing of one
+FIBER's in it; FIBER Setup's first start finds the platform there and downloads nothing; published
+beside the release's archive.
+Done the same day: `docs/provisioning.md` ("The ready-made image", and the role rules: nothing of
+one FIBER's in an install step); `docs/cli.md` (`fiber platform image`); the roles image-clean
+(Node-RED's `login.yml`, Mosquitto's network login and ChirpStack's API secret with the settings
+that hold it moved to the bootstrap steps; the converge test running on them); `fiber platform
+image` (`Wanted::Image`; `site.yml` runs a role's install step and then its disable step, the base
+its install step only; refused where systemd runs; `SYSTEMD_OFFLINE=1` for Ansible; the mark and
+nothing of one FIBER's; three tests). Tried first in a Debian trixie container without systemd,
+with `SYSTEMD_OFFLINE=1`: Ansible's systemd module enables, stops and disables a unit, installs
+Mosquitto without starting it and turns it off, and runs a restart handler, all without an error
+(a warning that the target is offline); no unit is left enabled. Docker Desktop was started on the
+maintainer's computer for this. The converge test passed in full with the moved tasks.
+`provision/image/build.sh` (with `base.env`, the pin; each partition through a loop device at its
+offset, so that it runs the same in a container) and `provision/image/rootfs.sh` (a built image's
+root as a tar) are written and pass `shellcheck`; `provision/tests/image-test.sh` checks the first
+start in the image's root without a network; `just check-image` runs it all in containers on an
+arm64 machine. Its first run, on this computer: the release unpacked and Ansible installed in the
+image's chroot, then `fiber platform image`: common, base 5 changes, mosquitto 3, agent 8,
+node-red 14, chirpstack 18, the mark written; emptied, shrunk to 3.5 GB uncompressed; the first-start
+test next. Split since: `just image RELEASE OUT` and `just image-test DIR`, which `check-image` and
+the release workflow's new `image` job both use (the image built from the very files the build job
+tried; `publish` waits for it and adds it to `SHA256SUMS`); `docs/release.md` says so. FIBER
+Setup's `fiber-install.sh` (not committed there): on the image of the release it names, with
+`/opt/fiber/install.sh` of the sha256 it pins, it runs that one and skips the network, the clock and
+the download. Its catalog waits for the image's URL, sha256 and size from the first release (D24).
+Then: the image built (625 MB compressed, 3.5 GB uncompressed); its first test run stopped at
+`docker import -q` (no such flag), and the next found three things a container needs taken away,
+each seen one at a time: the image's `/etc/fstab` (its FIBER partitions fail to mount and systemd
+stops in its emergency target, "maintenance"), the zram swap (made by `rpi-swap-generator`; its
+device never comes, and masking the generated units does not help: the generators are bound to
+`/dev/null`), and the first-boot units that wait (`userconfig`, which wants a user made on the
+console, and cloud-init's, masked through systemd's arguments as process 1 of a container). Also
+the test now waits for systemd before it begins (started too early, its first checks passed on
+empty answers, and a file it wrote to `/tmp` vanished under the tmpfs mounted there). With that,
+`just image-test` passes: nothing enabled and nothing of one FIBER's in the image, then without a
+network the image's installer takes the seed (its release unpacked already, Ansible installed
+already) and the apply brings every component up in about 30 s, base and common with nothing to
+change (no restart), the seed's login opening Node-RED and Mosquitto's listener for the network
+and a wrong one not, ChirpStack's secret and key made. FIBER Setup's first-start script, stamped
+with release 0.1.0 and the installer's sha256 and run in a fresh container of the image: it took
+the image's way ("its own installer, without the network") and the components came up;
+ChirpStack, left out of the seed, stayed installed and off. Left: CI (the release workflow's dry
+run, after a push), FIBER Setup's catalog (with the first release), and a FIBER.
+
+- [x] `docs/provisioning.md` first: "The ready-made image": what is in it and what is not, how it
+      is built, the first start on it, where it is published, its size
+- [x] The roles image-clean: what is a FIBER's own (Node-RED's login, ChirpStack's API secret) in
+      the bootstrap step; the converge test as before (passed on this computer, 2026-11-21)
+- [x] `fiber platform image`, run in the image's chroot: the install step of every component, every
+      service it brings turned off, a mark that this is the image (`/etc/fiber/image.json`), and
+      nothing of one FIBER's (`/etc/fiber/secrets`, `platform.yaml`, results, log) left; tests
+- [x] The first start on the image: nothing to change in the seed, as a component it leaves out
+      stays installed and off (no service of it enabled); the installer already runs offline when
+      its release is unpacked and Ansible installed. That the apply needs no network is the CI
+      test's to show
+- [x] `provision/image/build.sh`: the pinned base downloaded and checked, grown, mounted, the
+      release unpacked and `fiber platform image` run in the chroot, emptied, shrunk, compressed,
+      its sha256; `shellcheck`
+- [ ] CI: the image in the release workflow (and its dry run), beside the archive in `SHA256SUMS`;
+      a test that starts the image's root as a container with systemd and no network, seeds it
+      and applies it, every component up
+- [ ] FIBER Setup: its catalog offers the image in place of Raspberry Pi OS Lite; its first-start
+      script, finding the platform there, seeds and applies without a download
+- [ ] On a FIBER: written by FIBER Setup, the first start without the internet
+
+- Needs: T11 (done).
+- Done when: a FIBER written with the image comes up with its components without the internet, and
+  the image is built and tested in CI.
+
 ## Tasks ahead
 
 In the order of the plan. Every task has its steps already; when a task starts, they are read
@@ -1023,15 +1107,6 @@ is refused.
 
 Done when: a new user gets from the box to a thermometer in a Node-RED flow with the
 documentation alone.
-
-#### T32. A ready-made image
-
-- [ ] An image built in CI from the roles' `install` step, with every component in it and none
-      turned on
-- [ ] The first start then only does the roles' `bootstrap` step, and needs no internet
-- [ ] FIBER Setup offers it in place of the stock image (its catalog already expects one)
-
-- Needs: T11.
 
 #### T33. Retire the earlier repositories
 

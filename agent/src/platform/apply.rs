@@ -60,7 +60,11 @@ impl StepResult {
         let id = &self.component;
         match self.result {
             Outcome::Ok => {
-                let what = if self.wanted == Wanted::On { "up" } else { "off" };
+                let what = match self.wanted {
+                    Wanted::On => "up",
+                    Wanted::Off => "off",
+                    Wanted::Image => "in the image",
+                };
                 match self.changes {
                     Some(0) => format!("{id}: {what}, nothing changed"),
                     Some(1) => format!("{id}: {what}, 1 change"),
@@ -258,6 +262,9 @@ struct Ansible<'a> {
     log: Option<File>,
     /// For the converge test: the components whose run fails on purpose.
     fail_on_purpose: Vec<String>,
+    /// No systemd runs (the image's chroot): `systemctl` and Ansible's systemd module enable and
+    /// disable units without it.
+    offline: bool,
 }
 
 impl Ansible<'_> {
@@ -298,7 +305,11 @@ impl Runner for Ansible<'_> {
             };
         }
         let ansible = self.release.dir.join("provision/ansible");
-        let what = if step.wanted == Wanted::On { "up" } else { "off" };
+        let what = match step.wanted {
+            Wanted::On => "up",
+            Wanted::Off => "off",
+            Wanted::Image => "in the image",
+        };
         self.log(&format!(
             "--- {} {what}, {}\n",
             step.component,
@@ -312,6 +323,7 @@ impl Runner for Ansible<'_> {
             .env("ANSIBLE_CONFIG", ansible.join("ansible.cfg"))
             .env("LC_ALL", "C.UTF-8")
             .env("ANSIBLE_NOCOLOR", "1")
+            .envs(self.offline.then_some(("SYSTEMD_OFFLINE", "1")))
             .output();
         match output {
             Err(e) => {
@@ -499,6 +511,7 @@ fn apply_once(paths: &Paths, request: &str) -> Result<u8> {
         settings: platform.settings.clone(),
         log,
         fail_on_purpose,
+        offline: false,
     };
 
     let mut record_error = None;
@@ -575,11 +588,90 @@ pub fn turn_all_off(paths: &Paths, release: &Release) -> Result<bool> {
         settings,
         log,
         fail_on_purpose: Vec::new(),
+        offline: false,
     };
     let results = run_steps(&catalog, &steps, &mut runner, |_, result| {
         println!("{}", result.line())
     });
     Ok(results.iter().all(|r| r.result == Outcome::Ok))
+}
+
+/// The steps of `fiber platform image`: `common`, then every component's install step and its
+/// services turned off (`site.yml`).
+pub fn image_steps(catalog: &Catalog) -> Vec<Step> {
+    let mut steps = vec![Step {
+        component: COMMON.to_owned(),
+        roles: vec![COMMON.to_owned()],
+        wanted: Wanted::On,
+    }];
+    steps.extend(catalog.components().iter().map(|c| Step {
+        component: c.id.clone(),
+        roles: c.roles.clone(),
+        wanted: Wanted::Image,
+    }));
+    steps
+}
+
+/// What the image keeps of its making: the mark (the release, the base, when), and nothing of one
+/// FIBER's: no secrets, no `platform.yaml`, no results, no log, nothing in `/run`.
+pub fn mark_image(paths: &Paths, release: &str, base: &str) -> Result<()> {
+    let mark = serde_json::json!({
+        "schema": 1,
+        "release": release,
+        "base": base,
+        "built": rfc3339(SystemTime::now()),
+    });
+    write_file(&paths.image_mark(), &format!("{mark:#}\n"), 0o644)?;
+    let gone = |path: PathBuf| match std::fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(anyhow!("cannot remove {}: {e}", path.display())),
+    };
+    if let Ok(entries) = std::fs::read_dir(paths.secrets_dir()) {
+        for entry in entries.flatten() {
+            gone(entry.path())?;
+        }
+    }
+    gone(paths.platform_file())?;
+    gone(paths.platform_results())?;
+    gone(paths.platform_log())?;
+    let run = paths.under("/run/fiber");
+    if run.exists() {
+        std::fs::remove_dir_all(&run).map_err(|e| anyhow!("cannot remove {}: {e}", run.display()))?;
+    }
+    Ok(())
+}
+
+/// `fiber platform image [--base NAME]`: this Raspberry Pi OS made the ready-made image, in its
+/// chroot (`provision/image/build.sh`). Refused where systemd runs: that is a FIBER, not an image.
+pub fn image(paths: &Paths, base: Option<&str>) -> Result<ExitCode> {
+    if paths.under("/run/systemd/system").exists() {
+        bail!(
+            "fiber platform image makes the ready-made image in its chroot (provision/image/build.sh); \
+             this system runs systemd"
+        );
+    }
+    let release = Release::of_this_program()
+        .ok_or_else(|| anyhow!("this program is not inside a release (/opt/fiber/releases/<version>)"))?;
+    let catalog = Catalog::built_in()?;
+    std::fs::create_dir_all(paths.platform_run_dir())?;
+    let mut runner = Ansible {
+        paths,
+        release: &release,
+        settings: Settings::default(),
+        log: None,
+        fail_on_purpose: Vec::new(),
+        offline: true,
+    };
+    let results = run_steps(&catalog, &image_steps(&catalog), &mut runner, |_, result| {
+        println!("{}", result.line())
+    });
+    if results.iter().any(|r| r.result != Outcome::Ok) {
+        return Ok(ExitCode::FAILURE);
+    }
+    mark_image(paths, &release.version, base.unwrap_or("unknown"))?;
+    println!("Wrote {}.", paths.image_mark().display());
+    Ok(ExitCode::SUCCESS)
 }
 
 /// `fiber platform apply --foreground`: the apply itself, in this process. One at a time; a
@@ -764,6 +856,84 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[test]
+    fn the_image_s_steps() {
+        let catalog = Catalog::built_in().unwrap();
+        let steps = image_steps(&catalog);
+        let names: Vec<(&str, Wanted)> = steps.iter().map(|s| (s.component.as_str(), s.wanted)).collect();
+        assert_eq!(
+            names,
+            [
+                ("common", Wanted::On),
+                ("base", Wanted::Image),
+                ("mosquitto", Wanted::Image),
+                ("agent", Wanted::Image),
+                ("node-red", Wanted::Image),
+                ("chirpstack", Wanted::Image),
+            ]
+        );
+        assert_eq!(steps[4].roles, ["node_red"]);
+        let line = StepResult {
+            component: "node-red".into(),
+            wanted: Wanted::Image,
+            result: Outcome::Ok,
+            changes: Some(17),
+            message: None,
+        }
+        .line();
+        assert_eq!(line, "node-red: in the image, 17 changes");
+    }
+
+    #[test]
+    fn the_image_keeps_nothing_of_one_fiber_s() {
+        let dir = crate::testdir::TestDir::new("image-mark");
+        let paths = Paths::new(Some(dir.path().to_path_buf()));
+        for (path, text) in [
+            (paths.secrets_dir().join("login.json"), "{}"),
+            (paths.secrets_dir().join("chirpstack-api-secret"), "s"),
+            (paths.platform_file(), "schema: 1\n"),
+            (paths.platform_results(), "{}"),
+            (paths.platform_log(), "log\n"),
+            (paths.platform_run_dir().join("vars.json"), "{}"),
+        ] {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, text).unwrap();
+        }
+        mark_image(&paths, "0.2.0", "raspios-lite-arm64-2026-10-06").unwrap();
+        let mark: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(paths.image_mark()).unwrap()).unwrap();
+        assert_eq!(
+            (&mark["schema"], &mark["release"], &mark["base"]),
+            (
+                &serde_json::json!(1),
+                &serde_json::json!("0.2.0"),
+                &serde_json::json!("raspios-lite-arm64-2026-10-06")
+            )
+        );
+        assert!(mark["built"].as_str().unwrap().ends_with('Z'));
+        assert!(paths.secrets_dir().exists(), "the directory stays, empty");
+        assert_eq!(std::fs::read_dir(paths.secrets_dir()).unwrap().count(), 0);
+        for gone in [
+            paths.platform_file(),
+            paths.platform_results(),
+            paths.platform_log(),
+            paths.under("/run/fiber"),
+        ] {
+            assert!(!gone.exists(), "{} is gone", gone.display());
+        }
+        // Again, with nothing left to remove.
+        mark_image(&paths, "0.2.0", "raspios-lite-arm64-2026-10-06").unwrap();
+    }
+
+    #[test]
+    fn no_image_where_systemd_runs() {
+        let dir = crate::testdir::TestDir::new("image-systemd");
+        let paths = Paths::new(Some(dir.path().to_path_buf()));
+        std::fs::create_dir_all(paths.under("/run/systemd/system")).unwrap();
+        let error = image(&paths, None).unwrap_err().to_string();
+        assert!(error.ends_with("this system runs systemd"), "{error}");
     }
 
     #[test]

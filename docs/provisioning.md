@@ -161,8 +161,8 @@ A role is `provision/ansible/roles/<name>/`. The `mosquitto` role shows the shap
 
 | File | What it does |
 |---|---|
-| `tasks/install.yml` | Packages, files, enabling. Nothing that needs the service running, so that an image build (T32) can run it in a chroot |
-| `tasks/bootstrap.yml` | What needs the running service: starting it, tokens, passwords |
+| `tasks/install.yml` | Packages, files, enabling. Nothing that needs the service running, and nothing of one FIBER's own (a login, a password, a secret), so that the ready-made image (T32) can run it in a chroot and carry it to every FIBER |
+| `tasks/bootstrap.yml` | What is one FIBER's own, and what needs the running service: the login written into a component's settings, passwords, secrets, tokens, starting it |
 | `tasks/main.yml` | `install`, then `bootstrap`: what `on` runs |
 | `tasks/disable.yml` | What `off` runs: the services stopped and turned off, the settings and the data kept |
 | `handlers/main.yml`, `templates/` | As Ansible has them |
@@ -464,6 +464,71 @@ not there yet: a `platform.yaml` that exists is the person's, and a password is 
 
 A weekly canary workflow (T11) converges the whole stack against the live package sources and
 opens an issue when one of them breaks.
+
+## The ready-made image
+
+**Status: built and tried in containers on an arm64 computer (T32, 2026-11-21): `just image`
+built it from release 0.1.0 (625 MB compressed, 3.5 GB written to the eMMC), and its first start,
+in its own root started as a container with systemd and without a network, brought every
+component up in about 30 s (FIBER Setup's first-start script included). Not yet in CI, not yet
+written to a FIBER.**
+
+A Raspberry Pi OS with the release and every component's packages in it, written by FIBER Setup in
+place of the stock image. Its first start installs nothing and downloads nothing: about a minute,
+without the internet, where the stock image downloads 147 MB and installs for about 6.5 minutes
+(measured on the bench, T12). And every FIBER written with it has what was tested, where the stock
+image installs from the package sources as they are on the day of its first start.
+
+**What is in it:**
+
+- **The base:** the Raspberry Pi OS Lite (64-bit) that FIBER Setup pins (2026-10-06, Debian 13
+  trixie), checked by its sha256 before anything is done with it.
+- **The release,** unpacked in `/opt/fiber/releases/<version>` as the installer unpacks it, with
+  `current` and `/usr/local/bin/fiber`, and the release's own `install.sh` in
+  `/opt/fiber/install.sh` (stamped, as on the release page).
+- **Every component's install step:** its packages (Mosquitto; Node.js, Node-RED and the dashboard;
+  ChirpStack, Redis, the concentrator daemon and the MQTT forwarder; Ansible), its files, the
+  `config.txt` block and the overlay. **Nothing turned on:** every service a component brings is
+  turned off, and nothing runs at the first start that the seed does not turn on.
+- **The mark:** `/etc/fiber/image.json`, with the release's version and the base's name.
+
+**What is not in it:** nothing of one FIBER's. No `/etc/fiber/platform.yaml`, no
+`/etc/fiber/secrets` (the login, ChirpStack's API secret and key), no Node-RED `settings.js`, no
+machine id, no SSH host keys (Raspberry Pi OS makes them at the first start), no package lists, no
+npm caches, no logs. What a FIBER must have of its own is made by the roles' bootstrap step, which
+the image never runs.
+
+**How it is built:** `provision/image/build.sh`, as root, on an arm64 Linux (CI's arm64 runner;
+the image's programs run natively, without emulation):
+
+1. The base downloaded, checked by its sha256 and unpacked.
+2. Grown by 2 GB, its root partition and file system with it, and mounted (the boot partition at
+   `/boot/firmware`).
+3. In a chroot: the release's `install.sh` with `FIBER_NO_APPLY=1` (the release unpacked, Ansible
+   installed), then `fiber platform image`: the install step of every component, every service it
+   brings turned off, the mark, and everything of one FIBER's removed.
+4. Its free space zeroed, the root file system shrunk to what it holds and a margin, the image cut
+   to it, compressed with `xz`, and its sha256.
+
+**Its first start:** FIBER Setup writes its settings and the seed as for the stock image. Its
+first-start script finds `/etc/fiber/image.json` for the release it names, and `/opt/fiber/install.sh`
+with the sha256 it pins: it runs that one, and waits neither for the network nor for the clock. The
+installer finds its release unpacked and Ansible installed, takes the seed, and applies: each
+component the seed turns on runs its install step, which finds everything in place, then its
+bootstrap step (the login, the passwords, the secrets, the services started). A component the seed
+leaves out stays as the image has it, installed and off.
+
+**Where it is:** beside the release's archive, `fiber-platform-<version>-image-arm64.img.xz`, in its
+`SHA256SUMS` and with its provenance attestation: 625 MB for 0.1.0, where the stock image is 525 MB.
+The release workflow builds it from the very files its build job tried, tries its first start
+(`just image-test`), and publishes no release without it.
+
+**Its test** (`provision/tests/image-test.sh`) starts the image's root as a container, with what a
+container lacks taken away: no `/etc/fstab` (it names the FIBER's partitions, and a failed mount
+stops systemd in its emergency target), no zram swap, and the first-boot units that wait for FIBER
+Setup's settings masked (a user made on the console, cloud-init's data). It checks that nothing of
+one FIBER's is in the image and no service is turned on, then seeds it and runs the image's own
+installer without a network, and checks every component up with the seed's login.
 
 ## FIBER Setup's side
 

@@ -10,7 +10,9 @@ release has been made. The repository's *immutable releases* setting is on (sinc
 
 One version for everything: the version in `agent/Cargo.toml` is the version of the `fiber`
 program and of the release, and the tag is `v` and that version, as in `v0.2.0`. A release
-holds the archive, the stamped `install.sh` and `SHA256SUMS`, built from the tagged commit. A
+holds the archive, the stamped `install.sh`, the ready-made image
+(`fiber-platform-<version>-image-arm64.img.xz`, [`provisioning.md`](provisioning.md), "The
+ready-made image") and `SHA256SUMS`, built from the tagged commit. A
 tag is never moved and a release is never changed: a release whose build fails uses up its
 version.
 
@@ -24,8 +26,9 @@ version.
    `cargo update -p fiber-agent`), and commit: "FIBER Platform 0.2.0".
 2. **Dry run:** Actions > Release > Run workflow, on `main`. It builds the release, builds it a
    second time and compares, tries the program in a bare container and the installer in a
-   container like Raspberry Pi OS, and keeps the files as a workflow artifact. It publishes
-   nothing. Do it after any change to the build.
+   container like Raspberry Pi OS, builds the ready-made image from those files and tries its
+   first start without a network (`just image`, `just image-test`), and keeps the files as
+   workflow artifacts. It publishes nothing. Do it after any change to the build.
 3. **Tag:** `git tag v0.2.0 && git push origin v0.2.0`. The workflow checks that the tag is the
    version, that the commit is on `main` and that its CI went green, then builds and tries it
    all again.
