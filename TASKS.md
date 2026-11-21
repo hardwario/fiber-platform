@@ -832,9 +832,35 @@ no condition of its own, a job runs only when everything before it succeeded, an
 tag gate is skipped (the build job had the guard, the image job not). Given it (`a005aff`); the
 second dry run (44913866458) built the image from the very release its build job tried (623 MB
 compressed) and its first-start test passed, in 7 minutes; the publish job was skipped, as on every
-dry run. D28 answered the same day: FIBER Setup always writes the ready-made image. Next: the
-documents say so, then FIBER Setup's catalog and texts (its values marked as not published until
-the first release). Left after that: `SHA256SUMS` with the image in it (the first release, D24),
+dry run. D28 answered the same day: FIBER Setup always writes the ready-made image. The documents
+say so (`7d5e53d`). Now: FIBER Setup's catalog and texts (its values marked as not published until
+the first release). Found on the way: about 12 of its texts in each of the five languages speak of
+the first start downloading and installing (about 10 minutes, the internet, a restart), the image
+step offers Raspberry Pi Imager's cached copy (it never holds this image), and the done page names
+Raspberry Pi OS Lite; the first start's times with the image are not measured on a FIBER, so the
+texts take `docs/provisioning.md`'s "about a minute" until the bench measures them.
+Paused here at the maintainer's word (2026-11-21, evening), before any change in FIBER Setup (its
+tree is clean, on its 3 unpushed commits). The plan for it, worked out from its code:
+1. `catalog.rs`: `FIBER_IMAGE` in place of `RASPIOS_LITE` (name "FIBER platform 0.1.0", version
+   "on Raspberry Pi OS Lite of 2026-10-06", the release's URL and file name), marked NOT PUBLISHED
+   as the installer is; a test that its URL and file name carry `FIBER_PLATFORM`'s version.
+   `known_copies` goes (Raspberry Pi Imager's cache never holds this image), with `other_copy` in
+   `image.rs`, `Status`, `types.ts`, the wizard's `otherCopy`, `Image.svelte` and `image.reuse`.
+   `prepare_local`'s `official` compares with `FIBER_IMAGE`. Callers: `src-tauri/src/lib.rs`
+   (3), `crates/fiber-setup-cli/src/main.rs`, `api.ts`'s mock.
+2. Its sha256 and size from the dry run's artifact (run 44913866458, `fiber-platform-image`,
+   623 MB; `gh run download 44913866458 -n fiber-platform-image`, into a new empty directory;
+   the download was started and stopped for the pause, nothing kept). With that file put in FIBER
+   Setup's cache under its file name, `prepare_official` takes it without a download: the way to
+   try the whole flow before the release.
+3. The texts, in all five languages (`src/lib/i18n/*.ts`): `welcome.time`, `image.lead`,
+   `image.system`, `image.fiber`, `image.fiberText`, `image.fiberOff`, `settings.softwareLead`,
+   `settings.nothing`, `settings.phoneHint`, `start.timeline`, `done.softwarePlain` (the image's
+   name, no longer Raspberry Pi OS Lite); the picker's "MB to download" hint goes
+   (`Settings.svelte`, `settings.download`). No new numbers but the first start's "about a
+   minute"; the write's 5 minutes stay until a FIBER shows the larger image's time.
+4. Its README (lines 163 to 164, 239), then `cargo test`, clippy, `npm run check`, `npm test`,
+   and the views in the browser preview. Left after that: `SHA256SUMS` with the image in it (the first release, D24),
 the catalog's values from it, and a FIBER.
 
 - [x] `docs/provisioning.md` first: "The ready-made image": what is in it and what is not, how it
