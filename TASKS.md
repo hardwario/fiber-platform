@@ -835,7 +835,7 @@ tag gate is skipped (the build job had the guard, the image job not). Given it (
 second dry run (44913866458) built the image from the very release its build job tried (623 MB
 compressed) and its first-start test passed, in 7 minutes; the publish job was skipped, as on every
 dry run. D28 answered the same day: FIBER Setup always writes the ready-made image. The documents
-say so (`7d5e53d`). Now: FIBER Setup's catalog and texts (its values marked as not published until
+say so (`7d5e53d`). Then FIBER Setup's catalog and texts (its values marked as not published until
 the first release). Found on the way: about 12 of its texts in each of the five languages speak of
 the first start downloading and installing (about 10 minutes, the internet, a restart), the image
 step offers Raspberry Pi Imager's cached copy (it never holds this image), and the done page names
@@ -860,7 +860,9 @@ so the root file system still grows to the eMMC at the first start. Not done: th
 first start in a container (its root was imported into Docker as `fiber-setup-trial`, then Docker
 Desktop stopped, with the disk of this computer at 99 %: 13 GB free; the image is left in Docker,
 3.4 GB, to be removed with `docker rmi fiber-setup-trial`). The dry run's image is kept in the
-session's scratchpad (`dryrun-image/`, 623 MB) for that trial.
+session's scratchpad (`dryrun-image/`, 623 MB) for that trial. Next, without a bench: that trial,
+once Docker runs and the disk has room (it needs about 10 GB: the raw image, the root's tar and
+Docker's copy); then nothing more here before the first release (D24) and a FIBER.
 
 - [x] `docs/provisioning.md` first: "The ready-made image": what is in it and what is not, how it
       is built, the first start on it, where it is published, its size
