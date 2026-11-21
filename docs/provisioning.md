@@ -538,14 +538,16 @@ installer without a network, and checks every component up with the seed's login
 
 ## FIBER Setup's side
 
-Built in FIBER Setup (T12), not run on a FIBER yet; tried in a container with Avahi.
+Built in FIBER Setup (T12, T32), not run on a FIBER yet; tried in a container with Avahi, and the
+image FIBER Setup wrote started in a container without a network (2026-11-21).
 
 - **The choice** is a list of components from a copy of `components.yaml` at the release FIBER
-  Setup names, with what each requires ticked with it, the download sizes once they are measured,
-  `mqtt.lan` and `hardware.minipcie`. Nothing ticked: no script and no seed are written.
+  Setup names, with what each requires ticked with it, `mqtt.lan` and `hardware.minipcie`. Nothing
+  ticked: no script and no seed are written.
 - **The image** is always the ready-made one of the release FIBER Setup names (D28), so with
   nothing ticked the FIBER starts with every component installed and none turned on. Until the
-  first release names it, FIBER Setup writes the stock Raspberry Pi OS Lite.
+  first release, FIBER Setup's catalog names the image and the installer of the release workflow's
+  dry run, marked as not published: their address answers only once the release is out.
 - **The seed** (`fiber-seed.yaml`, above) goes beside the first-start script `fiber-install.sh`.
   The script has the release's version and the sha256 of its `install.sh` written into it (D18).
 - **The script runs as a service,** `fiber-install.service`, which cloud-init starts without
