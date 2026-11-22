@@ -52,7 +52,7 @@ leaves 20). Each message is UTF-8 JSON, at most 4 KB, sent in pieces:
 
 - **Each piece** starts with one byte: bit 7 set on the last piece of a message, bit 6 set on
   the first, bits 0 to 5 the number of the piece from 0, counting on from 63 to 0 (a message of
-  4 KB at the smallest MTU takes 205 pieces).
+  4 KB at the smallest MTU takes 216 pieces of 19 bytes).
 - **The rest of the piece** is the next part of the message: at most the MTU less 3, less this
   byte. A message that fits in one piece has bits 7 and 6 both set.
 - **A first piece** starts a new message; whatever came before and did not end is dropped. So is

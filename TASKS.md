@@ -404,9 +404,9 @@ cannot be used: the driver puts it on one master only, the master of the first D
 
 ### T28. The Bluetooth profile, written first (M6)
 
-State (2026-11-18): the draft of `docs/ble.md` is written; it waits for the maintainer to read
-it, and then for the people who make HARDWARIO Manager. Nothing is built on it before they
-agree. Settled for the draft: the requests and answers are the same JSON as on MQTT; a message
+State (2026-11-22): the draft of `docs/ble.md` is written. The maintainer had a merge request
+made to HARDWARIO Manager that speaks it (T52, `apps/manager!515`); its review is the app's
+answer. The FIBER's side (T29) is not built before they agree. Settled for the draft: the requests and answers are the same JSON as on MQTT; a message
 goes in pieces of one header byte each (first, last, a number modulo 64), at most 4 KB; `info`
 can be read without pairing, so the app can list FIBERs; bonds are not kept.
 
@@ -423,6 +423,47 @@ A new, small profile (D3), agreed with the people who make the app before any co
 - [ ] Agreed with the HARDWARIO Manager app
 
 - Done when: the app's side has said yes to the document.
+
+### T52. The Bluetooth profile in HARDWARIO Manager: a merge request (M6)
+
+State (2026-11-22): the merge request is open, `apps/manager!515`
+(`https://gitlab.hardwario.com/apps/manager/-/merge_requests/515`), from the branch
+`feat/fiber-platform-ble` (one commit, `2acc7e4a`, off `dev`) into `dev`. Its title says "not yet
+tried on hardware"; its text (the commit's body) links the FIBER Platform and `docs/ble.md` at
+`d1efc1b`, says the FIBER's side (T29) is not built and nothing has talked to a FIBER, and lists
+the open questions. The same is in the app's new `docs/fiber-platform-ble.md`, and a notice on
+the screen says so to a tester. The maintainer sent it to the app's developers by email the same
+day, with the links to FIBER Setup and the FIBER Platform. What is in it: the profile's domain, the link over
+`flutter_blue_plus`, a mock with three made-up FIBERs, the controller, a screen behind a tile on
+the HARDWARIO FIBER home page (the app's FIBER feature, held back from release builds), the words
+in English and Czech, 5 test files. `tool/verify.sh` green on this computer (the whole suite, line
+coverage 87.20 % against the gate's 70 %). Not checked: the merge request's pipeline and that
+GitLab took the commit's body as the description; there is no GitLab API token here and the
+project is private, so the maintainer looks at the page. Writing the tests found that the example
+in `docs/ble.md` counted 205 pieces for 4 KB at the smallest MTU; with the header byte it is 216
+(corrected here, not committed). Questions for the bench that the app's page lists: the phone
+keeps a bond the FIBER forgets (Android can remove it, iOS cannot), whether pairing needs a
+reconnect on some Android phones as CHESTER does, whether 1 s holds for the short answers.
+
+- [x] Read the app: its layers (`docs/architecture.md`), its wording rule (no sentence in code,
+      brand words through `{product}`), its gate (`tool/verify.sh`), branches off `dev`,
+      Conventional Commits
+- [x] Domain: the profile's UUIDs, the pieces (cut and join), the five requests and their
+      answers, the failures
+- [x] Data: the link over `flutter_blue_plus` (scan by the service, read `info`, connect,
+      notifications on `rpc_tx`, requests in pieces), and a mock link
+- [x] Application: the controller of the screen
+- [x] The HARDWARIO screen: the FIBERs around, the one picked (setup state, network), Wi-Fi;
+      the words in English and Czech
+- [x] Tests; `tool/verify.sh` green
+- [x] A page in the app's `docs/` that names the FIBER Platform and `docs/ble.md` and says it
+      is not tried on a FIBER
+- [x] Pushed as a branch off `dev`, the merge request opened; its link here
+
+- Needs: T28 (the draft). T29 builds the FIBER's side; until then nothing is tried end to end.
+- Done when: the merge request is open, its pipeline green, and its text names the FIBER
+  Platform and says it is not tried on a FIBER. T28's last step (agreed with the app) is its
+  review.
 
 ### T22. The radio spike (M5)
 
