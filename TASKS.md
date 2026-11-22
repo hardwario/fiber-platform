@@ -157,7 +157,10 @@ The card is fed from the battery rail and goes away when the battery is low.
 
 ### T12. FIBER Setup: the component picker (M1)
 
-State (2026-11-19): measured on a FIBER with 1 GB, every component ticked, the installer run by
+State (2026-11-22): the first release is out, 1.0.0 (T51, D29), and FIBER Setup names it: its
+seven commits are pushed (the last `19f2a2c`), CI green on Windows, macOS and Linux (45003563950).
+Left: the checks on a FIBER (the last step), which need the bench.
+Earlier (2026-11-19): measured on a FIBER with 1 GB, every component ticked, the installer run by
 hand from a release served on the FIBER itself (FIBER Setup's first start was not tried): 6 min
 23 s over Wi-Fi to the end of the apply (the restart not counted), 147 MB downloaded, 687 MB more
 on disk (895 MB before npm's caches were removed, T36), 288 MB of memory in use with everything
@@ -215,11 +218,11 @@ In `../fiber-setup`. The one place where a user makes the choice.
       kind of character FIBER Setup escapes, written as FIBER Setup writes it
 - [x] D25 (2026-11-21): the password at least 8 characters, always (`firstboot.rs` and the
       wizard's check, with an error in five languages), pre-filled with `hardwario`; its tests
-- [ ] `catalog.rs`: the installer by its version and sha256, as the system image is, in place
+- [x] `catalog.rs`: the installer by its version and sha256, as the system image is, in place
       of an address on a `main` branch. `fiber-install.sh` fetches it and checks it; the test
-      that keeps the two in step stays. Built and tested; what it names waits for the first
-      release, after the bench (D24): its version and sha256, and `image/components.yaml` copied
-      from it. Then FIBER Setup's commits are pushed and its CI watched
+      that keeps the two in step stays. It names release 1.0.0 (T51, 2026-11-22, FIBER Setup's
+      `19f2a2c`), `image/components.yaml` is the release's; FIBER Setup's commits are pushed and
+      its CI is green (45003563950)
 - [x] The clock: take the date over plain HTTP before anything over HTTPS, and only ever move
       the clock forward
 - [x] `fiber-install.service` tries again after a failure without waiting for a restart: written
@@ -902,7 +905,8 @@ since. Next: nothing more here before the first release (D24) and a FIBER.
 - [x] The image FIBER Setup wrote, started in a container without a network: its first-start
       script takes the image's installer and the components come up (2026-11-21: in 19 s, the
       login from FIBER Setup opening Node-RED)
-- [ ] FIBER Setup's catalog takes the image's sha256 and size from the first release (D24)
+- [x] FIBER Setup's catalog takes the image's sha256 and size from the first release (D24): 1.0.0,
+      FIBER Setup's `19f2a2c` (T51, 2026-11-22)
 - [ ] On a FIBER: written by FIBER Setup, the first start without the internet; its time and the
       write's (3.69 GB, where FIBER Setup's texts still say 5 minutes); the root file system grown
       to the eMMC (`df -h /`)
@@ -910,33 +914,6 @@ since. Next: nothing more here before the first release (D24) and a FIBER.
 - Needs: T11 (done).
 - Done when: a FIBER written with the image comes up with its components without the internet, and
   the image is built and tested in CI.
-
-### T51. The first release: 1.0.0 (M1)
-
-State (2026-11-22): started at the maintainer's word: the first release is made now (D24), as
-1.0.0 (D29). The version is 1.0.0 (`just check` passed), committed and pushed; CI is running on
-it. Next: the dry run, then the tag.
-
-- [ ] The version 1.0.0 in `agent/Cargo.toml` and the lock file, and in the documents that show
-      it (`docs/cli.md`, `docs/provisioning.md`); committed as "FIBER Platform 1.0.0", pushed, CI
-      green. The tests' 0.1.0 stays: it is sample data (the seed's bytes are the same in FIBER
-      Setup's test)
-- [ ] The dry run of `release.yml` on that commit passes
-- [ ] The tag `v1.0.0` pushed; the workflow's gate, build and `publish` job pass, and the release
-      is published as the latest: the archive, `install.sh`, the ready-made image, `SHA256SUMS`
-- [ ] The published files checked: each against `SHA256SUMS`, `gh attestation verify` on each
-- [ ] `docs/provisioning.md` says what FIBER Setup writes from now on: the published image of
-      1.0.0, no longer the dry run's
-- [ ] FIBER Setup (T12, T32): its catalog names the installer and the image of 1.0.0 by their
-      sha256 and size, `image/components.yaml` copied from the tag; its commits pushed and its CI
-      green
-
-Watch out: a tag is never moved and a published release is never changed (immutable releases), so a
-release whose build fails uses up 1.0.0.
-
-- Needs: T2 (the platform ran on a FIBER from a release built by hand, 2026-11-19, see T12), T11,
-  D24, D29.
-- Done when: release 1.0.0 is published and FIBER Setup's pushed catalog names it.
 
 ## Tasks ahead
 
@@ -2286,6 +2263,43 @@ costs 82 bytes.
 
 - Needs: T3, T14.
 - Done when: it builds under 24 KB, and on a FIBER the lights and the ports follow `Desired`.
+
+### T51. The first release: 1.0.0 (M1)
+
+Done 2026-11-22, commit `302d078` ("FIBER Platform 1.0.0") and the tag `v1.0.0`, at the
+maintainer's word (D24, D29). Checked: `just check`, CI (45000686226), the dry run (45000702216),
+the release workflow with its first publish (45001991691); the published files against
+`SHA256SUMS` and their attestations; FIBER Setup's catalog pinned to it and tried without a FIBER,
+its CI green (45003563950). Not checked: a FIBER written with this release (T12, T32, on the
+bench).
+
+- [x] The version 1.0.0 in `agent/Cargo.toml` and the lock file, and in the documents that show
+      it (`docs/cli.md`, `docs/provisioning.md`); committed as "FIBER Platform 1.0.0", pushed, CI
+      green. The tests' 0.1.0 stays: it is sample data (the seed's bytes are the same in FIBER
+      Setup's test)
+- [x] The dry run of `release.yml` on that commit passes (45000702216)
+- [x] The tag `v1.0.0` pushed; the workflow's gate, build and `publish` job pass, and the release
+      is published as the latest: the archive, `install.sh`, the ready-made image, `SHA256SUMS`
+      (2026-11-22, run 45001991691; the publish job ran for the first time)
+- [x] The published files checked: each against `SHA256SUMS` (all OK), `gh attestation verify` on
+      the three files it lists (verified; `SHA256SUMS` itself is not attested, by design). The
+      image: 650635620 bytes, 3686793216 unpacked; `install.sh` names 1.0.0 and the archive's
+      sha256
+- [x] `docs/provisioning.md` says what FIBER Setup writes from now on: the published image of
+      1.0.0, no longer the dry run's; `docs/release.md` says the first release was made
+- [x] FIBER Setup (T12, T32): its catalog names the installer and the image of 1.0.0 by their
+      sha256 and size (`19f2a2c`); `image/components.yaml` is the tag's, byte for byte. Tried
+      without a FIBER: `fiber-setup-cli image` downloaded the published image from the catalog's
+      address and checked it, `flash --to-file` wrote it with `fiber-install.sh` naming 1.0.0 and
+      the installer's sha256, and the seed. Its seven commits pushed, CI green on Windows, macOS
+      and Linux (45003563950)
+
+Watch out: a tag is never moved and a published release is never changed (immutable releases), so a
+release whose build fails uses up 1.0.0.
+
+- Needs: T2 (the platform ran on a FIBER from a release built by hand, 2026-11-19, see T12), T11,
+  D24, D29.
+- Done when: release 1.0.0 is published and FIBER Setup's pushed catalog names it.
 
 ## Decisions ahead
 

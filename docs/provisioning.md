@@ -473,8 +473,8 @@ opens an issue when one of them breaks.
 built it from release 0.1.0 (625 MB compressed, 3.5 GB written to the eMMC), and its first start,
 in its own root started as a container with systemd and without a network, brought every
 component up in about 30 s (FIBER Setup's first-start script included). The release workflow's
-dry run builds and tries it the same way (623 MB, 2026-11-21). Not yet published, not yet written
-to a FIBER.**
+dry run builds and tries it the same way (623 MB, 2026-11-21). Published with release 1.0.0
+(2026-11-22, 620 MB, 3.69 GB unpacked); FIBER Setup names it. Not yet written to a FIBER.**
 
 A Raspberry Pi OS with the release and every component's packages in it, written by FIBER Setup in
 place of the stock image. Its first start installs nothing and downloads nothing: about a minute,
@@ -525,7 +525,7 @@ component on later (Node-RED then wants the login in `/etc/fiber/secrets/login.j
 Raspberry Pi OS set up by hand).
 
 **Where it is:** beside the release's archive, `fiber-platform-<version>-image-arm64.img.xz`, in its
-`SHA256SUMS` and with its provenance attestation: 625 MB for 0.1.0, where the stock image is 525 MB.
+`SHA256SUMS` and with its provenance attestation: 620 MB for 1.0.0, where the stock image is 525 MB.
 The release workflow builds it from the very files its build job tried, tries its first start
 (`just image-test`), and publishes no release without it.
 
@@ -545,9 +545,8 @@ image FIBER Setup wrote started in a container without a network (2026-11-21).
   Setup names, with what each requires ticked with it, `mqtt.lan` and `hardware.minipcie`. Nothing
   ticked: no script and no seed are written.
 - **The image** is always the ready-made one of the release FIBER Setup names (D28), so with
-  nothing ticked the FIBER starts with every component installed and none turned on. Until the
-  first release, FIBER Setup's catalog names the image and the installer of the release workflow's
-  dry run, marked as not published: their address answers only once the release is out.
+  nothing ticked the FIBER starts with every component installed and none turned on. FIBER
+  Setup's catalog names the image and the installer of release 1.0.0 by their sha256 (T51).
 - **The seed** (`fiber-seed.yaml`, above) goes beside the first-start script `fiber-install.sh`.
   The script has the release's version and the sha256 of its `install.sh` written into it (D18).
 - **The script runs as a service,** `fiber-install.service`, which cloud-init starts without
