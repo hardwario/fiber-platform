@@ -395,7 +395,7 @@ builds it twice and compares.
   "commit": "370c2ae...",
   "files": {"bin/fiber": "...", "provision/components.yaml": "..."},
   "schema": 1,
-  "version": "0.1.0"
+  "version": "1.0.0"
 }
 ```
 

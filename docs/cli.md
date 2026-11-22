@@ -32,7 +32,7 @@ Prints the version, on one line. FIBER Setup's first-start script records it as 
 
 ```
 $ fiber version
-0.1.0
+1.0.0
 ```
 
 `fiber version --all` adds what the build is made of: the TOWER revision its radio is compatible

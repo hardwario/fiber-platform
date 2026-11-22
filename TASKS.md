@@ -20,7 +20,7 @@ to tell that it is done. The facts it works with are in the documents: the board
 | Milestone | What | Tasks | Done when |
 |---|---|---|---|
 | M0 | Foundations and bench checks | T1 to T3 | Both microcontrollers answer their bootloader from the CM4; CI is green (T1 done) |
-| M1 | Provisioning | T4 to T12 | A FIBER written with every box ticked comes up by itself; a second apply changes nothing |
+| M1 | Provisioning | T4 to T12, T51 | A FIBER written with every box ticked comes up by itself; a second apply changes nothing |
 | M2 | The agent's core and the south bridge | T13 to T18 | The agent flashes the south bridge on its own and shows the board on MQTT (its three lines held on a FIBER, 2026-11-21; the mini-PCIe lines are left, T17) |
 | M3 | Thermometers | T19 | A DS18B20 shows up on MQTT and in a Node-RED flow |
 | M4 | The front panel | T20, T21 | The LCD shows the name and the address; the buttons move through the pages (held on a FIBER, 2026-11-19) |
@@ -910,6 +910,33 @@ since. Next: nothing more here before the first release (D24) and a FIBER.
 - Needs: T11 (done).
 - Done when: a FIBER written with the image comes up with its components without the internet, and
   the image is built and tested in CI.
+
+### T51. The first release: 1.0.0 (M1)
+
+State (2026-11-22): started at the maintainer's word: the first release is made now (D24), as
+1.0.0 (D29). The version is 1.0.0 (`just check` passed), committed and pushed; CI is running on
+it. Next: the dry run, then the tag.
+
+- [ ] The version 1.0.0 in `agent/Cargo.toml` and the lock file, and in the documents that show
+      it (`docs/cli.md`, `docs/provisioning.md`); committed as "FIBER Platform 1.0.0", pushed, CI
+      green. The tests' 0.1.0 stays: it is sample data (the seed's bytes are the same in FIBER
+      Setup's test)
+- [ ] The dry run of `release.yml` on that commit passes
+- [ ] The tag `v1.0.0` pushed; the workflow's gate, build and `publish` job pass, and the release
+      is published as the latest: the archive, `install.sh`, the ready-made image, `SHA256SUMS`
+- [ ] The published files checked: each against `SHA256SUMS`, `gh attestation verify` on each
+- [ ] `docs/provisioning.md` says what FIBER Setup writes from now on: the published image of
+      1.0.0, no longer the dry run's
+- [ ] FIBER Setup (T12, T32): its catalog names the installer and the image of 1.0.0 by their
+      sha256 and size, `image/components.yaml` copied from the tag; its commits pushed and its CI
+      green
+
+Watch out: a tag is never moved and a published release is never changed (immutable releases), so a
+release whose build fails uses up 1.0.0.
+
+- Needs: T2 (the platform ran on a FIBER from a release built by hand, 2026-11-19, see T12), T11,
+  D24, D29.
+- Done when: release 1.0.0 is published and FIBER Setup's pushed catalog names it.
 
 ## Tasks ahead
 
@@ -2262,9 +2289,13 @@ costs 82 bytes.
 
 ## Decisions ahead
 
-None open. (D24 waits only for the maintainer to say when: the first release.)
+None open.
 
 ## Decisions done
+
+- **D29. What version is the first release?** 1.0.0 (the maintainer, 2026-11-22, when asked to
+  make the first release: "tag as 1.0.0"), not the 0.1.0 the version had until then. The bench
+  releases keep their `0.1.0-bench.N`. Made in T51.
 
 - **D28. Which image does FIBER Setup write, now that there is a ready-made one?** (T32) FIBER
   Setup gets its image ready on the step before the settings, where the components are picked. The
@@ -2383,7 +2414,8 @@ None open. (D24 waits only for the maintainer to say when: the first release.)
 - **D24. When is the first release made, for FIBER Setup to pin?** After the bench (2026-11-18):
   no tag until T2 has run the platform on a FIBER from a release built by hand (`just release`,
   served to it). Until then FIBER Setup's work on T12 stays on this computer, as its catalog names
-  an installer that is not published (T12).
+  an installer that is not published (T12). The maintainer said when on 2026-11-22: now (T51),
+  as 1.0.0 (D29).
 - **D26. How does a person at the FIBER get rid of a client's message, and do alarms belong in
   the agent?** Alarms stay in the flows; a press takes a client's message off the display and
   stops a pattern that sounds, and that press does nothing else; `display` then says
