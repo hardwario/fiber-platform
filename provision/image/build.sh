@@ -126,11 +126,41 @@ install -m 0755 "$release_dir/install.sh" "$root/opt/fiber/install.sh"
 step "Every component installed, none turned on"
 chroot "$root" env DEBIAN_FRONTEND=noninteractive fiber platform image --base "$BASE_NAME"
 
+step "The first start's own jobs"
+# The image's machine id is left empty (below), so that its first start is no first boot to
+# systemd: a first boot applies systemd's presets, which enable every unit no preset names, and
+# in a container that turned on the platform's services, systemd-networkd-wait-online (which held
+# the apply back) and both SSH units (2026-11-23). But two of Raspberry Pi OS's units wait for a
+# first boot, and without them 1.0.0's image had no SSH host keys (SSH refused) and its root file
+# system left at the image's size (seen on a FIBER, 2026-11-23). These two drop-ins run them on
+# the first start all the same.
+dropin() {
+    mkdir -p "$root/etc/systemd/system/$1.d"
+    cat > "$root/etc/systemd/system/$1.d/fiber-image.conf"
+}
+dropin regenerate_ssh_host_keys.service << 'EOF'
+# The ready-made image's first start is no first boot (provision/image/build.sh): the host keys
+# are made when there are none. The empty line clears the unit's conditions; the others are its own.
+[Unit]
+ConditionFirstBoot=
+ConditionPathIsReadWrite=/etc
+ConditionFileIsExecutable=/usr/bin/ssh-keygen
+ConditionPathExists=!/etc/ssh/ssh_host_ed25519_key
+EOF
+dropin rpi-resize.service << 'EOF'
+# The ready-made image's first start is no first boot (provision/image/build.sh): the root file
+# system is grown all the same. The unit turns itself off once it has run.
+[Unit]
+ConditionFirstBoot=
+EOF
+
 step "Nothing of one FIBER's, and no caches"
 chroot "$root" apt-get clean
 rm -rf "$root/tmp/fiber-release" "$root"/var/lib/apt/lists/* "$root"/var/tmp/* "$root/root/.cache" \
     "$root/root/.npm" "$root/root/.ansible" "$root"/run/*
 rm -f "$root"/etc/ssh/ssh_host_* "$root/var/lib/dbus/machine-id"
+# Empty, not `uninitialized` as in the base: no first boot, so no presets (see "The first start's
+# own jobs"); systemd makes the machine id at the first start.
 : > "$root/etc/machine-id"
 find "$root/var/log" -type f -exec truncate -s 0 {} +
 if [ -n "$resolv_was" ]; then

@@ -41,6 +41,10 @@ for unit in mosquitto nodered fiber-agent fiber-restart.path chirpstack-sqlite c
     [ "$state" != enabled ] || fail "$unit is enabled in the image"
     ! systemctl is-active -q "$unit" || fail "$unit runs before the seed turned it on"
 done
+# No first boot (an empty machine id, so no presets), but the two first-boot jobs ran all the same
+# (build.sh's drop-ins): the SSH host keys made, the root file system's growth started.
+ls /etc/ssh/ssh_host_*_key > /dev/null 2>&1 || fail "no SSH host keys: SSH would refuse"
+[ "$(systemctl show -p ConditionResult --value rpi-resize)" = yes ] || fail "rpi-resize did not run"
 grep -q '^# BEGIN FIBER PLATFORM' /boot/firmware/config.txt || fail "config.txt has no FIBER block"
 [ -x /opt/fiber/install.sh ] || fail "no /opt/fiber/install.sh"
 

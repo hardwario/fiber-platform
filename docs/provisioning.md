@@ -474,7 +474,11 @@ built it from release 0.1.0 (625 MB compressed, 3.5 GB written to the eMMC), and
 in its own root started as a container with systemd and without a network, brought every
 component up in about 30 s (FIBER Setup's first-start script included). The release workflow's
 dry run builds and tries it the same way (623 MB, 2026-11-21). Published with release 1.0.0
-(2026-11-22, 620 MB, 3.69 GB unpacked); FIBER Setup names it. Not yet written to a FIBER.**
+(2026-11-22, 620 MB, 3.69 GB unpacked); FIBER Setup names it. Written to a FIBER on 2026-11-23:
+the first start brought every component up in 4 min 14 s from RESET, without a download, but
+1.0.0's image left `/etc/machine-id` empty, so the first start was no first boot: no SSH host keys
+(SSH refused) and the root not grown. Fixed in `build.sh` since (below); the fixed image is not
+yet published.**
 
 A Raspberry Pi OS with the release and every component's packages in it, written by FIBER Setup in
 place of the stock image. Its first start installs nothing and downloads nothing: about a minute,
@@ -494,6 +498,14 @@ image installs from the package sources as they are on the day of its first star
   `config.txt` block and the overlay. **Nothing turned on:** every service a component brings is
   turned off, and nothing runs at the first start that the seed does not turn on.
 - **The mark:** `/etc/fiber/image.json`, with the release's version and the base's name.
+- **The first start's two jobs:** `/etc/machine-id` is empty, so the first start is no first boot
+  to systemd. A first boot would apply systemd's presets, which enable every unit no preset names:
+  in a container that turned on the platform's services, `systemd-networkd-wait-online` (which
+  held the apply back) and both SSH units. But two of Raspberry Pi OS's units wait for a first
+  boot, so each has a drop-in (`fiber-image.conf`) that runs it all the same: the SSH host keys
+  are made when there are none (`regenerate_ssh_host_keys`), and the root file system is grown
+  once (`rpi-resize`, which then turns itself off; the partition is grown before, by the
+  initramfs, from `resize` on the kernel command line). 1.0.0's image had neither drop-in.
 
 **What is not in it:** nothing of one FIBER's. No `/etc/fiber/platform.yaml`, no
 `/etc/fiber/secrets` (the login, ChirpStack's API secret and key), no Node-RED `settings.js`, no
@@ -533,8 +545,9 @@ The release workflow builds it from the very files its build job tried, tries it
 container lacks taken away: no `/etc/fstab` (it names the FIBER's partitions, and a failed mount
 stops systemd in its emergency target), no zram swap, and the first-boot units that wait for FIBER
 Setup's settings masked (a user made on the console, cloud-init's data). It checks that nothing of
-one FIBER's is in the image and no service is turned on, then seeds it and runs the image's own
-installer without a network, and checks every component up with the seed's login.
+one FIBER's is in the image, that no service is turned on, and that the first start's two jobs ran
+(the SSH host keys made, `rpi-resize` started), then seeds it and runs the image's own installer
+without a network, and checks every component up with the seed's login.
 
 ## FIBER Setup's side
 

@@ -19,6 +19,9 @@ paths:
   - {path: /var/log/fiber, by: platform, kind: directory}
   - {path: /boot/firmware/fiber-platform-status.json, by: platform}
   - {path: /boot/firmware/fiber-platform.log, by: platform}
+  # Only on the ready-made image (provision/image/build.sh): its first start's two jobs.
+  - {path: /etc/systemd/system/regenerate_ssh_host_keys.service.d/fiber-image.conf, by: platform}
+  - {path: /etc/systemd/system/rpi-resize.service.d/fiber-image.conf, by: platform}
 
   # base. The block in config.txt is taken out by the role's `disable`.
   - {path: /boot/firmware/overlays/fiber-ds2482.dtbo, by: base}

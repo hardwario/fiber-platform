@@ -24,7 +24,7 @@ to tell that it is done. The facts it works with are in the documents: the board
 | M2 | The agent's core and the south bridge | T13 to T18 | The agent flashes the south bridge on its own and shows the board on MQTT (its three lines held on a FIBER, 2026-11-21; the mini-PCIe lines are left, T17) |
 | M3 | Thermometers | T19 | A DS18B20 shows up on MQTT and in a Node-RED flow |
 | M4 | The front panel | T20, T21 | The LCD shows the name and the address; the buttons move through the pages (held on a FIBER, 2026-11-19) |
-| M5 | The north bridge | T22 to T27, T47 | TOWER nodes pair with the FIBER and their events arrive on MQTT (held on a FIBER with two nodes, 2026-11-20; the 24 hours and a replay on air are left, T27) |
+| M5 | The north bridge | T22 to T27, T47, T53 | TOWER nodes pair with the FIBER and their events arrive on MQTT (held on a FIBER with two nodes, 2026-11-20; the 24 hours and a replay on air are left, T27) |
 | M6 | Bluetooth | T28, T29 | A phone puts a FIBER on Wi-Fi |
 | M7 | Documentation and polish | T30 to T33 | A new user gets from the box to a thermometer in a flow with the documentation alone |
 
@@ -157,7 +157,40 @@ The card is fed from the battery rail and goes away when the battery is low.
 
 ### T12. FIBER Setup: the component picker (M1)
 
-State (2026-11-22): the first release is out, 1.0.0 (T51, D29), and FIBER Setup names it: its
+State (2026-11-23): at the bench, the maintainer there. The bench FIBER is being written from
+scratch with `fiber-setup-cli` built from FIBER Setup's `19f2a2c` (the 1.0.0 image), every
+component ticked; its first start timed. Not today: a cell for the RAK5146 card, NTP blocked, the
+power cut. Then the two Core Modules are paired again (T27). The write (`fiber-setup-cli flash`,
+`--components base,mosquitto,agent,node-red,chirpstack --mqtt-lan`, Wi-Fi, over USB from this
+computer): 6 min 31 s in all, of it the boot over USB 29 s, the settings 2 min
+41 s, the 3.5 GB written in 1 min 40 s and read back in 1 min 40 s; named `fiber-dc9cb4a8`. The
+first try found no boot ROM on USB; after the maintainer checked the jumper, the cable and the
+port and pressed RESET again, it was there at once. The first start: on the network 23 s after
+RESET, the installer at 35 s, done at 4 min 14 s (common 10 s, base 13 s, mosquitto 26 s, agent
+51 s, node-red 48 s, chirpstack 65 s), nothing downloaded. **But SSH was refused,** and the root was
+not grown: `build.sh` leaves `/etc/machine-id` empty, where Raspberry Pi OS ships `uninitialized`,
+and systemd takes an empty one for no first boot, so `regenerate_ssh_host_keys` and `rpi-resize`
+(both `ConditionFirstBoot=yes`) never ran. `uninitialized` was tried first, in a container: the
+first boot then applies systemd's presets, which enable every unit no preset names, the base's
+own as on plain Raspberry Pi OS (`systemd-networkd-wait-online`, `nftables`, both SSH units...)
+and seven of the platform's (`mosquitto`, `redis-server`, `chirpstack-sqlite`,
+`chirpstack-mqtt-forwarder`, `nodered`, `fiber-agent`, `fiber-restart.path`); a preset file kept
+the platform's off, but `systemd-networkd-wait-online` then held the apply back and the image test
+failed. So the fix in `build.sh` keeps the machine id empty and adds two drop-ins
+(`fiber-image.conf`): the host keys made when there are none, and `rpi-resize` run once (the
+partition is grown by the initramfs from `resize` on the kernel command line, first boot or not).
+The image test checks both. Built from the 1.0.0 release's own files (so its installer is the one
+FIBER Setup pins; 2 min 10 s with the base cached), `just image-test` passed, and the bench FIBER
+was written with it again (`--file`, the same settings): 5 min 6 s to write and check. The first
+start: SSH open 46 s after RESET, done at 4 min 11 s (the apply 3 min 16 s: common 8 s, base 14 s,
+mosquitto 26 s, agent 33 s, node-red 49 s, chirpstack 66 s), "its own installer, without the
+network". Then on the FIBER: the login over SSH with the key, 3 host keys, the root grown to 6.6
+GB of the 6.8 GB partition (`rpi-resize` ran and turned itself off), `systemd-networkd` and
+`nftables` off, no failed unit; every component `on`, `ok`; the agent 1.0.0 online, the north
+bridge flashed to 1.0.0's image (`0xb1b22eb2`) by the agent on its own; Node-RED and MQTT on 1884
+take the seed's login and refuse a wrong one; ChirpStack answers. Not committed yet; the fixed
+image is not published (a 1.0.1 for FIBER Setup to pin is the maintainer's call).
+Earlier (2026-11-22): the first release is out, 1.0.0 (T51, D29), and FIBER Setup names it: its
 seven commits are pushed (the last `19f2a2c`), CI green on Windows, macOS and Linux (45003563950).
 Left: the checks on a FIBER (the last step), which need the bench.
 Earlier (2026-11-19): measured on a FIBER with 1 GB, every component ticked, the installer run by
@@ -774,7 +807,14 @@ makes moving the pin a procedure and not an adventure.
       restart of each side; its arithmetic in a `--self-test` that `just check-hil` runs
 - [x] The bench run with the script (2026-11-20): `clicks`, `set`, `restarts`, a short `soak`
 - [ ] A pairing while the other node clicks: its events held up by the handshake arrive late,
-      none lost (T48's fix 1)
+      none lost (T48's fix 1). Tried 2026-11-23 on the FIBER written with the fixed 1.0.0 image
+      (gateway `0x04b900c5`): node A clicked 40 times, one every 2 s, while node B paired
+      (15:17:05 to 15:17:11, code 244682): 38 events, counts 12 and 13 never came, one a second
+      try (0.65 s). The agent's link held (it logged only the pairing), so T48's fix 1 holds; the
+      two were lost on the air: the north bridge serves one handshake at a time, up to 5 s (its
+      `WATCHDOG_US` comment), and a node repeats an unacknowledged frame only a few times, a few
+      hundred ms apart. D30: fixed in the firmware (T53), then tried again. Then both nodes, 20 clicks: all at the first try (0.07
+      and 0.08 s); a `set` to node B both ways
 - [ ] A replay sent on air, if a radio that can send a captured frame turns up
 - [ ] The 24-hour run, with what it found
 - [ ] The procedure used once, for real, on the next move of the pin
@@ -994,7 +1034,27 @@ the pages. Held on a FIBER (2026-11-19); its tasks, T20 and T21, are done.
 Done when: two TOWER Core Modules at the pinned revision pair with the FIBER, their events arrive
 on MQTT and a `set` reaches them; at least 99 % of frames are acknowledged at the first try;
 replays are refused after a restart of either side; 24 hours pass without a fault. Its tasks, T22
-to T27 and T47, are in progress or done.
+to T27 and T47, are in progress or done; T53 is ahead.
+
+
+#### T53. The north bridge serves other nodes while one pairs (M5)
+
+D30: a node's messages must not be lost while another node pairs. On the bench (2026-11-23, T27)
+2 of 40 events of a clicking node were lost during a pairing: the north bridge serves one
+handshake at a time, up to 5 s (`WATCHDOG_US` in `firmware/north/src/main.rs`), and a TOWER node
+gives up on a frame after a few unacknowledged tries (`MAX_REPS`, 200 ms each and up to 100 ms of
+backoff, in TOWER's `firmware/src/radio/net/mod.rs`).
+
+- [ ] Where the handshake's time goes: each X25519 step on the north bridge, and the waits for the
+      node's next message, measured on the bench
+- [ ] The design, in `docs/firmware/` first: between the handshake's steps the radio takes in and
+      acknowledges other nodes' frames, and a step longer than a node's tries is split up
+- [ ] The firmware, with tests on the computer (`crates/tower-air`: a frame of another node in the
+      middle of a handshake is taken in and acknowledged)
+- [ ] On the bench: T27's step again, 40 clicks of one node while the other pairs, none lost
+
+- Needs: D30 (2026-11-23).
+- Done when: on the bench a node clicking through another node's pairing loses no event.
 
 ### M6. Bluetooth
 
@@ -2347,6 +2407,13 @@ release whose build fails uses up 1.0.0.
 None open.
 
 ## Decisions done
+
+- **D30. What may happen to a node's messages while another node pairs?** Nothing: the north
+  bridge keeps serving the other nodes during a pairing (the maintainer, 2026-11-23). Seen on the
+  bench that day: 2 of 40 events of a clicking node lost while another node paired; the north
+  bridge serves one handshake at a time, up to 5 s, and a TOWER node gives up on a frame after a
+  few unacknowledged tries (TOWER's own gateway works the same way). Not chosen: accepting it and
+  saying so. Done in T53; T27's step waits for it.
 
 - **D29. What version is the first release?** 1.0.0 (the maintainer, 2026-11-22, when asked to
   make the first release: "tag as 1.0.0"), not the 0.1.0 the version had until then. The bench
