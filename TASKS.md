@@ -35,25 +35,6 @@ is done, long before the rest of M5.
 
 ## Tasks in progress
 
-### T54. Release 1.0.1: the ready-made image with SSH (M1)
-
-State (2026-11-23): started at the maintainer's word ("release 1.0.1"), after the bench found
-1.0.0's image without SSH host keys and with its root not grown (T32, fixed in `8accd35`, CI
-green). The version commit is next, then its CI and the dry run (the image's build changed), the
-tag.
-
-- [x] CI green on `8accd35` (45194613356)
-- [ ] The version commit: 1.0.1 in `agent/Cargo.toml` and the lock file, the docs' examples;
-      CI green on it
-- [ ] The release workflow's dry run on it: the image built and its first start tried
-- [ ] Tagged `v1.0.1`; published, its files checked against `SHA256SUMS` and their attestations
-- [ ] FIBER Setup's catalog names 1.0.1 (the installer, the image, `components.yaml`); its CI
-      green
-- [ ] On the bench: the published image written by FIBER Setup, the first start with SSH
-
-- Needs: T32's fix (`8accd35`).
-- Done when: release 1.0.1 is published with the fixed image, and FIBER Setup names it.
-
 ### T2. Bench checks on a FIBER (M0)
 
 State (2026-11-19): everything that needs no eyes, ears or hands is answered, on one unit; what is
@@ -176,7 +157,11 @@ The card is fed from the battery rail and goes away when the battery is low.
 
 ### T12. FIBER Setup: the component picker (M1)
 
-State (2026-11-23): at the bench, the maintainer there. The bench FIBER is being written from
+State (2026-11-23): "every box ticked" done on a FIBER, three times (FIBER Setup's CLI, Wi-Fi, MQTT
+on the network): with 1.0.0's image (no SSH: T32's bug), with the fix built from 1.0.0's files,
+and with the published 1.0.1 that FIBER Setup's `ae4b649` names; the last two came up whole (times
+in T32). Left: NTP blocked, the Ethernet cable plugged in only later, the power cut in the middle,
+a RAK5146 card (no cell at hand). What follows is the morning's record: the bench FIBER written from
 scratch with `fiber-setup-cli` built from FIBER Setup's `19f2a2c` (the 1.0.0 image), every
 component ticked; its first start timed. Not today: a cell for the RAK5146 card, NTP blocked, the
 power cut. Then the two Core Modules are paired again (T27). The write (`fiber-setup-cli flash`,
@@ -862,6 +847,9 @@ installation page measured with the ready-made image (D28: the write, the first 
 longer downloads), and what is still untried on a FIBER checked again (FIBER Setup's first start
 with the platform, ChirpStack with a card;
 `fiber radio remove` and `rename` were tried on the bench, 2026-11-21, as the pages have them).
+2026-11-23: the installation page's times put to what the bench measured with the ready-made image
+(the write 5 to 7 minutes, the first start about 4 minutes with every component ticked, the whole
+about 15 minutes), in `../docs` (not committed there).
 
 In `../docs/fiber`. The pages there describe a setup by hand that no longer works.
 
@@ -876,7 +864,11 @@ In `../docs/fiber`. The pages there describe a setup by hand that no longer work
 
 ### T32. A ready-made image (M7)
 
-State (2026-11-21): started at the maintainer's word ("now I like it"), after weighing it: a first
+State (2026-11-23): every step done. Left for the "Done when": a first start on a network without
+the internet, on a FIBER. The bench FIBER's Wi-Fi had the internet; its first start took the
+image's way without the network and downloaded nothing, but only the containers ran with no
+network at all. (With T12's "NTP blocked".)
+Earlier (2026-11-21): started at the maintainer's word ("now I like it"), after weighing it: a first
 start without the internet and in about a minute (today 147 MB downloaded and about 6.5 minutes of
 installing, on the bench), the bits that were tested on every FIBER (today each installs from the
 live package sources at its first start), and room for flashing many; against a file of about
@@ -990,7 +982,8 @@ since. Next: nothing more here before the first release (D24) and a FIBER.
 - [x] CI: the image in the release workflow and its dry run; a test that starts the image's root
       as a container with systemd and no network, seeds it and applies it, every component up
       (dry run 44913866458, 2026-11-21)
-- [ ] The first release: the image published beside the archive, in `SHA256SUMS`
+- [x] The first release: the image published beside the archive, in `SHA256SUMS` (1.0.0 on
+      2026-11-22; 1.0.1, with the fix below, on 2026-11-23)
 - [x] FIBER Setup's first-start script, finding the platform in the image, seeds and applies
       without a download (FIBER Setup's `92f01f5`)
 - [x] D28 in the documents: the README, `docs/provisioning.md` (FIBER Setup's side, the image's
@@ -1007,9 +1000,13 @@ since. Next: nothing more here before the first release (D24) and a FIBER.
       login from FIBER Setup opening Node-RED)
 - [x] FIBER Setup's catalog takes the image's sha256 and size from the first release (D24): 1.0.0,
       FIBER Setup's `19f2a2c` (T51, 2026-11-22)
-- [ ] On a FIBER: written by FIBER Setup, the first start without the internet; its time and the
+- [x] On a FIBER: written by FIBER Setup, the first start without the internet; its time and the
       write's (3.69 GB, where FIBER Setup's texts still say 5 minutes); the root file system grown
-      to the eMMC (`df -h /`)
+      to the eMMC (`df -h /`). 2026-11-23, the published 1.0.1 by FIBER Setup's CLI from its main
+      (`ae4b649`): written and checked in 3 min 47 s, the first start done about 3 min 45 s after
+      `RESET` (the apply 3 min 16 s), "its own installer, without the network", SSH, the root 6.6
+      GB. 1.0.0's image that morning: no SSH and the root not grown (fixed in `8accd35`). FIBER
+      Setup's texts now say the measured times (`ae4b649`)
 
 - Needs: T11 (done).
 - Done when: a FIBER written with the image comes up with its components without the internet, and
@@ -2420,6 +2417,34 @@ release whose build fails uses up 1.0.0.
 - Needs: T2 (the platform ran on a FIBER from a release built by hand, 2026-11-19, see T12), T11,
   D24, D29.
 - Done when: release 1.0.0 is published and FIBER Setup's pushed catalog names it.
+
+### T54. Release 1.0.1: the ready-made image with SSH (M1)
+
+Done 2026-11-23: release 1.0.1 published with the fixed image, FIBER Setup names it, and the bench
+FIBER came up whole with it. Commits `8accd35` (the fix), `17c4db8` "FIBER Platform 1.0.1"; FIBER
+Setup's `4f697ff` and `ae4b649`.
+State (2026-11-23): started at the maintainer's word ("release 1.0.1"), after the bench found
+1.0.0's image without SSH host keys and with its root not grown (T32, fixed in `8accd35`, CI
+green). `17c4db8` "FIBER Platform 1.0.1", its CI and the dry run green; tagged `v1.0.1`, the
+release workflow running (45200521519). FIBER Setup's texts and README now say the measured times
+(the components in about 3 minutes, the whole in about 15), with its pin, not committed yet.
+
+- [x] CI green on `8accd35` (45194613356)
+- [x] The version commit: 1.0.1 in `agent/Cargo.toml` and the lock file, the docs' examples;
+      CI green on it (`17c4db8`, 45197557381)
+- [x] The release workflow's dry run on it: the image built and its first start tried
+      (45197567363, the host keys and `rpi-resize` checked)
+- [x] Tagged `v1.0.1`; published, its files checked against `SHA256SUMS` and their attestations
+      (run 45200521519; immutable; the image 650 568 860 bytes)
+- [x] FIBER Setup's catalog names 1.0.1 (the installer, the image; `components.yaml` is the
+      same as 1.0.0's): `4f697ff`, with the measured times in its texts `ae4b649`; pushed, CI green
+      on Windows, macOS and Linux (45203147883)
+- [x] On the bench: the published image written by FIBER Setup, the first start with SSH
+      (2026-11-23; T32 has the times); both Core Modules paired again (gateway `0x11398c09`), 10 of
+      10 clicks at the first try
+
+- Needs: T32's fix (`8accd35`).
+- Done when: release 1.0.1 is published with the fixed image, and FIBER Setup names it.
 
 ## Decisions ahead
 

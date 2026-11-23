@@ -5,7 +5,7 @@ How a release is made. What a release holds and how the installer uses it is in
 
 **Status:** written (`.github/workflows/release.yml`); its dry run builds and tries the release and
 the ready-made image (2026-11-21); the first release, 1.0.0, was published with it on 2026-11-22
-(T51). The repository's *immutable releases* setting is on (since 2026-11-18).
+(T51), and 1.0.1 on 2026-11-23 (T54). The repository's *immutable releases* setting is on (since 2026-11-18).
 
 ## What a release is
 

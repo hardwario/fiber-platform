@@ -474,16 +474,17 @@ built it from release 0.1.0 (625 MB compressed, 3.5 GB written to the eMMC), and
 in its own root started as a container with systemd and without a network, brought every
 component up in about 30 s (FIBER Setup's first-start script included). The release workflow's
 dry run builds and tries it the same way (623 MB, 2026-11-21). Published with release 1.0.0
-(2026-11-22, 620 MB, 3.69 GB unpacked); FIBER Setup names it. Written to a FIBER on 2026-11-23:
-the first start brought every component up in 4 min 14 s from RESET, without a download, but
-1.0.0's image left `/etc/machine-id` empty, so the first start was no first boot: no SSH host keys
-(SSH refused) and the root not grown. Fixed in `build.sh` since (below); the fixed image is not
-yet published.**
+(2026-11-22, 620 MB, 3.69 GB unpacked). Written to a FIBER on 2026-11-23: the first start brought
+every component up without a download, but 1.0.0's image had no SSH host keys (SSH refused) and
+did not grow its root (below). Fixed in 1.0.1 (2026-11-23, 620 MB), which FIBER Setup names: on a
+FIBER, written by FIBER Setup, its first start was done about 4 minutes after `RESET` with every
+component ticked, with SSH and the root grown. Not yet tried on a FIBER: a first start on a
+network without the internet (only in containers).**
 
 A Raspberry Pi OS with the release and every component's packages in it, written by FIBER Setup in
-place of the stock image. Its first start installs nothing and downloads nothing: about a minute,
-without the internet, where the stock image downloads 147 MB and installs for about 6.5 minutes
-(measured on the bench, T12). And every FIBER written with it has what was tested, where the stock
+place of the stock image. Its first start downloads nothing: about 4 minutes from `RESET` with
+every component ticked, without the internet (4 min 11 s on the bench, 2026-11-23), where the stock
+image downloads 147 MB and installs for about 6.5 minutes (measured on the bench, T12). And every FIBER written with it has what was tested, where the stock
 image installs from the package sources as they are on the day of its first start.
 
 **What is in it:**
@@ -559,7 +560,7 @@ image FIBER Setup wrote started in a container without a network (2026-11-21).
   ticked: no script and no seed are written.
 - **The image** is always the ready-made one of the release FIBER Setup names (D28), so with
   nothing ticked the FIBER starts with every component installed and none turned on. FIBER
-  Setup's catalog names the image and the installer of release 1.0.0 by their sha256 (T51).
+  Setup's catalog names the image and the installer of release 1.0.1 by their sha256 (T54).
 - **The seed** (`fiber-seed.yaml`, above) goes beside the first-start script `fiber-install.sh`.
   The script has the release's version and the sha256 of its `install.sh` written into it (D18).
 - **The script runs as a service,** `fiber-install.service`, which cloud-init starts without
