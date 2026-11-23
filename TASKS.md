@@ -20,7 +20,7 @@ to tell that it is done. The facts it works with are in the documents: the board
 | Milestone | What | Tasks | Done when |
 |---|---|---|---|
 | M0 | Foundations and bench checks | T1 to T3 | Both microcontrollers answer their bootloader from the CM4; CI is green (T1 done) |
-| M1 | Provisioning | T4 to T12, T51 | A FIBER written with every box ticked comes up by itself; a second apply changes nothing |
+| M1 | Provisioning | T4 to T12, T51, T54 | A FIBER written with every box ticked comes up by itself; a second apply changes nothing |
 | M2 | The agent's core and the south bridge | T13 to T18 | The agent flashes the south bridge on its own and shows the board on MQTT (its three lines held on a FIBER, 2026-11-21; the mini-PCIe lines are left, T17) |
 | M3 | Thermometers | T19 | A DS18B20 shows up on MQTT and in a Node-RED flow |
 | M4 | The front panel | T20, T21 | The LCD shows the name and the address; the buttons move through the pages (held on a FIBER, 2026-11-19) |
@@ -34,6 +34,25 @@ bridge firmware fit) and T22 (does the radio hear a TOWER node), which can start
 is done, long before the rest of M5.
 
 ## Tasks in progress
+
+### T54. Release 1.0.1: the ready-made image with SSH (M1)
+
+State (2026-11-23): started at the maintainer's word ("release 1.0.1"), after the bench found
+1.0.0's image without SSH host keys and with its root not grown (T32, fixed in `8accd35`, CI
+green). The version commit is next, then its CI and the dry run (the image's build changed), the
+tag.
+
+- [x] CI green on `8accd35` (45194613356)
+- [ ] The version commit: 1.0.1 in `agent/Cargo.toml` and the lock file, the docs' examples;
+      CI green on it
+- [ ] The release workflow's dry run on it: the image built and its first start tried
+- [ ] Tagged `v1.0.1`; published, its files checked against `SHA256SUMS` and their attestations
+- [ ] FIBER Setup's catalog names 1.0.1 (the installer, the image, `components.yaml`); its CI
+      green
+- [ ] On the bench: the published image written by FIBER Setup, the first start with SSH
+
+- Needs: T32's fix (`8accd35`).
+- Done when: release 1.0.1 is published with the fixed image, and FIBER Setup names it.
 
 ### T2. Bench checks on a FIBER (M0)
 
