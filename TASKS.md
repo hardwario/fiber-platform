@@ -846,7 +846,12 @@ makes moving the pin a procedure and not an adventure.
       and fetched as it grows, SSH with keepalives and tries again, a hung `tower` call not counted
       as a click; its self-test covers a line cut between two fetches; on the FIBER: 10 of 10 events
       (one second try), `set` both ways, nothing left behind. Then 9 hours at the maintainer's word
-      (2026-11-24, in place of 18)
+      (2026-11-24, in place of 18): started 2026-11-24 at 08:54 (a start at 08:34 was stopped after
+      20 minutes: its first fetch failed, "No route to host", and the script's last fetch tried
+      once and then removed the FIBER's file, so a blip at the end would have lost it all; now the
+      last fetch tries for up to 10 minutes and the file stays if it fails), the same nodes and FIBER,
+      `--hours 9 --every 60 --events target/bench/soak-2026-11-24-events.log`, its progress in
+      `target/bench/soak-2026-11-24.log`, the events on the FIBER in `/tmp/tower-bench-*.log`
 - [ ] The procedure used once, for real, on the next move of the pin
 
 - Needs: T26.
@@ -2474,7 +2479,19 @@ release workflow running (45200521519). FIBER Setup's texts and README now say t
 
 ## Decisions ahead
 
-None open.
+- **D31. Wi-Fi power saving on a FIBER?** (T27) On 2026-11-24 the bench FIBER on Wi-Fi was out of
+  reach from the computer for seconds to more than a minute at a time ("No route to host", an SSH
+  session reset), while its own log showed no disconnect; pinging it steadily lost nothing.
+  Raspberry Pi OS leaves the Wi-Fi chip's power saving on (`Power save: on`), which is known to make
+  a Raspberry Pi slow to answer from outside; the access point is also on 5 GHz channel 56, a radar
+  channel it must leave now and then. Not yet told apart. Choices:
+  1. **(Recommended)** The `base` role turns Wi-Fi power saving off
+     (`/etc/NetworkManager/conf.d/fiber-wifi.conf`, `wifi.powersave = 2`), on the footprint list; a
+     FIBER is mains-powered or on PoE, so the power it saves matters little. Tried on the bench
+     first: a night with pings and SSH every minute, power saving on and then off.
+  2. Leave Raspberry Pi OS's default, and say in the docs that a FIBER on Wi-Fi can be slow to
+     reach.
+  3. Decide later.
 
 ## Decisions done
 

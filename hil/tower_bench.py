@@ -148,11 +148,13 @@ class Watch:
         self.failed = 0
         time.sleep(2)  # the subscription in place before the first click
 
-    def fetch(self):
-        out = ssh_run(self.fiber, f"tail -c +{self.size + 1} {self.path}", tries=1)
+    def fetch(self, tries=1):
+        """What the file grew by; False when the FIBER did not answer (it drops off its Wi-Fi for
+        moments: "No route to host", 2026-11-24)."""
+        out = ssh_run(self.fiber, f"tail -c +{self.size + 1} {self.path}", tries=tries)
         if out is None:
             self.failed += 1
-            return
+            return False
         self.size += len(out.encode())
         lines, self.rest = take(self.rest, out)
         self.lines += lines
@@ -160,17 +162,23 @@ class Watch:
             with open(self.keep, "a", encoding="utf-8") as f:
                 for t, topic, payload in lines:
                     f.write(f"{t:.6f} {topic} {payload}\n")
+        return True
 
     def now(self):
         return time.time() + self.offset
 
-    def since(self, index):
-        self.fetch()
+    def since(self, index, sure=False):
+        """The messages from `index` on. `sure`: for a result, keep trying (up to 10 minutes)
+        until the FIBER answers, so that the count is complete."""
+        self.fetch(tries=40 if sure else 1)
         return self.lines[index:], len(self.lines)
 
     def stop(self):
-        self.fetch()
-        ssh_run(self.fiber, f"kill {self.pid}; rm -f {self.path}", tries=2)
+        # The file is removed only when the last fetch got it all; else it stays on the FIBER.
+        if self.fetch(tries=40):
+            ssh_run(self.fiber, f"kill {self.pid}; rm -f {self.path}", tries=2)
+        else:
+            print(f"the events stay on the FIBER in {self.path}: the last fetch failed", flush=True)
 
 
 def events_in(lines):
@@ -264,7 +272,7 @@ def run_clicks(fiber, devices, count, every, watch=None, log_every=None, until=N
                       "; ".join(f"{a} {v['first_try']}/{v['clicks']}" for a, v in r.items()),
                       f"| fetches failed {watch.failed}, clicks not sent {unsent}", flush=True)
         time.sleep(LOST_AFTER)
-        lines, _ = watch.since(0)
+        lines, _ = watch.since(0, sure=True)
     finally:
         if own:
             watch.stop()
@@ -321,7 +329,7 @@ def run_restarts(fiber, device, count):
             presses.append((watch.now(), addr))
             time.sleep(4)
         time.sleep(LOST_AFTER)
-        lines, _ = watch.since(0)
+        lines, _ = watch.since(0, sure=True)
     finally:
         watch.stop()
     print("a click right after each restart of the node:")
