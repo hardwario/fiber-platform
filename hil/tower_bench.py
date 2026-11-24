@@ -26,16 +26,17 @@ its console (`button simulate 100`) and reads its address (`node status`).
   (`--report-every`) and the north bridge's state (`fiber firmware`) at each.
 
 It ends with 0 when everything passed, 1 when something did not. Nothing here writes a chip.
-Status: the steps were run by hand on a FIBER (2026-11-20); this script has run only its
-self-test so far.
+Status: run on a FIBER (2026-11-20: clicks, set, restarts, a short soak). The first 18-hour soak
+(2026-11-23) read the events through one long SSH session, which was reset after 25 minutes, and
+its count stopped there; the events are now kept in a file on the FIBER and fetched as it grows.
 """
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
-import threading
 import time
 
 PRESS = "button simulate 100"
@@ -48,12 +49,37 @@ FIRST_TRY_NEEDED = 0.99
 
 
 def tower(device, command, timeout=20):
-    """One shell command on a node's console; its reply."""
-    out = subprocess.run(
-        ["tower", "-d", device, "exec", command],
-        capture_output=True, text=True, timeout=timeout, check=False,
-    )
-    return out.stdout.strip()
+    """One shell command on a node's console; its reply, or None when `tower` hung or failed (a
+    soak goes on: the click is then not counted as sent)."""
+    try:
+        out = subprocess.run(
+            ["tower", "-d", device, "exec", command],
+            capture_output=True, text=True, timeout=timeout, check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+    return out.stdout.strip() if out.returncode == 0 else None
+
+
+# SSH that notices a dead link within half a minute, instead of hanging on it.
+SSH = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=10",
+       "-o", "ServerAliveCountMax=3"]
+
+
+def ssh_run(fiber, command, timeout=60, tries=3):
+    """One command on the FIBER; its output, or None when every try failed. A long run goes on
+    through a network blip: the next call simply tries again."""
+    for attempt in range(tries):
+        try:
+            out = subprocess.run(SSH + [fiber, command], capture_output=True, text=True,
+                                 timeout=timeout, check=False)
+            if out.returncode == 0:
+                return out.stdout
+        except subprocess.TimeoutExpired:
+            pass
+        if attempt + 1 < tries:
+            time.sleep(5)
+    return None
 
 
 def node_address(device):
@@ -70,46 +96,81 @@ def clock_offset(fiber):
     best = None
     for _ in range(5):
         before = time.time()
-        out = subprocess.run(["ssh", fiber, "date +%s.%N"], capture_output=True, text=True, check=True)
+        out = ssh_run(fiber, "date +%s.%N")
         after = time.time()
+        if out is None:
+            continue
         trip = after - before
-        offset = float(out.stdout.strip()) - (before + after) / 2
+        offset = float(out.strip()) - (before + after) / 2
         if best is None or trip < best[0]:
             best = (trip, offset)
+    if best is None:
+        raise SystemExit(f"{fiber}: no answer over SSH")
     return best[1]
 
 
-class Watch:
-    """`mosquitto_sub` on the FIBER, over SSH: every message of the node topics, with the time
-    the FIBER took it. `now()` is the time on the FIBER's clock, for the clicks."""
+def take(rest, chunk):
+    """The watched messages in `rest` (an unfinished line from before) and `chunk` (what the
+    file grew by): (time, topic, payload) for each whole line, and the unfinished rest."""
+    *whole, rest = (rest + chunk).split("\n")
+    lines = []
+    for line in whole:
+        parts = line.split(" ", 2)
+        if len(parts) == 3:
+            try:
+                lines.append((float(parts[0]), parts[1], parts[2]))
+            except ValueError:
+                pass
+    return lines, rest
 
-    def __init__(self, fiber, topics):
+
+class Watch:
+    """`mosquitto_sub` on the FIBER itself, every message of the node topics with the time the
+    FIBER took it, into a file there; this computer fetches what the file grew by over SSH. A
+    network blip then loses nothing: the next fetch takes up what came meanwhile. (The first
+    18-hour soak, 2026-11-23, read one long SSH session; it was reset after 25 minutes and the
+    count stopped there.) `now()` is the time on the FIBER's clock, for the clicks."""
+
+    def __init__(self, fiber, topics, keep=None):
+        self.fiber = fiber
         self.offset = clock_offset(fiber)
-        args = ["ssh", "-o", "ServerAliveInterval=10", fiber, "mosquitto_sub", "-h", "localhost", "-F", "'%U %t %p'"]
-        for t in topics:
-            args += ["-t", f"'{t}'"]
-        self.proc = subprocess.Popen(args, stdout=subprocess.PIPE, text=True)
+        self.path = f"/tmp/tower-bench-{os.getpid()}-{int(time.time())}.log"
+        subs = " ".join(f"-t '{t}'" for t in topics)
+        pid = ssh_run(fiber, f"nohup mosquitto_sub -h localhost -F '%U %t %p' {subs} "
+                             f"> {self.path} 2> /dev/null < /dev/null & echo $!")
+        if pid is None or not pid.strip().isdigit():
+            raise SystemExit(f"{fiber}: could not start mosquitto_sub")
+        self.pid = pid.strip()
+        self.keep = keep
         self.lines = []
-        self.lock = threading.Lock()
-        threading.Thread(target=self._read, daemon=True).start()
+        self.size = 0
+        self.rest = ""
+        self.failed = 0
         time.sleep(2)  # the subscription in place before the first click
 
-    def _read(self):
-        for line in self.proc.stdout:
-            parts = line.rstrip("\n").split(" ", 2)
-            if len(parts) == 3:
-                with self.lock:
-                    self.lines.append((float(parts[0]), parts[1], parts[2]))
+    def fetch(self):
+        out = ssh_run(self.fiber, f"tail -c +{self.size + 1} {self.path}", tries=1)
+        if out is None:
+            self.failed += 1
+            return
+        self.size += len(out.encode())
+        lines, self.rest = take(self.rest, out)
+        self.lines += lines
+        if self.keep and lines:
+            with open(self.keep, "a", encoding="utf-8") as f:
+                for t, topic, payload in lines:
+                    f.write(f"{t:.6f} {topic} {payload}\n")
 
     def now(self):
         return time.time() + self.offset
 
     def since(self, index):
-        with self.lock:
-            return self.lines[index:], len(self.lines)
+        self.fetch()
+        return self.lines[index:], len(self.lines)
 
     def stop(self):
-        self.proc.terminate()
+        self.fetch()
+        ssh_run(self.fiber, f"kill {self.pid}; rm -f {self.path}", tries=2)
 
 
 def events_in(lines):
@@ -172,11 +233,15 @@ def report(result):
     return ok
 
 
-def run_clicks(fiber, devices, count, every, watch=None, log_every=None, until=None):
+def run_clicks(fiber, devices, count, every, watch=None, log_every=None, until=None, keep=None):
     nodes = [(d, node_address(d)) for d in devices]
     own = watch is None
-    watch = watch or Watch(fiber, ["fiber/radio/nodes/+/event/#"])
+    watch = watch or Watch(fiber, ["fiber/radio/nodes/+/event/#"], keep=keep)
+    if log_every:
+        print(f"events kept on the FIBER in {watch.path}" + (f" and here in {keep}" if keep else ""),
+              flush=True)
     presses = []
+    unsent = 0
     last_log = time.time()
     try:
         i = 0
@@ -185,22 +250,26 @@ def run_clicks(fiber, devices, count, every, watch=None, log_every=None, until=N
             i += 1
             # The click's time is when the node answers the command: the time `tower` takes to
             # start and open the port before it varies by a few tenths of a second.
-            tower(device, PRESS)
-            presses.append((watch.now(), addr))
+            if tower(device, PRESS) is None:
+                unsent += 1
+            else:
+                presses.append((watch.now(), addr))
             time.sleep(every)
             if log_every and time.time() - last_log >= log_every:
                 last_log = time.time()
                 lines, _ = watch.since(0)
                 r = analyse(presses, events_in(lines))
-                north = subprocess.run(["ssh", fiber, "fiber firmware status | grep North"],
-                                       capture_output=True, text=True, check=False).stdout.strip()
+                north = (ssh_run(fiber, "fiber firmware status | grep North") or "North ?").strip()
                 print(time.strftime("%H:%M:%S"), north, "|",
-                      "; ".join(f"{a} {v['first_try']}/{v['clicks']}" for a, v in r.items()), flush=True)
+                      "; ".join(f"{a} {v['first_try']}/{v['clicks']}" for a, v in r.items()),
+                      f"| fetches failed {watch.failed}, clicks not sent {unsent}", flush=True)
         time.sleep(LOST_AFTER)
         lines, _ = watch.since(0)
     finally:
         if own:
             watch.stop()
+    if unsent:
+        print(f"{unsent} clicks not sent (`tower` hung or failed): not counted")
     return report(analyse(presses, events_in(lines)))
 
 
@@ -227,8 +296,9 @@ def run_set(fiber, device):
     try:
         for value in (False, True):
             _, start = watch.since(0)
-            subprocess.run(["ssh", fiber, "mosquitto_pub", "-h", "localhost", "-q", "1",
-                            "-t", f"{base}/set/led", "-m", json.dumps(value)], check=True)
+            if ssh_run(fiber, f"mosquitto_pub -h localhost -q 1 -t '{base}/set/led' "
+                              f"-m '{json.dumps(value)}'") is None:
+                raise SystemExit(f"{fiber}: could not publish {base}/set/led")
             time.sleep(1)
             tower(device, PRESS)
             got = wait_for(watch, start, f"{base}/state/led", value, 10)
@@ -284,6 +354,12 @@ def self_test():
         (1.3, "fiber/radio/nodes/0xc/event/button", "not json"),
     ]
     assert events_in(lines) == [(1.0, "0xc", 3, 9)]
+    # The file fetched in pieces: a line cut between two fetches is taken whole by the second.
+    got, rest = take("", '1.5 fiber/radio/nodes/0xc/event/button {"value":"click","count":4,"coun')
+    assert got == [] and rest.startswith("1.5 ")
+    got, rest = take(rest, 'ter":11}\n1.6 fiber/radio/nodes/0xc/x 1\nbad line\n')
+    assert [t for t, _, _ in got] == [1.5, 1.6] and rest == ""
+    assert events_in(got) == [(1.5, "0xc", 4, 11)]
     print("self-test passed")
 
 
@@ -303,6 +379,7 @@ def main():
         else:
             p.add_argument("--hours", type=float, required=True)
             p.add_argument("--report-every", type=float, default=10.0, help="minutes between progress lines")
+            p.add_argument("--events", help="a file here to keep every event in, as it is fetched")
     p = sub.add_parser("set")
     p.add_argument("fiber")
     p.add_argument("device")
@@ -315,7 +392,7 @@ def main():
         ok = run_clicks(args.fiber, args.devices, args.count, args.every)
     elif args.what == "soak":
         ok = run_clicks(args.fiber, args.devices, 0, args.every, log_every=args.report_every * 60,
-                        until=time.time() + args.hours * 3600)
+                        until=time.time() + args.hours * 3600, keep=args.events)
     elif args.what == "set":
         ok = run_set(args.fiber, args.device)
     else:

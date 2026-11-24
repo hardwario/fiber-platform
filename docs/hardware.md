@@ -192,7 +192,11 @@ PoE (12 V) or the Li-Ion cell feed a buck-boost converter (LT3120) that makes 5 
 board's 3.3 V rail is the CM4's own output. The north bridge has its own regulator from 5 V, the
 mini-PCIe card its own from the battery rail: `U27` (TPS62933, a buck converter that needs at least
 3.8 V) takes `BAT+`, the charger's battery node, and starts with the 5 V converter (`POWER_EN`).
-**Without a cell the card has no power** (seen on the bench, 2026-11-19). The power button cuts the 5 V converter while it is
+**Without a cell the card has no power** (seen on the bench, 2026-11-19). `U27` makes the card's
+3.3 V (`VDD2`, its four 3.3 V pins; feedback 47 k over 15 k, 3.31 V), enabled by `POWER_EN` through
+a 0 R. The USB switch (`U1`, FSUSB42) takes its `SEL` from the USB-B socket's VBUS through a
+10 k / 10 k divider, which also goes to the CM4's `USB2_OTG_ID`: with no cable `SEL` is low and the
+card (`HSD1`) has the bus. The power button cuts the 5 V converter while it is
 held: it is a hardware switch that no GPIO reads.
 
 ## Not determined from the schematic
@@ -202,6 +206,13 @@ held: it is a hardware switch that no GPIO reads.
   (2026-11-19). **The panel is mounted upside down:** sent as drawn, the picture is upside down;
   the agent turns it by 180 degrees, as the earlier software did, and then it is upright
   (`bench-checks.md`, check 2).
+- Whether the card's converter `U27` runs at all. Its `EN` is tied through R66 (0 R) to `POWER_EN`,
+  which R27 (10 k) pulls up to the +12 V rail and only the power button pulls down; no GPIO can
+  switch the card. The TPS62933's `EN` is rated to about 6 V (TI asks for under 5.5 V), so on this
+  net it may be overstressed. On 2026-11-23 a second unit with a cell at 3.84 V (above the
+  converter's 3.4 to 3.8 V start) showed no card on USB and the card's LED stayed dark. From the
+  schematic and the datasheet, not measured: `POWER_EN` (TP45), `BAT+` (TP38) and the card's 3.3 V
+  (C69, C70) would tell. If it is the `EN` level, the fix is a divider in place of R66.
 - Whether the RAK5146 USB card needs mini-PCIe pin 22 high or low (it is PERST#, active-low, on the
   modem; RAK's SPI variants use it as an active-high reset).
 - The radio's frequency band is not marked: it is set by software.

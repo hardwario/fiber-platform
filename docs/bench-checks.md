@@ -93,6 +93,14 @@ comes from its own converter (`U27`, TPS62933, at least 3.8 V in) whose input is
 charger's battery node, and the unit has no cell (`fiber power`: input 13.62 V from PoE, no
 battery). Pin 22 was not driven; next with a charged cell fitted.
 
+2026-11-23, a second unit (`fiber-19cb4010`, serial `1000000019cb4010`) with a cell and a RAK5146
+USB card, written by FIBER Setup with 1.0.1 and `hardware.minipcie: rak5146` (which drives nothing
+yet), nothing on the USB-B socket. The cell read 3.75 to 3.76 V on PoE, charging; `U27` wants at
+least 3.8 V. `lsusb` showed only the root hub in every case, each held 6 s: GPIO10 and 11 as found
+(inputs with the pull-down, low); GPIO11 high; GPIO11 low for 200 ms, then high; GPIO10 high with
+GPIO11 high, and with GPIO11 low (`pinctrl`, by hand). `config.txt` has `dtoverlay=dwc2,dr_mode=host`
+and `otg_mode=1`. Both lines put back to inputs. Not answered: whether the card had power.
+
 ## 4. Radio: can the STM32WL55 exchange frames with a TOWER Core Module?
 
 The spike that opens the north bridge work (T22). With a Core Module running TOWER's

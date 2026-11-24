@@ -59,7 +59,13 @@ again. So the J-Link's presence on the header is enough, not only its reads: unp
 header before relying on the CM4's way into the south bridge. On 2026-11-21 the J-Link was taken
 off and the FIBER started without it: `fiber firmware chip south` and `chip north` both read
 their chip (0x453, `0xFEFFFEAA`; 0x497, `0x3FFFF0AA`). Left,
-for someone at the bench: a RAK5146 card in the slot; a second unit. The test pattern is
+for someone at the bench: a RAK5146 card in the slot; a second unit. 2026-11-23: a second unit
+with a cell and a RAK5146 card (`fiber-19cb4010` at 10.0.0.198, written with 1.0.1): the card did
+not show on USB at any level of GPIO10 and 11 (`docs/bench-checks.md`, check 3); the cell at 3.76 V,
+under `U27`'s 3.8 V, so the card's power is the open question. At 3.84 V the same, and the card's
+LED stayed dark (the maintainer). No GPIO can switch the card: `U27`'s `EN` is `POWER_EN` through a
+0 R, a net near the +12 V rail, where the TPS62933's `EN` is rated to about 6 V
+(`docs/hardware.md`). To measure: TP45, TP38, C69/C70. The test pattern is
 `hil/lcd_test.py` (a copy is in the home directory of `fiber` on the unit; stop the agent first,
 it drives the LCD).
 
@@ -160,8 +166,13 @@ The card is fed from the battery rail and goes away when the battery is low.
 State (2026-11-23): "every box ticked" done on a FIBER, three times (FIBER Setup's CLI, Wi-Fi, MQTT
 on the network): with 1.0.0's image (no SSH: T32's bug), with the fix built from 1.0.0's files,
 and with the published 1.0.1 that FIBER Setup's `ae4b649` names; the last two came up whole (times
-in T32). Left: NTP blocked, the Ethernet cable plugged in only later, the power cut in the middle,
-a RAK5146 card (no cell at hand). What follows is the morning's record: the bench FIBER written from
+in T32). The same evening a second unit with a cell and a RAK5146 card (`fiber-19cb4010`,
+10.0.0.198), written with 1.0.1 and `--minipcie rak5146`, every box ticked: the write and check
+took 9 min 8 s there (3 min 47 s on the first unit, the same computer and cable), the first start
+was done about 4 min 10 s after the boot (the apply 3 min 17 s), every component `ok`, SSH, the
+root grown, the cell read. Its card is not on USB yet (T2, check 3), so ChirpStack with the card is
+not tried. Left: NTP blocked, the Ethernet cable plugged in only later, the power cut in the
+middle, the card itself. What follows is the morning's record: the bench FIBER written from
 scratch with `fiber-setup-cli` built from FIBER Setup's `19f2a2c` (the 1.0.0 image), every
 component ticked; its first start timed. Not today: a cell for the RAK5146 card, NTP blocked, the
 power cut. Then the two Core Modules are paired again (T27). The write (`fiber-setup-cli flash`,
@@ -820,7 +831,22 @@ makes moving the pin a procedure and not an adventure.
       hundred ms apart. D30: fixed in the firmware (T53), then tried again. Then both nodes, 20 clicks: all at the first try (0.07
       and 0.08 s); a `set` to node B both ways
 - [ ] A replay sent on air, if a radio that can send a captured frame turns up
-- [ ] The 24-hour run, with what it found
+- [ ] The 24-hour run, with what it found. 18 hours at the maintainer's word (2026-11-23: "should
+      be enough instead of 24 h"). Started 2026-11-23 at 22:25 on `fiber-dc9cb4a8` (1.0.1,
+      gateway `0x11398c09`): `hil/tower_bench.py soak fiber@10.0.0.108 /dev/cu.usbserial-1120
+      /dev/cu.usbserial-1140 --hours 18 --every 60`, under `caffeinate -i`, its log in
+      `target/bench/soak-2026-11-23.log` on the maintainer's computer. Before it, with the antenna
+      put back on: 20 of 20 at the first try, node A at -66 dBm and node B at -83 dBm. The second
+      unit (`fiber-19cb4010`) stayed on the network, no node paired with it. **Its count was lost:**
+      the script read the events through one long SSH session, which was reset from the computer's
+      side at 22:51 (the FIBER logged "Connection reset by peer"), and it never reconnected; it
+      clicked on for 10 hours and counted nothing after 11 of 11 (A) and 9 of 10 (B). The FIBER
+      ran the whole night without a restart, both nodes still heard in the morning. Fixed in the
+      script (2026-11-24): the events kept in a file on the FIBER (`mosquitto_sub` under `nohup`)
+      and fetched as it grows, SSH with keepalives and tries again, a hung `tower` call not counted
+      as a click; its self-test covers a line cut between two fetches; on the FIBER: 10 of 10 events
+      (one second try), `set` both ways, nothing left behind. Then 9 hours at the maintainer's word
+      (2026-11-24, in place of 18)
 - [ ] The procedure used once, for real, on the next move of the pin
 
 - Needs: T26.
